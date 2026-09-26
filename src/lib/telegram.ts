@@ -91,6 +91,7 @@ export const haptic = {
   soft: () => tg?.HapticFeedback?.impactOccurred("soft"),
   medium: () => tg?.HapticFeedback?.impactOccurred("medium"),
   rigid: () => tg?.HapticFeedback?.impactOccurred("rigid"),
+  heavy: () => tg?.HapticFeedback?.impactOccurred("heavy"),
   select: () => tg?.HapticFeedback?.selectionChanged(),
   success: () => tg?.HapticFeedback?.notificationOccurred("success"),
   warning: () => tg?.HapticFeedback?.notificationOccurred("warning"),

@@ -17,6 +17,7 @@ import { WeightScreen } from "./Weight";
 import { GoalScreen } from "./Goal";
 import { ExpenditureScreen } from "./Expenditure";
 import { LogWeightSheet } from "@/sheets/LogWeight";
+import { HeaderAvatar } from "@/ui/HeaderAvatar";
 import "./stats.css";
 
 type Metric = "kcal" | "protein" | "fat" | "carbs";
@@ -35,9 +36,12 @@ export function StatsPage() {
     <div className="page">
       <div className="page-head">
         <div className="page-title">Прогресс</div>
-        <Tap className="icon-btn" onClick={() => nav.sheet(<LogWeightSheet />)} aria-label="Записать вес">
-          <Plus size={20} />
-        </Tap>
+        <div className="row" style={{ gap: 8 }}>
+          <Tap className="icon-btn" onClick={() => nav.sheet(<LogWeightSheet />)} aria-label="Записать вес">
+            <Plus size={20} />
+          </Tap>
+          <HeaderAvatar />
+        </div>
       </div>
 
       <WeekCard />

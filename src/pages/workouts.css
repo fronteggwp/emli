@@ -1,0 +1,802 @@
+/* ───────── Картинки упражнений */
+.ex-img {
+  position: relative;
+  overflow: hidden;
+  background: #f3f3f5;
+  flex-shrink: 0;
+  aspect-ratio: 1.3;
+}
+.ex-img img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+.ex-img.ready img:first-child {
+  opacity: 1;
+}
+/* Второй кадр плавно «накрывает» первый — получается движение */
+.ex-img.ready .ex-img-b {
+  animation: ex-frame 2.4s ease-in-out infinite;
+}
+@keyframes ex-frame {
+  0%,
+  35% {
+    opacity: 0;
+  }
+  50%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.ex-img-empty {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--card-2), var(--card-3));
+  color: var(--text-3);
+}
+
+/* ───────── Схема мышц */
+.muscle-map {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.muscle-side {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.muscle-fig {
+  height: calc(100% - 18px);
+  width: auto;
+  aspect-ratio: 1 / 2;
+}
+.muscle-fig polygon {
+  transition:
+    fill 0.4s,
+    fill-opacity 0.4s;
+}
+.muscle-side span {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* ───────── Вкладка «Тренировки» */
+.start-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 30px;
+  padding: 20px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--c1, #7c8cff), var(--c2, #b388ff));
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+}
+.start-card::after {
+  content: "";
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+}
+.start-card .label {
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.start-card .title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  margin: 6px 0 4px;
+  line-height: 1.15;
+}
+.start-card .sub {
+  font-size: 14px;
+  opacity: 0.9;
+}
+.start-card .btn {
+  margin-top: 16px;
+  background: #fff;
+  color: #111;
+}
+.start-thumbs {
+  display: flex;
+  margin-top: 14px;
+}
+.start-thumbs > * {
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  margin-right: -10px;
+}
+
+.active-bar {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--sab) + var(--tabbar-h) + 26px);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #22b573, #1d9a8f);
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  animation: rise 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.active-bar .pulse {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  animation: live 1.4s ease-in-out infinite;
+}
+@keyframes live {
+  50% {
+    opacity: 0.3;
+    transform: scale(0.7);
+  }
+}
+html.kb .active-bar {
+  display: none;
+}
+
+.program-card {
+  position: relative;
+  flex-shrink: 0;
+  width: 240px;
+  height: 150px;
+  border-radius: 24px;
+  padding: 16px;
+  overflow: hidden;
+  color: #fff;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: linear-gradient(145deg, var(--c1), var(--c2));
+}
+.program-card .emoji {
+  position: absolute;
+  right: 10px;
+  bottom: -6px;
+  font-size: 64px;
+  opacity: 0.9;
+  transform: rotate(-12deg);
+}
+.program-card .pt {
+  font-weight: 800;
+  font-size: 17px;
+  line-height: 1.15;
+  max-width: 80%;
+}
+.program-card .ps {
+  font-size: 12.5px;
+  opacity: 0.9;
+  margin-top: 4px;
+  max-width: 78%;
+}
+.program-card .tags {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  position: relative;
+}
+.tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.hscroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  margin: 0 -16px;
+  padding: 2px 16px 6px;
+  scrollbar-width: none;
+}
+.hscroll::-webkit-scrollbar {
+  display: none;
+}
+
+.wk-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  width: 100%;
+  text-align: left;
+  position: relative;
+}
+.wk-row + .wk-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 0;
+  height: 1px;
+  background: var(--line);
+}
+.wk-date {
+  width: 46px;
+  height: 50px;
+  border-radius: 14px;
+  background: var(--card-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1.05;
+}
+.wk-date b {
+  font-size: 18px;
+}
+.wk-date span {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* ───────── Каталог */
+.ex-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+  width: 100%;
+  text-align: left;
+  position: relative;
+}
+.ex-row .ex-img {
+  width: 64px;
+  border-radius: 14px;
+}
+.ex-row-name {
+  font-size: 15.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ex-row-sub {
+  font-size: 12.5px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+.pick-check {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--line-2);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.pick-check.on {
+  background: var(--kcal);
+  border-color: var(--kcal);
+  transform: scale(1.08);
+}
+.pick-bar {
+  position: sticky;
+  bottom: 0;
+  margin: 0 -16px;
+  padding: 10px 16px max(10px, var(--sab));
+  background: linear-gradient(transparent, var(--bg) 30%);
+}
+
+/* ───────── Страница упражнения */
+.ex-hero {
+  border-radius: 26px;
+  overflow: hidden;
+}
+.ex-hero .ex-img {
+  aspect-ratio: 1.25;
+}
+.ex-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.ex-badge {
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--card-2);
+  color: var(--text-2);
+}
+.steps {
+  counter-reset: step;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.step {
+  display: flex;
+  gap: 12px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.step::before {
+  counter-increment: step;
+  content: counter(step);
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(124, 140, 255, 0.16);
+  color: var(--kcal);
+  font-weight: 800;
+  font-size: 13px;
+  display: grid;
+  place-items: center;
+}
+.tip {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 194, 71, 0.1);
+  color: #ffd782;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.pr-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.pr-tile {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 12px 14px;
+}
+.pr-tile .v {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.pr-tile .k {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+/* ───────── Программа */
+.program-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 30px;
+  padding: 22px 20px;
+  color: #fff;
+  background: linear-gradient(145deg, var(--c1), var(--c2));
+}
+.program-hero .emoji {
+  position: absolute;
+  right: 6px;
+  bottom: -14px;
+  font-size: 110px;
+  opacity: 0.85;
+  transform: rotate(-10deg);
+}
+.program-hero h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 1.1;
+  max-width: 75%;
+}
+.program-hero p {
+  margin: 8px 0 0;
+  font-size: 14px;
+  opacity: 0.92;
+  max-width: 80%;
+}
+.program-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+.program-stats > div {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 12px;
+  text-align: center;
+}
+.program-stats b {
+  display: block;
+  font-size: 20px;
+  font-weight: 800;
+}
+.program-stats span {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.day-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  overflow: hidden;
+}
+.day-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+}
+.day-num {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+}
+.day-ex {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  width: 100%;
+  text-align: left;
+}
+.day-ex .ex-img {
+  width: 48px;
+  border-radius: 12px;
+}
+
+/* ───────── Активная тренировка */
+.aw {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.aw-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(var(--sat) + 8px) 14px 10px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(11, 11, 14, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 3;
+}
+.aw-time {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.aw-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 12px calc(var(--sab) + 120px);
+  scrollbar-width: none;
+}
+.aw-scroll::-webkit-scrollbar {
+  display: none;
+}
+.aw-ex {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 12px 12px 8px;
+  margin-bottom: 12px;
+  animation: rise 0.4s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.aw-ex-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.aw-ex-head .ex-img {
+  width: 58px;
+  border-radius: 14px;
+}
+.aw-ex-name {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.aw-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(79, 209, 139, 0.14);
+  color: var(--good);
+}
+.set-grid {
+  display: grid;
+  grid-template-columns: 34px 1fr 76px 68px 44px;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+.set-grid.timed {
+  grid-template-columns: 34px 1fr 96px 44px;
+}
+.set-grid .h {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+.set-row {
+  display: contents;
+}
+.set-num {
+  height: 38px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 14px;
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+}
+.set-num.warmup {
+  color: var(--fat);
+}
+.set-num.drop {
+  color: var(--kcal-2);
+}
+.set-num.failure {
+  color: var(--danger);
+}
+.set-prev {
+  font-size: 13px;
+  color: var(--text-3);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.set-in {
+  height: 38px;
+  border-radius: 12px;
+  border: 1.5px solid transparent;
+  background: var(--card-2);
+  text-align: center;
+  font-size: 17px;
+  font-weight: 700;
+  font-family: var(--font-num);
+  outline: none;
+  width: 100%;
+  min-width: 0;
+  transition:
+    background 0.25s,
+    border-color 0.2s;
+}
+.set-in:focus {
+  border-color: var(--kcal);
+}
+.set-in::placeholder {
+  color: var(--text-3);
+  font-weight: 600;
+}
+.set-done {
+  width: 40px;
+  height: 38px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--card-2);
+  color: var(--text-3);
+  justify-self: center;
+  transition:
+    background 0.25s,
+    color 0.25s,
+    transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.set-done.on {
+  background: var(--good);
+  color: #062a14;
+  animation: done-pop 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes done-pop {
+  50% {
+    transform: scale(1.18);
+  }
+}
+.row-done .set-in {
+  background: rgba(79, 209, 139, 0.12);
+}
+.aw-add-set {
+  width: 100%;
+  height: 38px;
+  margin-top: 8px;
+  border-radius: 12px;
+  background: var(--card-2);
+  color: var(--text-2);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* Таймер отдыха */
+.rest {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--sab) + 12px);
+  z-index: 5;
+  border-radius: 24px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(30, 30, 38, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--line-2);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  animation: rise 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.rest-bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--kcal), var(--kcal-2));
+  transition: width 1s linear;
+}
+.rest-time {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  min-width: 84px;
+}
+.rest.over .rest-time {
+  color: var(--good);
+}
+html.kb .rest {
+  display: none;
+}
+
+/* ───────── Итоги тренировки */
+.done-hero {
+  text-align: center;
+  padding: 18px 10px 6px;
+}
+.done-trophy {
+  font-size: 64px;
+  animation: trophy 0.9s cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes trophy {
+  0% {
+    transform: scale(0.2) rotate(-30deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15) rotate(8deg);
+    opacity: 1;
+  }
+}
+.done-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 16px;
+}
+.done-stats > div {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 14px;
+}
+.done-stats b {
+  display: block;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.done-stats span {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.pr-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(255, 194, 71, 0.16), rgba(255, 122, 92, 0.1));
+  border: 1px solid rgba(255, 194, 71, 0.25);
+  margin-top: 8px;
+}
+
+/* Конфетти */
+.confetti {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 50;
+}
+.confetti i {
+  position: absolute;
+  top: -12px;
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  animation: confetti 2.6s cubic-bezier(0.25, 0.6, 0.5, 1) forwards;
+}
+@keyframes confetti {
+  to {
+    transform: translate3d(var(--dx), 110vh, 0) rotate(var(--rot));
+    opacity: 0.2;
+  }
+}
+
+/* Нагрузка по мышцам */
+.mload {
+  display: grid;
+  grid-template-columns: 96px 1fr 44px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  padding: 5px 0;
+}
+.mload-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--card-3);
+  position: relative;
+  overflow: hidden;
+}
+.mload-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 4px;
+  transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mload-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1.5px dashed rgba(255, 255, 255, 0.25);
+  border-right: 1.5px dashed rgba(255, 255, 255, 0.25);
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+}

@@ -13,7 +13,7 @@ import {
 import { haptic, tg } from "@/lib/telegram";
 import "./nav.css";
 
-export type Tab = "diary" | "stats" | "community" | "profile";
+export type Tab = "diary" | "workouts" | "stats" | "community";
 type SheetOpts = { full?: boolean };
 type Layer = { id: number; kind: "screen" | "sheet"; node: ReactNode; opts: SheetOpts; closing: boolean };
 

@@ -14,6 +14,7 @@ import { ChatsScreen } from "./Chats";
 import { NotificationsScreen } from "./Notifications";
 import { FriendsScreen, shareInvite } from "./Friends";
 import { PersonScreen } from "./Person";
+import { HeaderAvatar } from "@/ui/HeaderAvatar";
 import "./social.css";
 
 export function CommunityPage() {
@@ -46,6 +47,7 @@ export function CommunityPage() {
             <MessageCircle size={20} />
             {unread.messages > 0 && <span className="badge">{unread.messages}</span>}
           </Tap>
+          <HeaderAvatar />
         </div>
       </div>
 

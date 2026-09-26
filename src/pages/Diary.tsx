@@ -20,6 +20,7 @@ import { ScannerSheet } from "@/sheets/Scanner";
 import { QuickAddSheet } from "@/sheets/QuickAdd";
 import { CheatMealSheet } from "@/sheets/CheatMeal";
 import { useToast } from "@/ui/Toast";
+import { HeaderAvatar } from "@/ui/HeaderAvatar";
 import "./diary.css";
 
 /** Какую долю дневной нормы обычно занимает приём пищи — для полоски у каждого приёма */
@@ -63,12 +64,10 @@ export function DiaryPage() {
               <Flame size={15} /> {ins.streak}
             </span>
           )}
-          <Tap className="icon-btn" onClick={() => nav.sheet(<CheatMealSheet day={day >= todayKey() ? day : undefined} />, { full: true })} aria-label="Читмил">
-            <span style={{ fontSize: 19 }}>🍕</span>
-          </Tap>
           <Tap className="icon-btn" onClick={() => nav.sheet(<CalendarSheet />, { full: true })} aria-label="Календарь">
             <CalendarDays size={20} />
           </Tap>
+          <HeaderAvatar />
         </div>
       </div>
 

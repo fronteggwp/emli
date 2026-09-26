@@ -15,8 +15,18 @@ import { FriendsScreen } from "./Friends";
 import { PersonScreen } from "./Person";
 import { useFriendships } from "@/data/social";
 import { Tap } from "@/ui/Tap";
+import { Screen } from "@/ui/Screen";
 
-export function ProfilePage() {
+/** Профиль открывается экраном по аватарке в шапке вкладок */
+export function ProfileScreen() {
+  return (
+    <Screen title="Профиль">
+      <ProfileBody />
+    </Screen>
+  );
+}
+
+function ProfileBody() {
   const nav = useNav();
   const profile = useProfile();
   const ins = useInsights();
@@ -34,11 +44,7 @@ export function ProfilePage() {
   ];
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <div className="page-title">Профиль</div>
-      </div>
-
+    <div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", padding: "6px 0 18px" }}>
         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 300, damping: 20 }}>
           <Avatar url={p?.avatar_url} name={p?.first_name ?? ""} size={96} ring />

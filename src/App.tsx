@@ -10,7 +10,9 @@ import { Logo } from "@/ui/Logo";
 import { DiaryPage } from "@/pages/Diary";
 import { StatsPage } from "@/pages/Stats";
 import { CommunityPage } from "@/pages/Community";
-import { ProfilePage } from "@/pages/Profile";
+import { WorkoutsPage } from "@/pages/Workouts";
+import { WorkoutProvider } from "@/state/workout";
+import { ActiveBar } from "@/ui/ActiveBar";
 import { Onboarding } from "@/pages/Onboarding";
 
 export function App() {
@@ -36,6 +38,7 @@ function Main() {
 
   return (
     <DayProvider>
+      <WorkoutProvider>
       <motion.div
         style={{ position: "absolute", inset: 0 }}
         initial={{ opacity: 0, scale: 0.98 }}
@@ -44,6 +47,7 @@ function Main() {
       >
         <NavProvider tabs={(tab) => <Tabs tab={tab} />} />
       </motion.div>
+      </WorkoutProvider>
     </DayProvider>
   );
 }
@@ -52,7 +56,7 @@ const PAGES: Record<Tab, () => React.ReactNode> = {
   diary: () => <DiaryPage />,
   stats: () => <StatsPage />,
   community: () => <CommunityPage />,
-  profile: () => <ProfilePage />,
+  workouts: () => <WorkoutsPage />,
 };
 
 /** Вкладки остаются смонтированными — сохраняется прокрутка и не мигают данные */
@@ -66,6 +70,7 @@ function Tabs({ tab }: { tab: Tab }) {
           {PAGES[t]()}
         </TabPage>
       ))}
+      <ActiveBar tab={tab} />
       <TabBar />
       <DeepLinks />
     </>

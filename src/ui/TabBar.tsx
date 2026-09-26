@@ -1,4 +1,4 @@
-import { BookOpen, ChartColumn, Plus, UserRound, Users } from "lucide-react";
+import { BookOpen, ChartColumn, Dumbbell, Plus, Users } from "lucide-react";
 import { useNav, type Tab } from "@/nav/Nav";
 import { haptic } from "@/lib/telegram";
 import { QuickActions } from "@/sheets/QuickActions";
@@ -7,9 +7,9 @@ import "./tabbar.css";
 
 const ITEMS: { tab: Tab; label: string; Icon: typeof BookOpen }[] = [
   { tab: "diary", label: "Дневник", Icon: BookOpen },
+  { tab: "workouts", label: "Спорт", Icon: Dumbbell },
   { tab: "stats", label: "Прогресс", Icon: ChartColumn },
   { tab: "community", label: "Люди", Icon: Users },
-  { tab: "profile", label: "Профиль", Icon: UserRound },
 ];
 
 export function TabBar() {
