@@ -391,3 +391,48 @@ img {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* ───────── Нажатия (CSS вместо JS — без задержки и рывков) */
+
+.tap {
+  transition:
+    transform 0.35s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.2s,
+    background-color 0.2s,
+    color 0.2s;
+  -webkit-touch-callout: none;
+}
+.tap:active:not(:disabled) {
+  transform: scale(var(--tap-scale, 0.96));
+  transition-duration: 0.1s;
+}
+.press {
+  transition: background-color 0.25s;
+}
+.press:active {
+  background-color: rgba(255, 255, 255, 0.05);
+  transition-duration: 0.05s;
+}
+
+.tab-page {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translate3d(0, 6px, 0);
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    opacity 0.22s ease,
+    transform 0.3s cubic-bezier(0.32, 0.72, 0, 1),
+    visibility 0s linear 0.22s;
+}
+.tab-page.on {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  visibility: visible;
+  transition:
+    opacity 0.22s ease,
+    transform 0.3s cubic-bezier(0.32, 0.72, 0, 1),
+    visibility 0s;
+}

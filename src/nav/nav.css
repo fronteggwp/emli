@@ -1,16 +1,36 @@
+/* Кривая системных шторок iOS */
+:root {
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+  --nav-dur: 480ms;
+}
+
 .nav-base {
   position: absolute;
   inset: 0;
-  will-change: transform;
+  transition:
+    transform var(--nav-dur) var(--ease-ios),
+    opacity var(--nav-dur) var(--ease-ios);
+}
+.nav-base.covered {
+  transform: translate3d(-24%, 0, 0);
+  opacity: 0.55;
 }
 
 .nav-screen {
   position: absolute;
   inset: 0;
   background: var(--bg);
-  box-shadow: -20px 0 50px rgba(0, 0, 0, 0.5);
+  box-shadow: -16px 0 40px rgba(0, 0, 0, 0.45);
+  transform: translate3d(100%, 0, 0);
+  transition: transform var(--nav-dur) var(--ease-ios);
   will-change: transform;
-  touch-action: pan-y;
+  backface-visibility: hidden;
+}
+.nav-screen.open {
+  transform: translate3d(0, 0, 0);
+}
+.nav-screen.covered {
+  transform: translate3d(-24%, 0, 0);
 }
 
 .nav-sheet-wrap {
@@ -21,7 +41,12 @@
 .nav-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transition: opacity var(--nav-dur) var(--ease-ios);
+}
+.nav-sheet-wrap.open .nav-backdrop {
+  opacity: 1;
   pointer-events: auto;
 }
 
@@ -36,16 +61,23 @@
   border-top: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  pointer-events: auto;
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4);
   padding-bottom: var(--sab);
-  transition: bottom 0.25s ease;
+  transform: translate3d(0, 105%, 0);
+  transition:
+    transform var(--nav-dur) var(--ease-ios),
+    bottom 0.3s var(--ease-ios);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+.nav-sheet-wrap.open .nav-sheet {
+  transform: translate3d(0, 0, 0);
+  pointer-events: auto;
 }
 .nav-sheet.full {
   height: calc(100% - var(--sat) - 24px - var(--kb, 0px));
 }
 
-/* Под шторкой продолжаем фон, чтобы при «пружине» вверх не было щели */
+/* Под шторкой продолжаем фон, чтобы при «резинке» вверх не было щели */
 .nav-sheet::after {
   content: "";
   position: absolute;

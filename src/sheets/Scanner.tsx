@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { motion } from "motion/react";
-import { CameraOff, Search } from "lucide-react";
+import { CameraOff, RotateCcw, ScanBarcode, Search } from "lucide-react";
 import { useDay } from "@/state/day";
 import { useLayer, useNav } from "@/nav/Nav";
 import { findFoodByBarcode } from "@/data/api";
 import { offByBarcode } from "@/data/off";
+import { loadDetector } from "@/lib/barcode";
 import { mealByTime } from "@/lib/nutrition";
 import { haptic } from "@/lib/telegram";
 import type { Meal } from "@/lib/types";
@@ -14,15 +14,7 @@ import { FoodDetailSheet } from "./FoodDetail";
 import { CreateFoodSheet } from "./CreateFood";
 import "./sheets.css";
 
-type Detector = { detect(src: HTMLVideoElement): Promise<{ rawValue: string }[]> };
-const FORMATS = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"];
-
-async function makeDetector(): Promise<Detector> {
-  const Native = (window as unknown as { BarcodeDetector?: new (o: object) => Detector }).BarcodeDetector;
-  if (Native) return new Native({ formats: FORMATS });
-  const { BarcodeDetector } = await import("barcode-detector/ponyfill");
-  return new BarcodeDetector({ formats: FORMATS as never });
-}
+type Status = "starting" | "scanning" | "looking" | "denied" | "notfound";
 
 export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: () => void }) {
   const { day } = useDay();
@@ -30,24 +22,31 @@ export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: ()
   const layer = useLayer();
   const meal = meal0 ?? (mealByTime() as Meal);
   const video = useRef<HTMLVideoElement>(null);
-  const [status, setStatus] = useState<"starting" | "scanning" | "looking" | "denied" | "notfound">("starting");
+  const stream = useRef<MediaStream | null>(null);
+  const [status, setStatus] = useState<Status>("starting");
+  const [live, setLive] = useState(false);
   const [code, setCode] = useState("");
-  const busy = useRef(false);
+  // paused — распознавание на паузе, пока ищем продукт; finished — сканер отработал, больше не реагируем
+  const paused = useRef(false);
+  const finished = useRef(false);
 
-  const finish = () => {
-    layer.close();
-    onDone?.();
+  const stopCamera = () => {
+    stream.current?.getTracks().forEach((t) => t.stop());
+    stream.current = null;
   };
 
   const lookup = async (barcode: string) => {
-    if (busy.current) return;
-    busy.current = true;
+    if (finished.current) return;
+    paused.current = true;
     setStatus("looking");
     setCode(barcode);
     try {
       const mine = await findFoodByBarcode(barcode);
       const food = mine ?? (await offByBarcode(barcode));
+      if (finished.current) return;
       if (food) {
+        finished.current = true;
+        stopCamera();
         haptic.success();
         layer.close();
         nav.sheet(<FoodDetailSheet food={food} meal={meal} day={day} onDone={onDone} />);
@@ -57,50 +56,65 @@ export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: ()
       setStatus("notfound");
     } catch {
       setStatus("notfound");
-    } finally {
-      busy.current = false;
     }
   };
 
+  const rescan = () => {
+    haptic.tap();
+    setCode("");
+    setStatus(stream.current ? "scanning" : "starting");
+    paused.current = false;
+  };
+
   useEffect(() => {
-    let stream: MediaStream | null = null;
     let timer: number | undefined;
-    let stopped = false;
-    (async () => {
+    let alive = true;
+    const detector = loadDetector(); // грузим параллельно с камерой
+
+    // Камеру включаем, когда шторка уже выехала — чтобы анимация не дёргалась
+    const start = window.setTimeout(async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+        const s = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false,
         });
-        if (stopped) return;
+        if (!alive) {
+          s.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        stream.current = s;
         const v = video.current!;
-        v.srcObject = stream;
+        v.srcObject = s;
         await v.play();
-        setStatus("scanning");
-        const detector = await makeDetector();
+        setStatus((st) => (st === "starting" ? "scanning" : st));
+        const d = await detector;
         const tick = async () => {
-          if (stopped) return;
-          if (!busy.current && v.readyState >= 2) {
+          if (!alive || finished.current) return;
+          if (!paused.current && v.readyState >= 2) {
             try {
-              const found = await detector.detect(v);
-              if (found[0]?.rawValue) {
-                await lookup(found[0].rawValue);
+              const found = await d.detect(v);
+              const value = found[0]?.rawValue;
+              if (value && !paused.current && !finished.current) {
+                haptic.rigid();
+                await lookup(value);
               }
             } catch {
               /* кадр не распознан */
             }
           }
-          timer = window.setTimeout(tick, 180);
+          timer = window.setTimeout(tick, 120);
         };
         tick();
       } catch {
-        setStatus("denied");
+        if (alive) setStatus("denied");
       }
-    })();
+    }, 380);
+
     return () => {
-      stopped = true;
+      alive = false;
+      window.clearTimeout(start);
       window.clearTimeout(timer);
-      stream?.getTracks().forEach((t) => t.stop());
+      stopCamera();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -111,16 +125,20 @@ export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: ()
       <div className="sheet-body">
         {status !== "denied" ? (
           <div className="scanner">
-            <video ref={video} playsInline muted />
-            <div className="scanner-frame" />
-            {status === "scanning" && (
-              <motion.div
-                className="scanner-line"
-                initial={{ top: "36%" }}
-                animate={{ top: ["36%", "58%", "36%"] }}
-                transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-              />
+            <video ref={video} playsInline muted autoPlay onPlaying={() => setLive(true)} className={live ? "live" : ""} />
+            {!live && (
+              <div className="scanner-wait">
+                <ScanBarcode size={36} />
+                <span>Включаю камеру…</span>
+              </div>
             )}
+            <div className={`scanner-frame ${status === "looking" ? "found" : ""}`}>
+              {live && status === "scanning" && (
+                <div className="scanner-sweep">
+                  <i />
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <div className="empty">
@@ -130,23 +148,27 @@ export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: ()
         )}
 
         <div className="muted" style={{ textAlign: "center", fontSize: 14, marginTop: 14, minHeight: 20 }}>
-          {status === "starting" && "Включаю камеру…"}
           {status === "scanning" && "Наведи камеру на штрихкод"}
           {status === "looking" && `Ищу ${code}…`}
           {status === "notfound" && `Продукт ${code} не найден`}
         </div>
 
         {status === "notfound" && (
-          <Tap
-            className="btn btn-accent btn-block"
-            style={{ marginTop: 12 }}
-            onClick={() => {
-              layer.close();
-              nav.sheet(<CreateFoodSheet barcode={code} meal={meal} onDone={onDone} />);
-            }}
-          >
-            Создать продукт с этим кодом
-          </Tap>
+          <div className="row" style={{ marginTop: 12, gap: 10 }}>
+            <Tap className="icon-btn" style={{ width: 54, height: 54 }} onClick={rescan} aria-label="Сканировать снова">
+              <RotateCcw size={20} />
+            </Tap>
+            <Tap
+              className="btn btn-accent btn-block"
+              onClick={() => {
+                finished.current = true;
+                layer.close();
+                nav.sheet(<CreateFoodSheet barcode={code} meal={meal} onDone={onDone} />);
+              }}
+            >
+              Создать продукт с этим кодом
+            </Tap>
+          </div>
         )}
 
         <div className="group-label">Или введи цифры под штрихкодом</div>
@@ -168,9 +190,6 @@ export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: ()
             <Search size={20} />
           </Tap>
         </form>
-        <button className="faint" style={{ marginTop: 18, fontSize: 14, width: "100%" }} onClick={finish}>
-          Отмена
-        </button>
       </div>
     </>
   );

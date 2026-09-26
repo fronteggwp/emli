@@ -42,14 +42,16 @@
   font-weight: 600;
   letter-spacing: 0.01em;
 }
-.tab-dot {
-  position: absolute;
-  bottom: 5px;
-  width: 4px;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--kcal);
-  display: none;
+.tab-icon {
+  display: grid;
+  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.tab.on .tab-icon {
+  transform: translateY(-1px) scale(1.08);
+}
+.tab:active .tab-icon {
+  transform: scale(0.88);
+  transition-duration: 0.1s;
 }
 .fab {
   width: 58px;

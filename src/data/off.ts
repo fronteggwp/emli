@@ -56,21 +56,12 @@ export async function offByBarcode(code: string): Promise<FoodDraft | null> {
   return toDraft({ ...data.product, code });
 }
 
+const SEARCH_URL = "https://ezhgiczvwsufzhwwwrkr.supabase.co/functions/v1/food-search";
+
+/** Поиск по Open Food Facts через наш прокси (быстрый индекс search-a-licious + кэш) */
 export async function offSearch(q: string, signal?: AbortSignal): Promise<FoodDraft[]> {
-  const url =
-    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}` +
-    `&search_simple=1&action=process&json=1&page_size=25&lc=ru&fields=${FIELDS}`;
-  const res = await fetch(url, { signal });
+  const res = await fetch(`${SEARCH_URL}?q=${encodeURIComponent(q)}`, { signal });
   if (!res.ok) throw new Error("off");
   const data = await res.json();
-  const seen = new Set<string>();
-  return ((data.products ?? []) as OffProduct[])
-    .map(toDraft)
-    .filter((d): d is FoodDraft => {
-      if (!d) return false;
-      const key = `${d.name}|${d.brand}`.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+  return Array.isArray(data) ? (data as FoodDraft[]) : [];
 }

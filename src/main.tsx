@@ -10,6 +10,9 @@ import "@/styles/global.css";
 
 initTelegram();
 
+// iOS включает :active-состояния только при наличии обработчика касаний
+document.addEventListener("touchstart", () => {}, { passive: true });
+
 // Клавиатура iOS: поднимаем шторки над ней
 if (window.visualViewport) {
   const vv = window.visualViewport;

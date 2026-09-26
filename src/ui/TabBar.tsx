@@ -1,4 +1,3 @@
-import { motion } from "motion/react";
 import { BookOpen, ChartColumn, Plus, UserRound, Users } from "lucide-react";
 import { useNav, type Tab } from "@/nav/Nav";
 import { haptic } from "@/lib/telegram";
@@ -25,11 +24,10 @@ export function TabBar() {
           nav.setTab(i.tab);
         }}
       >
-        <motion.span animate={{ scale: on ? 1.08 : 1, y: on ? -1 : 0 }} transition={{ type: "spring", stiffness: 500, damping: 25 }}>
+        <span className="tab-icon">
           <i.Icon size={24} strokeWidth={on ? 2.4 : 1.9} />
-        </motion.span>
+        </span>
         <span className="tab-label">{i.label}</span>
-        {on && <motion.span layoutId="tab-dot" className="tab-dot" transition={{ type: "spring", stiffness: 500, damping: 35 }} />}
       </button>
     );
   };
@@ -37,10 +35,9 @@ export function TabBar() {
     <div className="tabbar">
       <div className="tabbar-inner">
         {ITEMS.slice(0, 2).map(render)}
-        <motion.button
-          className="fab"
-          whileTap={{ scale: 0.88 }}
-          transition={{ type: "spring", stiffness: 600, damping: 22 }}
+        <button
+          className="fab tap"
+          style={{ ["--tap-scale" as string]: 0.88 }}
           onClick={() => {
             haptic.medium();
             nav.sheet(<QuickActions />);
@@ -48,7 +45,7 @@ export function TabBar() {
           aria-label="Добавить"
         >
           <Plus size={30} strokeWidth={2.6} />
-        </motion.button>
+        </button>
         {ITEMS.slice(2).map(render)}
       </div>
     </div>

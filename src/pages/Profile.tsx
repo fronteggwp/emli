@@ -55,7 +55,7 @@ export function ProfilePage() {
 
       <div className="list" style={{ marginTop: 20 }}>
         {items.map((i) => (
-          <motion.button key={i.title} className="list-item" onClick={i.go} whileTap={{ backgroundColor: "rgba(255,255,255,.04)" }}>
+          <button key={i.title} className="list-item press" onClick={i.go}>
             <span className="li-icon">
               <i.Icon size={21} />
             </span>
@@ -64,7 +64,7 @@ export function ProfilePage() {
               <div className="li-sub">{i.sub}</div>
             </span>
             <ChevronRight size={18} className="faint" />
-          </motion.button>
+          </button>
         ))}
       </div>
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Copy, PackagePlus, ScanBarcode, Scale, Search, Zap } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDay } from "@/state/day";
@@ -15,10 +15,16 @@ import { ScannerSheet } from "./Scanner";
 import { QuickAddSheet } from "./QuickAdd";
 import { CreateFoodSheet } from "./CreateFood";
 import { LogWeightSheet } from "./LogWeight";
+import { loadDetector } from "@/lib/barcode";
 import "./sheets.css";
 
 export function QuickActions() {
   const nav = useNav();
+  // Подгружаем распознавание штрихкодов заранее — сканер откроется без задержки
+  useEffect(() => {
+    const t = setTimeout(() => loadDetector().catch(() => {}), 1200);
+    return () => clearTimeout(t);
+  }, []);
   const layer = useLayer();
   const { day } = useDay();
   const toast = useToast();

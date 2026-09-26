@@ -90,9 +90,10 @@ Deno.serve(async (req) => {
     }
   }
 
-  const link = await admin.auth.admin.generateLink({ type: "magiclink", email });
-  if (link.error || !link.data.user) return json({ error: "link", detail: link.error?.message }, 500);
-  const uid = link.data.user.id;
+  // Первый generateLink нужен, чтобы узнать id пользователя
+  const first = await admin.auth.admin.generateLink({ type: "magiclink", email });
+  if (first.error || !first.data.user) return json({ error: "link", detail: first.error?.message }, 500);
+  const uid = first.data.user.id;
 
   if (!existing) {
     const profile = {
@@ -116,8 +117,18 @@ Deno.serve(async (req) => {
       .eq("id", uid).or("avatar_url.is.null,avatar_url.like.https://t.me/%");
   }
 
+  // Параллельные входы одного пользователя перебивают друг другу одноразовую ссылку —
+  // поэтому при неудаче генерируем новую и пробуем ещё раз
   const anon = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const verified = await anon.auth.verifyOtp({ type: "magiclink", token_hash: link.data.properties.hashed_token });
+  let hashed = first.data.properties.hashed_token;
+  let verified = await anon.auth.verifyOtp({ type: "magiclink", token_hash: hashed });
+  for (let attempt = 0; attempt < 3 && (verified.error || !verified.data.session); attempt++) {
+    await new Promise((r) => setTimeout(r, 150 + Math.random() * 350));
+    const again = await admin.auth.admin.generateLink({ type: "magiclink", email });
+    if (again.error) continue;
+    hashed = again.data.properties.hashed_token;
+    verified = await anon.auth.verifyOtp({ type: "magiclink", token_hash: hashed });
+  }
   if (verified.error || !verified.data.session) return json({ error: "verify", detail: verified.error?.message }, 500);
 
   const s = verified.data.session;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useAuth } from "@/lib/auth";
 import { useProfile, useSettings } from "@/data/api";
@@ -61,19 +61,22 @@ function Tabs({ tab }: { tab: Tab }) {
   return (
     <>
       {visited.map((t) => (
-        <motion.div
-          key={t}
-          style={{ position: "absolute", inset: 0, pointerEvents: t === tab ? "auto" : "none" }}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: t === tab ? 1 : 0, y: t === tab ? 0 : 8, scale: t === tab ? 1 : 0.99 }}
-          transition={{ duration: 0.22, ease: "easeOut" }}
-        >
+        <TabPage key={t} active={t === tab}>
           {PAGES[t]()}
-        </motion.div>
+        </TabPage>
       ))}
       <TabBar />
     </>
   );
+}
+
+function TabPage({ active, children }: { active: boolean; children: React.ReactNode }) {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const r = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(r);
+  }, []);
+  return <div className={`tab-page ${active && shown ? "on" : ""}`}>{children}</div>;
 }
 
 function Splash() {

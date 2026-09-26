@@ -420,3 +420,7 @@ verify_jwt = false
 
 [functions.tg-bot]
 verify_jwt = false
+
+[functions.food-search]
+verify_jwt = false
+

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, Globe, PackagePlus, Plus, ScanBarcode, Search, X, Zap } from "lucide-react";
 import { useDay } from "@/state/day";
@@ -17,11 +18,17 @@ import { FoodDetailSheet } from "./FoodDetail";
 import { QuickAddSheet } from "./QuickAdd";
 import { CreateFoodSheet } from "./CreateFood";
 import { ScannerSheet } from "./Scanner";
+import { loadDetector } from "@/lib/barcode";
 import "./sheets.css";
 
 export function AddFoodSheet({ meal: initialMeal }: { meal?: Meal }) {
   const { day } = useDay();
   const nav = useNav();
+  // Подгружаем распознавание штрихкодов заранее — сканер откроется без задержки
+  useEffect(() => {
+    const t = setTimeout(() => loadDetector().catch(() => {}), 1200);
+    return () => clearTimeout(t);
+  }, []);
   const layer = useLayer();
   const [meal, setMeal] = useState<Meal>(initialMeal ?? (mealByTime() as Meal));
   const [q, setQ] = useState("");
@@ -30,10 +37,16 @@ export function AddFoodSheet({ meal: initialMeal }: { meal?: Meal }) {
   const search = useFoodSearch(term);
   const recents = useRecents();
   const mine = useMyFoods();
-  const [off, setOff] = useState<{ state: "idle" | "loading" | "done" | "error"; items: FoodDraft[] }>({ state: "idle", items: [] });
+  // Мировую базу ищем параллельно, с чуть большей паузой — она медленнее нашей
+  const offTerm = useDebounced(q.trim(), 450);
+  const off = useQuery({
+    queryKey: ["off", offTerm.toLowerCase()],
+    enabled: offTerm.length >= 2,
+    queryFn: ({ signal }) => offSearch(offTerm, signal),
+    staleTime: 10 * 60_000,
+    retry: 1,
+  });
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => setOff({ state: "idle", items: [] }), [term]);
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 350);
     return () => clearTimeout(t);
@@ -71,16 +84,6 @@ export function AddFoodSheet({ meal: initialMeal }: { meal?: Meal }) {
       );
     } else {
       nav.sheet(<QuickAddSheet meal={meal} preset={r} />);
-    }
-  };
-
-  const searchOff = async () => {
-    haptic.tap();
-    setOff({ state: "loading", items: [] });
-    try {
-      setOff({ state: "done", items: await offSearch(term) });
-    } catch {
-      setOff({ state: "error", items: [] });
     }
   };
 
@@ -211,45 +214,52 @@ export function AddFoodSheet({ meal: initialMeal }: { meal?: Meal }) {
             ) : search.isFetching ? (
               <SkeletonRows />
             ) : (
-              <div className="empty" style={{ paddingBottom: 12 }}>
-                В нашей базе ничего не нашлось
+              <div className="faint" style={{ padding: "10px 2px", fontSize: 14 }}>
+                В базе Emli ничего — смотри мировую базу ниже
               </div>
             )}
 
-            <div className="group-label">Мировая база продуктов</div>
-            {off.state === "idle" && (
-              <Tap className="btn btn-block btn-sm" style={{ marginTop: 6 }} onClick={searchOff}>
-                <Globe size={17} /> Искать «{term}» в Open Food Facts
-              </Tap>
-            )}
-            {off.state === "loading" && <SkeletonRows />}
-            {off.state === "error" && <div className="empty">Не удалось связаться с базой. Попробуй ещё раз.</div>}
-            {off.state === "done" &&
-              (off.items.length ? (
-                off.items.map((f, i) => (
+            <div className="group-label row" style={{ gap: 6 }}>
+              <Globe size={13} /> Open Food Facts
+            </div>
+            {off.data?.length ? (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} key={"off" + offTerm}>
+                {off.data.map((f, i) => (
                   <FoodRow
                     key={(f.barcode ?? "") + i}
                     name={f.name}
-                    sub={[f.brand, `Б ${f.protein} · Ж ${f.fat} · У ${f.carbs}`].filter(Boolean).join(" · ")}
+                    sub={[f.brand, `Б ${fmt1(f.protein)} · Ж ${fmt1(f.fat)} · У ${fmt1(f.carbs)}`].filter(Boolean).join(" · ")}
                     kcal={f.kcal}
                     kcalNote="на 100 г"
                     onOpen={() => open(f)}
                   />
-                ))
-              ) : (
-                <div className="empty">
-                  Ничего не нашлось.{" "}
-                  <button style={{ color: "var(--kcal)", fontWeight: 600 }} onClick={() => nav.sheet(<CreateFoodSheet meal={meal} name={term} onDone={layer.close} />)}>
-                    Создать «{term}»
-                  </button>
-                </div>
-              ))}
+                ))}
+              </motion.div>
+            ) : off.isFetching || offTerm !== q.trim() ? (
+              <SkeletonRows />
+            ) : off.isError ? (
+              <div className="empty">
+                Мировая база не ответила.{" "}
+                <button style={{ color: "var(--kcal)", fontWeight: 600 }} onClick={() => off.refetch()}>
+                  Повторить
+                </button>
+              </div>
+            ) : (
+              <div className="empty">
+                Не нашёл «{term}».{" "}
+                <button style={{ color: "var(--kcal)", fontWeight: 600 }} onClick={() => nav.sheet(<CreateFoodSheet meal={meal} name={term} onDone={layer.close} />)}>
+                  Создать продукт
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
     </>
   );
 }
+
+const fmt1 = (n: number) => n.toLocaleString("ru-RU", { maximumFractionDigits: 1 });
 
 function SkeletonRows() {
   return (
@@ -317,7 +327,7 @@ function FoodRow({
     setTimeout(() => setDone(false), 1400);
   };
   return (
-    <motion.button className="food-row" onClick={onOpen} whileTap={{ scale: 0.985 }}>
+    <button className="food-row press" onClick={onOpen}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="food-row-name">{name}</div>
         <div className="food-row-sub">{sub}</div>
@@ -327,7 +337,7 @@ function FoodRow({
         {kcalNote && <small>{kcalNote}</small>}
       </div>
       {quick && (
-        <motion.span className={`quick-add ${done ? "done" : ""}`} onClick={onQuick} whileTap={{ scale: 0.8 }} role="button" aria-label="Добавить сразу">
+        <span className={`quick-add tap ${done ? "done" : ""}`} style={{ ["--tap-scale" as string]: 0.8 }} onClick={onQuick} role="button" aria-label="Добавить сразу">
           <AnimatePresence mode="wait" initial={false}>
             <motion.span
               key={done ? "d" : "p"}
@@ -340,8 +350,8 @@ function FoodRow({
               {done ? <Check size={18} strokeWidth={3} /> : <Plus size={18} strokeWidth={2.4} />}
             </motion.span>
           </AnimatePresence>
-        </motion.span>
+        </span>
       )}
-    </motion.button>
+    </button>
   );
 }

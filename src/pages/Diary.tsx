@@ -320,13 +320,12 @@ function EntryRow({ entry }: { entry: Entry }) {
     >
       <div className="entry-delete">Удалить</div>
       <motion.button
-        className="entry"
+        className="entry press"
         drag={pending ? false : "x"}
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={{ left: 0.7, right: 0.05 }}
         dragDirectionLock
         onDragEnd={onDragEnd}
-        whileTap={{ backgroundColor: "rgba(255,255,255,0.04)" }}
         onClick={() => {
           if (pending) return;
           nav.sheet(entry.grams ? <FoodDetailSheet entry={entry} /> : <QuickAddSheet entry={entry} />);

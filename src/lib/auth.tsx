@@ -46,8 +46,15 @@ function saveCached(t: Token) {
   }
 }
 
-/** Обмен подписанных данных Telegram (или тестового ключа) на токен Supabase */
-async function exchange(body: Record<string, unknown>): Promise<Token> {
+let inflight: Promise<Token> | null = null;
+
+/** Обмен подписанных данных Telegram (или тестового ключа) на токен Supabase — не больше одного запроса за раз */
+function exchange(body: Record<string, unknown>): Promise<Token> {
+  if (!inflight) inflight = doExchange(body).finally(() => (inflight = null));
+  return inflight;
+}
+
+async function doExchange(body: Record<string, unknown>): Promise<Token> {
   setAccessToken(null);
   const { data, error } = await supabase.functions.invoke("tg-auth", { body });
   if (error || !data?.access_token) {
