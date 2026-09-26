@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Check, Copy, Search, Send, UserPlus, X } from "lucide-react";
+import { Check, Copy, Search, Send, X } from "lucide-react";
 import { useNav } from "@/nav/Nav";
-import { useFriendActions, useFriendships, useInviteLink, usePeople, useSearchPeople } from "@/data/social";
+import { useFriendActions, useFriendships, useInviteLink, usePeople, useSearchPeople, useSuggestions } from "@/data/social";
+import { FriendButton } from "@/ui/FriendButton";
 import { useDebounced } from "@/lib/hooks";
 import { haptic, tg } from "@/lib/telegram";
 import type { Person } from "@/lib/types";
@@ -34,26 +35,8 @@ export function FriendsScreen({ initial = "friends" }: { initial?: "friends" | "
 
   const open = (p: Person) => nav.push(<PersonScreen id={p.id} />);
 
-  const actionFor = (p: Person) => {
-    const rel = fs.relation(p.id);
-    if (rel === "friends") return <span className="faint" style={{ fontSize: 13 }}>в друзьях</span>;
-    if (rel === "outgoing") return <span className="faint" style={{ fontSize: 13 }}>заявка</span>;
-    return (
-      <Tap
-        className="icon-btn"
-        style={{ width: 38, height: 38, background: "var(--kcal)", color: "#fff" }}
-        onClick={async (e) => {
-          e.stopPropagation();
-          haptic.medium();
-          const st = await actions.request.mutateAsync(p.id);
-          toast(st === "accepted" ? "Теперь вы друзья 🤝" : "Заявка отправлена");
-        }}
-        aria-label="Добавить"
-      >
-        <UserPlus size={18} />
-      </Tap>
-    );
-  };
+  const actionFor = (p: Person) => <FriendButton id={p.id} />;
+  const suggestions = useSuggestions();
 
   const list = (ids: string[]) => ids.map((id) => people.get(id)).filter((p): p is Person => !!p);
 
@@ -118,18 +101,36 @@ export function FriendsScreen({ initial = "friends" }: { initial?: "friends" | "
           </div>
 
           {tab === "friends" ? (
-            fs.friends.length ? (
-              <div className="list">
-                {list(fs.friends).map((p) => (
-                  <PersonRow key={p.id} p={p} onClick={() => open(p)} />
-                ))}
-              </div>
-            ) : (
-              <div className="empty">
-                <div className="big">👥</div>
-                Пока нет друзей. Найди их по нику или отправь приглашение.
-              </div>
-            )
+            <>
+              {fs.friends.length ? (
+                <div className="list">
+                  {list(fs.friends).map((p) => (
+                    <PersonRow key={p.id} p={p} onClick={() => open(p)} />
+                  ))}
+                </div>
+              ) : (
+                <div className="empty">
+                  <div className="big">👥</div>
+                  Пока нет друзей. Найди их по нику или отправь приглашение.
+                </div>
+              )}
+              {!!suggestions.data?.length && (
+                <>
+                  <div className="group-label">Возможно, вы знакомы</div>
+                  <div className="list">
+                    {suggestions.data.map((p) => (
+                      <PersonRow
+                        key={p.id}
+                        p={p}
+                        sub={`${p.mutual_count} ${plural(p.mutual_count ?? 0, "общий друг", "общих друга", "общих друзей")}`}
+                        onClick={() => open(p)}
+                        right={<FriendButton id={p.id} />}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
           ) : (
             <>
               {fs.incoming.length ? (
@@ -199,4 +200,12 @@ export function FriendsScreen({ initial = "friends" }: { initial?: "friends" | "
       )}
     </Screen>
   );
+}
+
+function plural(n: number, one: string, few: string, many: string) {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
 }

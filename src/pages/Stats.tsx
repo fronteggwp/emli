@@ -4,8 +4,9 @@ import { ChevronLeft, ChevronRight, ChevronRight as Chevron, Flame, Plus } from 
 import { useNav } from "@/nav/Nav";
 import { useDay } from "@/state/day";
 import { useInsights } from "@/data/insights";
+import { useDayTargets } from "@/data/api";
 import { fmt, shiftKey, todayKey, weekStart, WEEKDAYS_SHORT } from "@/lib/dates";
-import { fmtKg, fmtNum, targetFor } from "@/lib/nutrition";
+import { fmtKg, fmtNum } from "@/lib/nutrition";
 import { haptic } from "@/lib/telegram";
 import { Bars, Heatmap, Sparkline } from "@/ui/Charts";
 import { NumberTicker } from "@/ui/NumberTicker";
@@ -122,6 +123,7 @@ export function StatsPage() {
 
 function WeekCard() {
   const ins = useInsights();
+  const dayTargets = useDayTargets();
   const { setDay } = useDay();
   const nav = useNav();
   const [metric, setMetric] = useState<Metric>("kcal");
@@ -132,12 +134,14 @@ function WeekCard() {
   const days = Array.from({ length: 7 }, (_, i) => shiftKey(start, i));
   const items = days.map((d, i) => {
     const t = byDay.get(d);
-    const tg = targetFor(ins.targets, d);
+    const tg = dayTargets.forDay(d);
+    const cheat = tg.adjust.some((x) => x.kind === "cheat");
     return {
       key: d,
       label: WEEKDAYS_SHORT[i],
       value: t ? t[metric] : 0,
-      target: tg ? tg[m.target] : undefined,
+      target: dayTargets.hasTargets ? tg[m.target] : undefined,
+      color: cheat ? "linear-gradient(180deg, #ffc247, #ff5e7e)" : undefined,
       active: d === today,
       dim: d > today,
     };
@@ -146,7 +150,7 @@ function WeekCard() {
   // Сегодняшний день ещё не закончился — не портим им среднее, если есть другие дни
   const logged = past.length ? past : items.filter((x) => x.value > 0 && x.key === today);
   const avg = logged.length ? logged.reduce((s, x) => s + x.value, 0) / logged.length : 0;
-  const avgTarget = logged.length ? logged.reduce((s, x) => s + (x.target ?? 0), 0) / logged.length : (targetFor(ins.targets, today)?.[m.target] ?? 0);
+  const avgTarget = logged.length ? logged.reduce((s, x) => s + (x.target ?? 0), 0) / logged.length : dayTargets.forDay(today)[m.target];
   const isCurrent = start === weekStart(today);
 
   return (

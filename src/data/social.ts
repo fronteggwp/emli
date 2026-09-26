@@ -135,6 +135,8 @@ export function useFriendActions() {
     qc.invalidateQueries({ queryKey: sk.friendships });
     qc.invalidateQueries({ queryKey: ["stats"] });
     qc.invalidateQueries({ queryKey: ["feed"] });
+    qc.invalidateQueries({ queryKey: ["friends-of"] });
+    qc.invalidateQueries({ queryKey: ["suggestions"] });
   };
   return {
     request: useMutation({
@@ -459,4 +461,23 @@ export async function uploadImage(uid: string, file: File) {
   const path = `${uid}/${uuid()}.jpg`;
   unwrap(await supabase.storage.from("media").upload(path, blob, { contentType: "image/jpeg", cacheControl: "31536000" }));
   return supabase.storage.from("media").getPublicUrl(path).data.publicUrl;
+}
+
+// ───────────── Друзья друзей
+
+export type PersonWithMutual = Person & { mutual?: boolean; mutual_count?: number };
+
+export function useFriendsOf(id: string) {
+  return useQuery({
+    queryKey: ["friends-of", id],
+    queryFn: async () => unwrap<PersonWithMutual[]>(await supabase.rpc("friends_of", { uid: id })),
+  });
+}
+
+export function useSuggestions() {
+  return useQuery({
+    queryKey: ["suggestions"],
+    queryFn: async () => unwrap<PersonWithMutual[]>(await supabase.rpc("suggested_friends", { lim: 20 })),
+    staleTime: 60_000,
+  });
 }

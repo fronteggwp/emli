@@ -1,0 +1,151 @@
+@import "./cheat.css";
+
+.cal-title {
+  font-size: 18px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  animation: rise 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+.cal-wd {
+  font-size: 12px;
+  color: var(--text-3);
+  font-weight: 600;
+  padding-bottom: 6px;
+}
+.cal-month {
+  touch-action: pan-y;
+}
+.cal-month.from-right {
+  animation: cal-in-right 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.cal-month.from-left {
+  animation: cal-in-left 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes cal-in-right {
+  from {
+    opacity: 0;
+    transform: translate3d(40px, 0, 0);
+  }
+}
+@keyframes cal-in-left {
+  from {
+    opacity: 0;
+    transform: translate3d(-40px, 0, 0);
+  }
+}
+.cal-cell {
+  position: relative;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 650;
+  transition:
+    background 0.2s,
+    transform 0.2s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.cal-cell:active {
+  transform: scale(0.9);
+}
+.cal-cell svg {
+  position: absolute;
+  inset: 3px;
+  width: calc(100% - 6px);
+  height: calc(100% - 6px);
+}
+.cal-cell span {
+  position: relative;
+}
+.cal-cell.out {
+  opacity: 0.3;
+}
+.cal-cell.today span {
+  color: var(--kcal);
+}
+.cal-cell.saving {
+  background: rgba(255, 94, 126, 0.08);
+}
+.cal-cell.on {
+  background: var(--text);
+}
+.cal-cell.on span {
+  color: var(--text-inv);
+}
+.cal-pizza {
+  position: absolute;
+  top: -2px;
+  right: -1px;
+  font-style: normal;
+  font-size: 13px;
+}
+.cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin: 12px 0 4px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.cal-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.cal-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.cal-panel {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 24px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  animation: rise 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.cal-panel-title {
+  font-size: 20px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+.cal-cheat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(255, 122, 92, 0.22), transparent 60%),
+    var(--card-2);
+}
+.cal-save {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 94, 126, 0.1);
+  color: #ff8fa6;
+  font-size: 13.5px;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+}
+.cal-cell.out.on {
+  opacity: 1;
+}
+.cal-panel-title::first-letter {
+  text-transform: uppercase;
+}

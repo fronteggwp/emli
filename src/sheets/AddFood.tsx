@@ -48,7 +48,7 @@ export function AddFoodSheet({ meal: initialMeal }: { meal?: Meal }) {
   });
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    const t = setTimeout(() => inputRef.current?.focus(), 350);
+    const t = setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 520);
     return () => clearTimeout(t);
   }, []);
 

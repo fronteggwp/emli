@@ -54,8 +54,8 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: var(--kb, 0px);
-  max-height: calc(100% - var(--sat) - 24px - var(--kb, 0px));
+  bottom: 0;
+  max-height: calc(100% - var(--sat) - 24px);
   background: var(--bg-2);
   border-radius: 28px 28px 0 0;
   border-top: 1px solid var(--line);
@@ -63,9 +63,7 @@
   flex-direction: column;
   padding-bottom: var(--sab);
   transform: translate3d(0, 105%, 0);
-  transition:
-    transform var(--nav-dur) var(--ease-ios),
-    bottom 0.3s var(--ease-ios);
+  transition: transform var(--nav-dur) var(--ease-ios);
   will-change: transform;
   backface-visibility: hidden;
 }
@@ -74,7 +72,7 @@
   pointer-events: auto;
 }
 .nav-sheet.full {
-  height: calc(100% - var(--sat) - 24px - var(--kb, 0px));
+  height: calc(100% - var(--sat) - 24px);
 }
 
 /* Под шторкой продолжаем фон, чтобы при «резинке» вверх не было щели */

@@ -90,7 +90,7 @@ export function NewPostSheet({ preset }: { preset?: Kind }) {
         <AutoTextarea
           value={text}
           maxRows={10}
-          autoFocus
+          focusDelay={520}
           onChange={(e) => setText(e.target.value.slice(0, 2000))}
           placeholder="Как прошёл день? Поделись успехом, рецептом или мыслью…"
           style={{ width: "100%", border: 0, outline: "none", background: "none", resize: "none", fontSize: 17, lineHeight: "24px", minHeight: 96 }}

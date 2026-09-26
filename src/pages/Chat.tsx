@@ -19,6 +19,7 @@ import { daySeparator, lastSeenText, timeHM } from "@/lib/dates";
 import { haptic, inTelegram } from "@/lib/telegram";
 import type { Message } from "@/lib/types";
 import { Avatar } from "@/ui/Avatar";
+import { keepFocus } from "@/lib/viewport";
 import { AutoTextarea } from "@/ui/AutoTextarea";
 import { InfiniteSentinel } from "@/ui/InfiniteSentinel";
 import { useToast } from "@/ui/Toast";
@@ -175,7 +176,7 @@ export function ChatScreen({ cid, otherId }: { cid: string; otherId: string }) {
             }
           }}
         />
-        <button className="send-btn" disabled={!text.trim()} onClick={submit} aria-label="Отправить">
+        <button className="send-btn" disabled={!text.trim()} onClick={submit} {...keepFocus} aria-label="Отправить">
           <ArrowUp size={20} strokeWidth={2.6} />
         </button>
         <input

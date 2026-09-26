@@ -61,10 +61,27 @@ body {
   -webkit-user-select: none;
 }
 
+/* Корень = видимая область (без клавиатуры), см. lib/viewport.ts */
 #root {
   position: fixed;
-  inset: 0;
+  left: 0;
+  right: 0;
+  top: var(--vvt, 0px);
+  height: var(--vvh, 100%);
   overflow: hidden;
+  transition: height 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Клавиатура открыта: нижние отступы под «полоску» iPhone не нужны, меню прячем */
+html.kb .tabbar {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(0, 30px, 0);
+}
+html.kb .nav-sheet,
+html.kb .chat-input,
+html.kb .comment-bar {
+  padding-bottom: 8px;
 }
 
 button {

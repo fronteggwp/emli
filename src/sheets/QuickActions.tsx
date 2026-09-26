@@ -15,6 +15,7 @@ import { ScannerSheet } from "./Scanner";
 import { QuickAddSheet } from "./QuickAdd";
 import { CreateFoodSheet } from "./CreateFood";
 import { LogWeightSheet } from "./LogWeight";
+import { CheatMealSheet } from "./CheatMeal";
 import { loadDetector } from "@/lib/barcode";
 import "./sheets.css";
 
@@ -80,13 +81,22 @@ export function QuickActions() {
           ))}
         </div>
         <div className="list" style={{ marginTop: 14 }}>
-          <button className="list-item" onClick={() => open(<CreateFoodSheet />)}>
+          <button className="list-item press" onClick={() => open(<CheatMealSheet />, true)}>
+            <span className="li-icon" style={{ fontSize: 18 }}>
+              🍕
+            </span>
+            <span style={{ flex: 1 }}>
+              <div className="li-title">Запланировать читмил</div>
+              <div className="li-sub">Съешь больше в нужный день — неделя останется в балансе</div>
+            </span>
+          </button>
+          <button className="list-item press" onClick={() => open(<CreateFoodSheet />)}>
             <span className="li-icon">
               <PackagePlus size={20} />
             </span>
             <span className="li-title">Создать свой продукт</span>
           </button>
-          <button className="list-item" onClick={copyYesterday} disabled={copying}>
+          <button className="list-item press" onClick={copyYesterday} disabled={copying}>
             <span className="li-icon">
               <Copy size={20} />
             </span>

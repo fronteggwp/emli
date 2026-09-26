@@ -1,29 +1,21 @@
+// Базовые стили — первыми, чтобы стили экранов могли их переопределять
+import "@/styles/global.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MotionConfig } from "motion/react";
 import { AuthProvider } from "@/lib/auth";
 import { initTelegram } from "@/lib/telegram";
+import { initViewport } from "@/lib/viewport";
 import { ToastProvider } from "@/ui/Toast";
 import { App } from "./App";
-import "@/styles/global.css";
 
 initTelegram();
 
 // iOS включает :active-состояния только при наличии обработчика касаний
 document.addEventListener("touchstart", () => {}, { passive: true });
 
-// Клавиатура iOS: поднимаем шторки над ней
-if (window.visualViewport) {
-  const vv = window.visualViewport;
-  const sync = () => {
-    const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-    document.documentElement.style.setProperty("--kb", `${kb > 80 ? kb : 0}px`);
-    if (vv.offsetTop > 0) window.scrollTo(0, 0);
-  };
-  vv.addEventListener("resize", sync);
-  vv.addEventListener("scroll", sync);
-}
+initViewport();
 
 const queryClient = new QueryClient({
   defaultOptions: {

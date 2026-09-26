@@ -1,14 +1,16 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion, type PanInfo } from "motion/react";
-import { CalendarDays, Plus, ScanBarcode } from "lucide-react";
+import { CalendarDays, Flame, Plus, ScanBarcode } from "lucide-react";
 import { useDay } from "@/state/day";
 import { useNav } from "@/nav/Nav";
-import { useEntries, useTargets, useTotals, useDeleteEntry } from "@/data/api";
+import { useDayTargets, useEntries, useProfile, useTotals, useDeleteEntry } from "@/data/api";
+import { useInsights } from "@/data/insights";
 import { dayTitle, fmt, fromKey, shiftKey, todayKey, weekStart, WEEKDAYS_SHORT } from "@/lib/dates";
-import { MEALS, sumMacros, targetFor, fmtNum } from "@/lib/nutrition";
-import type { Entry, Meal, Targets } from "@/lib/types";
+import { MEALS, sumMacros, fmtNum } from "@/lib/nutrition";
+import type { DayTarget } from "@/lib/cheat";
+import type { Entry, Macros, Meal } from "@/lib/types";
 import { haptic } from "@/lib/telegram";
-import { Rings, Bar } from "@/ui/Rings";
+import { Rings } from "@/ui/Rings";
 import { NumberTicker } from "@/ui/NumberTicker";
 import { Tap } from "@/ui/Tap";
 import { AddFoodSheet } from "@/sheets/AddFood";
@@ -16,59 +18,86 @@ import { FoodDetailSheet } from "@/sheets/FoodDetail";
 import { CalendarSheet } from "@/sheets/Calendar";
 import { ScannerSheet } from "@/sheets/Scanner";
 import { QuickAddSheet } from "@/sheets/QuickAdd";
+import { CheatMealSheet } from "@/sheets/CheatMeal";
 import { useToast } from "@/ui/Toast";
 import "./diary.css";
+
+/** Какую долю дневной нормы обычно занимает приём пищи — для полоски у каждого приёма */
+const MEAL_SHARE = [0.25, 0.35, 0.3, 0.1];
+const MEAL_STYLE = [
+  "linear-gradient(135deg, #ffc27a, #ff7a5c)",
+  "linear-gradient(135deg, #6fe7ac, #22b573)",
+  "linear-gradient(135deg, #9aa6ff, #6b5cff)",
+  "linear-gradient(135deg, #ff9fc0, #ff5e7e)",
+];
+
+function greeting(name?: string) {
+  const h = new Date().getHours();
+  const g = h < 5 ? "Доброй ночи" : h < 12 ? "Доброе утро" : h < 18 ? "Добрый день" : "Добрый вечер";
+  return name ? `${g}, ${name}` : g;
+}
 
 export function DiaryPage() {
   const { day, setDay } = useDay();
   const nav = useNav();
   const entries = useEntries(day);
-  const targets = useTargets();
-  const target = targetFor(targets.data, day);
+  const targets = useDayTargets();
+  const profile = useProfile();
+  const ins = useInsights();
+  const target = targets.forDay(day);
   const sum = useMemo(() => sumMacros(entries.data ?? []), [entries.data]);
   const isToday = day === todayKey();
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <motion.div
-            key={day}
-            className="page-title"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-          >
+    <div className="page diary">
+      <div className="page-head" style={{ alignItems: "flex-end" }}>
+        <div style={{ minWidth: 0 }}>
+          <div className="muted diary-greet">{isToday ? greeting(profile.data?.first_name) : fmt(day, "EEEE")}</div>
+          <div key={day} className="page-title diary-title">
             {dayTitle(day)}
-          </motion.div>
-          <div className="muted" style={{ fontSize: 14, marginTop: 4 }}>
-            {isToday ? fmt(day, "EEEE, d MMMM") : fmt(day, "d MMMM yyyy")}
           </div>
         </div>
         <div className="row" style={{ gap: 8 }}>
-          {!isToday && (
-            <Tap className="chip" onClick={() => setDay(todayKey())}>
-              Сегодня
-            </Tap>
+          {ins.streak > 1 && (
+            <span className="streak-pill">
+              <Flame size={15} /> {ins.streak}
+            </span>
           )}
-          <Tap className="icon-btn" onClick={() => nav.sheet(<CalendarSheet />)} aria-label="Календарь">
+          <Tap className="icon-btn" onClick={() => nav.sheet(<CheatMealSheet day={day >= todayKey() ? day : undefined} />, { full: true })} aria-label="Читмил">
+            <span style={{ fontSize: 19 }}>🍕</span>
+          </Tap>
+          <Tap className="icon-btn" onClick={() => nav.sheet(<CalendarSheet />, { full: true })} aria-label="Календарь">
             <CalendarDays size={20} />
           </Tap>
         </div>
       </div>
 
-      <WeekStrip targets={targets.data} />
+      <WeekStrip forDay={targets.forDay} />
 
-      <SummaryCard sum={sum} target={target} loading={entries.isLoading} />
+      {!isToday && (
+        <button className="back-today tap" onClick={() => setDay(todayKey())}>
+          ← вернуться к сегодня
+        </button>
+      )}
+
+      <Hero sum={sum} target={target} loading={entries.isLoading || targets.loading} />
+
+      <DayBanner target={target} day={day} />
 
       <div className="stack" style={{ marginTop: 14 }}>
         {MEALS.map((m, i) => (
-          <MealCard key={m.id} meal={m.id as Meal} entries={(entries.data ?? []).filter((e) => e.meal === m.id)} index={i} />
+          <MealCard
+            key={m.id}
+            meal={m.id as Meal}
+            entries={(entries.data ?? []).filter((e) => e.meal === m.id)}
+            index={i}
+            budget={target.calories * MEAL_SHARE[i]}
+          />
         ))}
       </div>
 
       <div className="row" style={{ marginTop: 16, gap: 10 }}>
-        <Tap className="btn btn-block" onClick={() => nav.sheet(<AddFoodSheet />, { full: true })}>
+        <Tap className="btn btn-block add-food" onClick={() => nav.sheet(<AddFoodSheet />, { full: true })}>
           <Plus size={20} /> Добавить еду
         </Tap>
         <Tap className="icon-btn" style={{ width: 54, height: 54 }} onClick={() => nav.sheet(<ScannerSheet />, { full: true })} aria-label="Сканировать">
@@ -81,7 +110,7 @@ export function DiaryPage() {
 
 // ───────────────────────── Лента недели
 
-function WeekStrip({ targets }: { targets?: Targets[] }) {
+function WeekStrip({ forDay }: { forDay: (d: string) => DayTarget }) {
   const { day, setDay } = useDay();
   const totals = useTotals();
   const start = weekStart(day);
@@ -125,35 +154,37 @@ function WeekStrip({ targets }: { targets?: Targets[] }) {
         >
           {days.map((d, i) => {
             const t = byDay.get(d);
-            const target = targetFor(targets, d)?.calories ?? 0;
-            const ratio = t && target ? Math.min(t.kcal / target, 1) : 0;
+            const target = forDay(d);
+            const ratio = t && target.calories ? Math.min(t.kcal / target.calories, 1) : 0;
+            const over = !!t && t.kcal > target.calories * 1.1;
             const on = d === day;
-            const future = d > today;
+            const cheat = target.adjust.some((a) => a.kind === "cheat");
+            const saving = target.adjust.some((a) => a.kind === "save");
             return (
               <button
                 key={d}
-                className={`wday ${on ? "on" : ""} ${future ? "future" : ""}`}
+                className={`wday ${on ? "on" : ""} ${d > today ? "future" : ""} ${cheat ? "cheat" : ""} ${saving ? "saving" : ""}`}
                 onClick={() => {
                   if (!on) haptic.select();
                   setDay(d);
                 }}
               >
-                <span className="wday-name">{WEEKDAYS_SHORT[i]}</span>
+                <span className="wday-name">{cheat ? "🍕" : WEEKDAYS_SHORT[i]}</span>
                 <span className="wday-circle">
                   <svg viewBox="0 0 44 44">
                     <circle cx="22" cy="22" r="20" className="wday-track" />
-                    <motion.circle
+                    <circle
                       cx="22"
                       cy="22"
                       r="20"
                       className="wday-progress"
-                      initial={{ pathLength: 0 }}
-                      animate={{ pathLength: ratio }}
-                      transition={{ duration: 0.8, delay: 0.1 + i * 0.04, ease: [0.16, 1, 0.3, 1] }}
-                      style={{ opacity: ratio > 0.01 ? 1 : 0 }}
+                      style={{
+                        strokeDasharray: `${ratio * 125.66} 125.66`,
+                        opacity: ratio > 0.01 ? 1 : 0,
+                        stroke: over ? "var(--fat)" : undefined,
+                      }}
                     />
                   </svg>
-                  {on && <motion.span layoutId="wday-fill" className="wday-fill" transition={{ type: "spring", stiffness: 500, damping: 36 }} />}
                   <span className="wday-num num">{fromKey(d).getDate()}</span>
                 </span>
                 <span className={`wday-today ${d === today ? "show" : ""}`} />
@@ -166,114 +197,165 @@ function WeekStrip({ targets }: { targets?: Targets[] }) {
   );
 }
 
-// ───────────────────────── Итоги дня
+// ───────────────────────── Главная карточка дня
 
-function SummaryCard({ sum, target, loading }: { sum: ReturnType<typeof sumMacros>; target?: Targets; loading: boolean }) {
+function Hero({ sum, target, loading }: { sum: Macros; target: DayTarget; loading: boolean }) {
   const [mode, setMode] = useState<"left" | "eaten">("left");
-  const goal = target ?? { calories: 2000, protein: 120, fat: 70, carbs: 220 };
-  const left = goal.calories - sum.kcal;
+  const left = target.calories - sum.kcal;
   const over = left < 0;
+  const cheat = target.adjust.some((a) => a.kind === "cheat");
 
   const macros = [
-    { key: "protein", label: "Белки", color: "var(--protein)", value: sum.protein, max: goal.protein },
-    { key: "fat", label: "Жиры", color: "var(--fat)", value: sum.fat, max: goal.fat },
-    { key: "carbs", label: "Углеводы", color: "var(--carbs)", value: sum.carbs, max: goal.carbs },
-  ];
+    { key: "protein", label: "Белки", color: "var(--protein)", value: sum.protein, max: target.protein },
+    { key: "fat", label: "Жиры", color: "var(--fat)", value: sum.fat, max: target.fat },
+    { key: "carbs", label: "Углеводы", color: "var(--carbs)", value: sum.carbs, max: target.carbs },
+  ] as const;
 
   return (
-    <Tap
-      className="card summary"
-      scale={0.985}
-      onClick={() => {
-        haptic.tap();
-        setMode((m) => (m === "left" ? "eaten" : "left"));
-      }}
-    >
-      <div className="summary-top">
-        <div className="summary-side">
-          <div className="num summary-side-v">{fmtNum(sum.kcal)}</div>
-          <div className="summary-side-l">съедено</div>
-        </div>
+    <div className={`hero ${cheat ? "is-cheat" : ""}`}>
+      <div className="hero-glow" />
+      <button
+        className="hero-ring tap"
+        style={{ ["--tap-scale" as string]: 0.97 }}
+        onClick={() => {
+          haptic.tap();
+          setMode((m) => (m === "left" ? "eaten" : "left"));
+        }}
+      >
         <Rings
-          size={188}
-          stroke={11}
-          gap={4}
+          size={214}
+          stroke={12}
+          gap={5}
           rings={[
-            { value: loading ? 0 : sum.kcal, max: goal.calories, color: "var(--kcal)", color2: "var(--kcal-2)" },
+            {
+              value: loading ? 0 : sum.kcal,
+              max: target.calories,
+              color: cheat ? "#ffc247" : "var(--kcal)",
+              color2: cheat ? "#ff5e7e" : "var(--kcal-2)",
+            },
             ...macros.map((m) => ({ value: loading ? 0 : m.value, max: m.max, color: m.color })),
           ]}
         >
           <div>
-            <div className="summary-big">
+            <div className="hero-big">
               <NumberTicker value={Math.round(mode === "left" ? Math.abs(left) : sum.kcal)} />
             </div>
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={mode + String(over)}
-                className="summary-caption"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.15 }}
-                style={{ color: mode === "left" && over ? "var(--danger)" : undefined }}
-              >
-                {mode === "eaten" ? "съедено" : over ? "сверх нормы" : "осталось"}
-              </motion.div>
-            </AnimatePresence>
+            <div key={mode + String(over)} className="hero-caption" style={{ color: mode === "left" && over ? "var(--danger)" : undefined }}>
+              {mode === "eaten" ? "ккал съедено" : over ? "ккал сверх нормы" : "ккал осталось"}
+            </div>
           </div>
         </Rings>
-        <div className="summary-side">
-          <div className="num summary-side-v">{fmtNum(goal.calories)}</div>
-          <div className="summary-side-l">цель</div>
-        </div>
+      </button>
+
+      <div className="hero-sub">
+        <span>
+          <b className="num">{fmtNum(sum.kcal)}</b> съедено
+        </span>
+        <span className="hero-dot" />
+        <span>
+          <b className="num">{fmtNum(target.calories)}</b> цель
+          {target.calories !== target.base.calories && (
+            <em className="num">
+              {" "}
+              ({target.calories > target.base.calories ? "+" : "−"}
+              {fmtNum(Math.abs(target.calories - target.base.calories))})
+            </em>
+          )}
+        </span>
       </div>
 
-      <div className="summary-macros">
-        {macros.map((m, i) => (
-          <div key={m.key} className="summary-macro">
-            <div className="legend-head">
-              <span className="dot" style={{ background: m.color, width: 7, height: 7 }} />
-              <span>{m.label}</span>
+      <div className="hero-macros">
+        {macros.map((m) => {
+          const ratio = m.max ? Math.min(m.value / m.max, 1) : 0;
+          const leftG = Math.max(m.max - m.value, 0);
+          return (
+            <div key={m.key} className="macro-pill">
+              <svg viewBox="0 0 36 36" className="macro-ring">
+                <circle cx="18" cy="18" r="15" fill="none" stroke={m.color} strokeOpacity="0.18" strokeWidth="4" />
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="15"
+                  fill="none"
+                  stroke={m.color}
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeDasharray={`${ratio * 94.25} 94.25`}
+                  transform="rotate(-90 18 18)"
+                  style={{ transition: "stroke-dasharray .9s cubic-bezier(.16,1,.3,1)", opacity: ratio > 0.01 ? 1 : 0 }}
+                />
+              </svg>
+              <div style={{ minWidth: 0 }}>
+                <div className="macro-label">{m.label}</div>
+                <div className="macro-val num">
+                  {mode === "left" ? fmtNum(leftG) : fmtNum(m.value)}
+                  <span> {mode === "left" ? "г ост." : `/ ${m.max} г`}</span>
+                </div>
+              </div>
             </div>
-            <div className="legend-val num">
-              {mode === "left" ? fmtNum(Math.max(m.max - m.value, 0)) : fmtNum(m.value)}
-              <span className="faint"> {mode === "left" ? "г ост." : `/ ${m.max}`}</span>
-            </div>
-            <Bar value={m.value} max={m.max} color={m.color} height={5} delay={0.2 + i * 0.08} />
-          </div>
-        ))}
+          );
+        })}
       </div>
-    </Tap>
+    </div>
+  );
+}
+
+// ───────────────────────── Баннер читмила
+
+function DayBanner({ target, day }: { target: DayTarget; day: string }) {
+  const nav = useNav();
+  const cheat = target.adjust.find((a) => a.kind === "cheat");
+  const save = target.adjust.find((a) => a.kind === "save");
+  if (!cheat && !save) return null;
+  const plan = (cheat ?? save)!.plan;
+  const isToday = day === todayKey();
+  return (
+    <button className={`day-banner press ${cheat ? "cheat" : "save"}`} onClick={() => nav.sheet(<CheatMealSheet plan={plan} />, { full: true })}>
+      <span className="day-banner-emoji">{cheat ? "🍕" : "💪"}</span>
+      <span style={{ flex: 1, textAlign: "left" }}>
+        {cheat ? (
+          <>
+            <b>{isToday ? "Сегодня читмил!" : "Читмил"}</b> {plan.title ? `· ${plan.title}` : ""}
+            <div className="day-banner-sub">Можно на {fmtNum(cheat.delta)} ккал больше обычного — наслаждайся</div>
+          </>
+        ) : (
+          <>
+            <b>Копим на читмил</b> · {fmt(plan.day, "EEEEEE, d MMM")}
+            <div className="day-banner-sub">
+              {isToday ? "Сегодня" : "В этот день"} норма меньше на {fmtNum(-save!.delta)} ккал
+            </div>
+          </>
+        )}
+      </span>
+    </button>
   );
 }
 
 // ───────────────────────── Приёмы пищи
 
-function MealCard({ meal, entries, index }: { meal: Meal; entries: Entry[]; index: number }) {
+function MealCard({ meal, entries, index, budget }: { meal: Meal; entries: Entry[]; index: number; budget: number }) {
   const nav = useNav();
   const info = MEALS[meal];
   const total = sumMacros(entries);
+  const ratio = budget > 0 ? Math.min(total.kcal / budget, 1) : 0;
   return (
-    <motion.div
-      className="card meal"
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.05 * index, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-    >
+    <div className={`card meal ${entries.length ? "" : "empty-meal"}`} style={{ animationDelay: `${index * 50}ms` }}>
       <div className="meal-head">
-        <span className="meal-emoji">{info.emoji}</span>
+        <span className="meal-icon" style={{ background: MEAL_STYLE[meal] }}>
+          {info.emoji}
+        </span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="meal-name">{info.name}</div>
-          <div className="meal-sub">
-            {entries.length ? (
-              <>
-                <span className="num">{fmtNum(total.kcal)}</span> ккал · Б {fmtNum(total.protein)} · Ж {fmtNum(total.fat)} · У{" "}
-                {fmtNum(total.carbs)}
-              </>
-            ) : (
-              "Пока пусто"
-            )}
+          <div className="row" style={{ gap: 8, alignItems: "baseline" }}>
+            <span className="meal-name">{info.name}</span>
+            {entries.length > 0 && <span className="meal-kcal num">{fmtNum(total.kcal)} ккал</span>}
           </div>
+          {entries.length ? (
+            <div className="meal-bar">
+              <i style={{ width: `${ratio * 100}%`, background: MEAL_STYLE[meal] }} />
+            </div>
+          ) : (
+            <div className="meal-sub">≈ {fmtNum(Math.round(budget / 10) * 10)} ккал по плану</div>
+          )}
         </div>
         <Tap
           className="meal-add"
@@ -292,7 +374,7 @@ function MealCard({ meal, entries, index }: { meal: Meal; entries: Entry[]; inde
           <EntryRow key={e.id} entry={e} />
         ))}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }
 
@@ -335,10 +417,16 @@ function EntryRow({ entry }: { entry: Entry }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="entry-name">{entry.name}</div>
           <div className="entry-sub">
-            {entry.grams ? `${fmtNum(entry.grams)} г · ` : ""}Б {fmtNum(entry.protein)} · Ж {fmtNum(entry.fat)} · У {fmtNum(entry.carbs)}
+            {entry.grams ? <span className="entry-g">{fmtNum(entry.grams)} г</span> : null}
+            <span style={{ color: "var(--protein)" }}>Б {fmtNum(entry.protein)}</span>
+            <span style={{ color: "var(--fat)" }}>Ж {fmtNum(entry.fat)}</span>
+            <span style={{ color: "var(--carbs)" }}>У {fmtNum(entry.carbs)}</span>
           </div>
         </div>
-        <div className="entry-kcal num">{fmtNum(entry.kcal)}</div>
+        <div className="entry-kcal num">
+          {fmtNum(entry.kcal)}
+          <small>ккал</small>
+        </div>
       </motion.button>
     </motion.div>
   );

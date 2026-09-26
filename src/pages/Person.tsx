@@ -11,7 +11,9 @@ import {
   useFriendships,
   usePerson,
   usePublicStats,
+  useFriendsOf,
 } from "@/data/social";
+import { FriendsOfScreen } from "./FriendsOf";
 import { lastSeenText } from "@/lib/dates";
 import { fmtKg } from "@/lib/nutrition";
 import { confirmDialog, haptic } from "@/lib/telegram";
@@ -39,6 +41,9 @@ export function PersonScreen({ id }: { id: string }) {
   const rel = fs.relation(id);
   const me = id === uid;
   const s = stats.data;
+  const friendsOf = useFriendsOf(id);
+  const mutual = (friendsOf.data ?? []).filter((x) => x.mutual);
+  const m1 = mutual[0]?.first_name ?? "";
 
   const write = async () => {
     setOpening(true);
@@ -132,6 +137,20 @@ export function PersonScreen({ id }: { id: string }) {
         <div style={{ fontSize: 24, fontWeight: 750, marginTop: 12, letterSpacing: "-0.02em" }}>{fullName(p)}</div>
         {!me && <div className={`muted ${lastSeenText(p?.last_seen) === "в сети" ? "typing" : ""}`} style={{ fontSize: 14, marginTop: 2 }}>{lastSeenText(p?.last_seen)}</div>}
         {p?.bio && <div style={{ marginTop: 10, fontSize: 15, maxWidth: 320 }}>{p.bio}</div>}
+        {!me && mutual.length > 0 && (
+          <button className="row tap" style={{ gap: 8, marginTop: 12 }} onClick={() => nav.push(<FriendsOfScreen id={id} />)}>
+            <span style={{ display: "flex" }}>
+              {mutual.slice(0, 3).map((m, i) => (
+                <span key={m.id} style={{ marginLeft: i ? -10 : 0, border: "2px solid var(--bg)", borderRadius: "50%" }}>
+                  <Avatar url={m.avatar_url} name={m.first_name} size={24} />
+                </span>
+              ))}
+            </span>
+            <span className="muted" style={{ fontSize: 13 }}>
+              {mutual.length === 1 ? `Общий друг: ${m1}` : `${mutual.length} общих друзей`}
+            </span>
+          </button>
+        )}
       </div>
 
       <div className="row" style={{ marginTop: 18, gap: 10 }}>
@@ -158,10 +177,10 @@ export function PersonScreen({ id }: { id: string }) {
           <div className="k">дней</div>
           <div className="v num">{s?.hidden ? "—" : (s?.logged_days ?? 0)}</div>
         </div>
-        <div>
-          <div className="k">друзей</div>
+        <button className="tap" style={{ textAlign: "left" }} onClick={() => nav.push(<FriendsOfScreen id={id} />)}>
+          <div className="k">друзей ›</div>
           <div className="v num">{s?.friends ?? 0}</div>
-        </div>
+        </button>
         {s?.weight_change_30 != null && (
           <div>
             <div className="k">вес, 30 д</div>

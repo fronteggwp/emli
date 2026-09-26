@@ -1,4 +1,7 @@
+import { useMemo } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { withPlans, type CheatPlan, type DayTarget } from "@/lib/cheat";
+import { targetFor } from "@/lib/nutrition";
 import { supabase } from "@/lib/supabase";
 import { useUid } from "@/lib/auth";
 import { shiftKey, todayKey } from "@/lib/dates";
@@ -336,4 +339,49 @@ export function useSaveTargets() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.targets }),
   });
+}
+
+// ───────────── Читмилы
+
+export function usePlans() {
+  return useQuery({
+    queryKey: ["cheat-plans"],
+    queryFn: async () => unwrap<CheatPlan[]>(await supabase.from("cheat_plans").select("*").order("day")),
+  });
+}
+
+export function useSavePlan() {
+  const qc = useQueryClient();
+  const uid = useUid();
+  return useMutation({
+    mutationFn: async (p: Omit<CheatPlan, "id" | "created_at"> & { id?: string }) => {
+      // Меняем день плана — старую запись убираем
+      if (p.id) await supabase.from("cheat_plans").delete().eq("id", p.id);
+      const { id: _id, ...row } = p;
+      void _id;
+      return unwrap(await supabase.from("cheat_plans").upsert({ ...row, user_id: uid }, { onConflict: "user_id,day" }).select().single());
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["cheat-plans"] }),
+  });
+}
+
+export function useDeletePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => unwrap(await supabase.from("cheat_plans").delete().eq("id", id)),
+    onMutate: (id) => qc.setQueryData<CheatPlan[]>(["cheat-plans"], (old) => old?.filter((p) => p.id !== id)),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["cheat-plans"] }),
+  });
+}
+
+const FALLBACK_TARGET = { calories: 2000, protein: 120, fat: 70, carbs: 220 };
+
+/** Норма на день с учётом читмилов — одна функция для дневника, календаря и статистики */
+export function useDayTargets() {
+  const targets = useTargets();
+  const plans = usePlans();
+  return useMemo(() => {
+    const fn = (day: string): DayTarget => withPlans(targetFor(targets.data, day) ?? FALLBACK_TARGET, plans.data, day);
+    return { forDay: fn, plans: plans.data ?? [], loading: targets.isLoading || plans.isLoading, hasTargets: !!targets.data?.length };
+  }, [targets.data, plans.data, targets.isLoading, plans.isLoading]);
 }

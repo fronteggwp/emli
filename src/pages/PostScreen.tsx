@@ -8,6 +8,7 @@ import { confirmDialog, haptic } from "@/lib/telegram";
 import { Screen } from "@/ui/Screen";
 import { PostCard } from "@/ui/PostCard";
 import { Avatar } from "@/ui/Avatar";
+import { keepFocus } from "@/lib/viewport";
 import { AutoTextarea } from "@/ui/AutoTextarea";
 import { PersonScreen } from "./Person";
 import "./social.css";
@@ -78,7 +79,7 @@ export function PostScreen({ id }: { id: string }) {
 
       <div className="comment-bar">
         <AutoTextarea value={text} maxRows={5} onChange={(e) => setText(e.target.value.slice(0, 1000))} placeholder="Комментарий…" />
-        <button className="send-btn" disabled={!text.trim()} onClick={send} aria-label="Отправить">
+        <button className="send-btn" disabled={!text.trim()} onClick={send} {...keepFocus} aria-label="Отправить">
           <ArrowUp size={20} strokeWidth={2.6} />
         </button>
       </div>

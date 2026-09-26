@@ -83,3 +83,9 @@
 .explain b {
   color: var(--text);
 }
+.kv > button {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 12px;
+}

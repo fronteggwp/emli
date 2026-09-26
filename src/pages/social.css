@@ -338,13 +338,11 @@
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  padding: 8px 10px calc(8px + var(--kb, 0px));
-  padding-bottom: max(calc(8px + var(--kb, 0px)), var(--sab));
+  padding: 8px 10px max(8px, var(--sab));
   border-top: 1px solid var(--line);
   background: rgba(11, 11, 14, 0.9);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  transition: padding-bottom 0.25s var(--ease-ios);
 }
 .chat-input textarea {
   flex: 1;
@@ -426,7 +424,7 @@
   align-items: flex-end;
   gap: 8px;
   margin: 0 -16px;
-  padding: 10px 12px max(calc(10px + var(--kb, 0px)), var(--sab));
+  padding: 10px 12px max(10px, var(--sab));
   background: rgba(11, 11, 14, 0.92);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
