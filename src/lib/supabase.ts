@@ -5,6 +5,13 @@ import { createClient } from "@supabase/supabase-js";
 const URL = import.meta.env.VITE_SUPABASE_URL || "https://ezhgiczvwsufzhwwwrkr.supabase.co";
 const KEY = import.meta.env.VITE_SUPABASE_KEY || "sb_publishable_PMSMYTNWg25PzxVeh4Y1Vw_kaEADe6w";
 
+// Токен пользователя держим сами (см. auth.tsx): встроенное хранилище сессии
+// в WebView Telegram на iOS ненадёжно, и запросы уходили анонимными.
+let accessToken: string | null = null;
+export const setAccessToken = (t: string | null) => {
+  accessToken = t;
+};
+
 export const supabase = createClient(URL, KEY, {
-  auth: { persistSession: true, autoRefreshToken: true, storageKey: "emli-auth", detectSessionInUrl: false },
+  accessToken: async () => accessToken ?? KEY,
 });
