@@ -2,6 +2,7 @@ import { BookOpen, ChartColumn, Plus, UserRound, Users } from "lucide-react";
 import { useNav, type Tab } from "@/nav/Nav";
 import { haptic } from "@/lib/telegram";
 import { QuickActions } from "@/sheets/QuickActions";
+import { useUnreadCounts } from "@/data/social";
 import "./tabbar.css";
 
 const ITEMS: { tab: Tab; label: string; Icon: typeof BookOpen }[] = [
@@ -13,6 +14,7 @@ const ITEMS: { tab: Tab; label: string; Icon: typeof BookOpen }[] = [
 
 export function TabBar() {
   const nav = useNav();
+  const unread = useUnreadCounts();
   const render = (i: (typeof ITEMS)[number]) => {
     const on = nav.tab === i.tab;
     return (
@@ -24,8 +26,9 @@ export function TabBar() {
           nav.setTab(i.tab);
         }}
       >
-        <span className="tab-icon">
+        <span className="tab-icon" style={{ position: "relative" }}>
           <i.Icon size={24} strokeWidth={on ? 2.4 : 1.9} />
+          {i.tab === "community" && unread.total > 0 && <span className="badge">{unread.total > 99 ? "99+" : unread.total}</span>}
         </span>
         <span className="tab-label">{i.label}</span>
       </button>

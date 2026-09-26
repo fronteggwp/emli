@@ -10,6 +10,8 @@ const KEY = import.meta.env.VITE_SUPABASE_KEY || "sb_publishable_PMSMYTNWg25PzxV
 let accessToken: string | null = null;
 export const setAccessToken = (t: string | null) => {
   accessToken = t;
+  // Реалтайм (чаты) тоже должен знать свежий токен
+  if (t) void supabase.realtime.setAuth(t);
 };
 
 export const supabase = createClient(URL, KEY, {

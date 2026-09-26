@@ -69,3 +69,8 @@
   position: relative;
   top: -14px;
 }
+
+.tab-icon .badge {
+  top: -6px;
+  right: -10px;
+}

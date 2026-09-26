@@ -42,11 +42,13 @@ export const qk = {
 
 // ───────────── Профиль и настройки
 
+export const PROFILE_COLS = "id,username,first_name,last_name,avatar_url,bio,is_private,show_weight,last_seen,created_at";
+
 export function useProfile() {
   const uid = useUid();
   return useQuery({
     queryKey: qk.profile,
-    queryFn: async () => unwrap<Profile>(await supabase.from("profiles").select("*").eq("id", uid).single()),
+    queryFn: async () => unwrap<Profile>(await supabase.from("profiles").select(PROFILE_COLS).eq("id", uid).single()),
   });
 }
 
@@ -76,7 +78,7 @@ export function useUpdateProfile() {
   const uid = useUid();
   return useMutation({
     mutationFn: async (patch: Partial<Profile>) =>
-      unwrap(await supabase.from("profiles").update(patch).eq("id", uid).select().single()),
+      unwrap(await supabase.from("profiles").update(patch).eq("id", uid).select(PROFILE_COLS).single()),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.profile }),
   });
 }

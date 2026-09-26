@@ -2,14 +2,73 @@ export type Macros = { kcal: number; protein: number; fat: number; carbs: number
 
 export type Profile = {
   id: string;
-  tg_id: number;
   username: string | null;
   first_name: string;
   last_name: string | null;
   avatar_url: string | null;
   bio: string | null;
   is_private: boolean;
+  show_weight: boolean;
+  last_seen: string | null;
   created_at: string;
+};
+
+/** Краткие данные автора/собеседника */
+export type Person = Pick<Profile, "id" | "username" | "first_name" | "last_name" | "avatar_url"> &
+  Partial<Pick<Profile, "bio" | "is_private" | "last_seen">>;
+
+export type Post = {
+  id: string;
+  author_id: string;
+  text: string | null;
+  image_url: string | null;
+  attachment: PostAttachment | null;
+  visibility: "public" | "friends";
+  like_count: number;
+  comment_count: number;
+  created_at: string;
+  liked: boolean;
+  author: Person;
+};
+
+export type PostAttachment =
+  | { type: "day"; day: string; kcal: number; protein: number; fat: number; carbs: number; target: number }
+  | { type: "weight"; change: number; days: number; current?: number | null }
+  | { type: "streak"; days: number };
+
+export type Comment = { id: string; post_id: string; author_id: string; text: string; created_at: string; author?: Person };
+
+export type Notice = {
+  id: number;
+  actor_id: string;
+  kind: "friend_request" | "friend_accept" | "like" | "comment";
+  post_id: string | null;
+  preview: string | null;
+  created_at: string;
+  read_at: string | null;
+};
+
+export type Conversation = {
+  id: string;
+  other_id: string;
+  last_message: string | null;
+  last_message_at: string;
+  last_sender: string | null;
+  other_read_at: string | null;
+  unread: number;
+};
+
+export type Message = { id: string; conversation_id: string; sender_id: string; text: string | null; image_url: string | null; created_at: string };
+
+export type Friendship = { requester: string; addressee: string; status: "pending" | "accepted"; created_at: string };
+
+export type PublicStats = {
+  hidden: boolean;
+  streak?: number;
+  logged_days?: number;
+  friends?: number;
+  posts?: number;
+  weight_change_30?: number | null;
 };
 
 export type Sex = "male" | "female";

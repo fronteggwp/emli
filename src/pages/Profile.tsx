@@ -1,4 +1,4 @@
-import { ChevronRight, Info, Package, Ruler as RulerIcon, Target, Users } from "lucide-react";
+import { ChevronRight, Info, Newspaper, Package, Pencil, Ruler as RulerIcon, Target, Users } from "lucide-react";
 import { motion } from "motion/react";
 import { useNav } from "@/nav/Nav";
 import { useProfile } from "@/data/api";
@@ -10,11 +10,17 @@ import { GoalScreen } from "./Goal";
 import { MyFoodsScreen } from "./MyFoods";
 import { EditBodySheet } from "@/sheets/EditBody";
 import { AboutSheet } from "@/sheets/About";
+import { EditProfileSheet } from "@/sheets/EditProfile";
+import { FriendsScreen } from "./Friends";
+import { PersonScreen } from "./Person";
+import { useFriendships } from "@/data/social";
+import { Tap } from "@/ui/Tap";
 
 export function ProfilePage() {
   const nav = useNav();
   const profile = useProfile();
   const ins = useInsights();
+  const fs = useFriendships();
   const p = profile.data;
   const lost = ins.goal && ins.current != null ? ins.current - ins.goal.start_weight : null;
 
@@ -22,7 +28,8 @@ export function ProfilePage() {
     { Icon: Target, title: "Цель и программа", sub: "Калории, БЖУ, темп", go: () => nav.push(<GoalScreen />) },
     { Icon: Package, title: "Мои продукты", sub: "Созданные и отсканированные", go: () => nav.push(<MyFoodsScreen />) },
     { Icon: RulerIcon, title: "Параметры тела", sub: "Рост, возраст, активность", go: () => nav.sheet(<EditBodySheet />) },
-    { Icon: Users, title: "Друзья", sub: "Скоро", go: () => nav.setTab("community") },
+    { Icon: Users, title: "Друзья", sub: fs.friends.length ? `${fs.friends.length} в друзьях${fs.incoming.length ? ` · ${fs.incoming.length} заявки` : ""}` : "Найти и пригласить", go: () => nav.push(<FriendsScreen initial={fs.incoming.length ? "requests" : "friends"} />) },
+    { Icon: Newspaper, title: "Мои записи", sub: "Как меня видят другие", go: () => p && nav.push(<PersonScreen id={p.id} />) },
     { Icon: Info, title: "О приложении", sub: "Как считаются цифры", go: () => nav.sheet(<AboutSheet />) },
   ];
 
@@ -40,6 +47,10 @@ export function ProfilePage() {
           {[p?.first_name, p?.last_name].filter(Boolean).join(" ") || "Без имени"}
         </div>
         {p?.username && <div className="muted" style={{ marginTop: 2 }}>@{p.username}</div>}
+        {p?.bio && <div style={{ marginTop: 8, fontSize: 15, maxWidth: 320 }}>{p.bio}</div>}
+        <Tap className="btn btn-sm" style={{ marginTop: 14 }} onClick={() => nav.sheet(<EditProfileSheet />)}>
+          <Pencil size={15} /> Редактировать профиль
+        </Tap>
       </div>
 
       <div className="kv" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>

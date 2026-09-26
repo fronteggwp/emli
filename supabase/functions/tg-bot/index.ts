@@ -16,7 +16,9 @@ async function tg(method: string, payload: Record<string, unknown> = {}) {
   return res.json();
 }
 
-const openButton = (text = "Открыть Emli") => ({ inline_keyboard: [[{ text, web_app: { url: APP_URL } }]] });
+const openButton = (text = "Открыть Emli", hash = "") => ({
+  inline_keyboard: [[{ text, web_app: { url: hash ? `${APP_URL}?${hash}` : APP_URL } }]],
+});
 
 const WELCOME =
   "Привет! Я Emli 🌿 — дневник питания прямо в Telegram.\n\n" +
@@ -67,7 +69,16 @@ Deno.serve(async (req) => {
   const msg = update?.message;
   if (msg?.chat?.id && typeof msg.text === "string") {
     if (msg.text.startsWith("/start")) {
-      await tg("sendMessage", { chat_id: msg.chat.id, text: WELCOME, reply_markup: openButton() });
+      // Ссылка-приглашение: t.me/<бот>?start=ref_<код>
+      const ref = msg.text.split(" ")[1]?.match(/^ref_([a-f0-9]{6,32})$/)?.[1];
+      const text = ref
+        ? "Тебя пригласили в Emli 🌿 Открой приложение — и вы с другом сразу окажетесь в друзьях.\n\n" + WELCOME
+        : WELCOME;
+      await tg("sendMessage", {
+        chat_id: msg.chat.id,
+        text,
+        reply_markup: openButton(ref ? "Открыть и добавить друга" : "Открыть Emli", ref ? `ref=${ref}` : ""),
+      });
     } else {
       await tg("sendMessage", {
         chat_id: msg.chat.id,

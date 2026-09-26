@@ -424,3 +424,7 @@ verify_jwt = false
 [functions.food-search]
 verify_jwt = false
 
+
+[functions.notify]
+verify_jwt = false
+

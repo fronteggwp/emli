@@ -5,6 +5,7 @@ import { useProfile, useSettings } from "@/data/api";
 import { NavProvider, type Tab } from "@/nav/Nav";
 import { DayProvider } from "@/state/day";
 import { TabBar } from "@/ui/TabBar";
+import { DeepLinks } from "@/nav/DeepLinks";
 import { Logo } from "@/ui/Logo";
 import { DiaryPage } from "@/pages/Diary";
 import { StatsPage } from "@/pages/Stats";
@@ -66,6 +67,7 @@ function Tabs({ tab }: { tab: Tab }) {
         </TabPage>
       ))}
       <TabBar />
+      <DeepLinks />
     </>
   );
 }
