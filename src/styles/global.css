@@ -1,0 +1,393 @@
+:root {
+  --bg: #0b0b0e;
+  --bg-2: #111115;
+  --card: #16161b;
+  --card-2: #1e1e25;
+  --card-3: #272730;
+  --line: rgba(255, 255, 255, 0.07);
+  --line-2: rgba(255, 255, 255, 0.12);
+  --text: #f4f4f6;
+  --text-2: rgba(244, 244, 246, 0.64);
+  --text-3: rgba(244, 244, 246, 0.4);
+  --text-inv: #0b0b0e;
+
+  --kcal: #7c8cff;
+  --kcal-2: #b388ff;
+  --protein: #ff7a5c;
+  --fat: #ffc247;
+  --carbs: #4fd18b;
+  --weight: #b388ff;
+  --good: #4fd18b;
+  --danger: #ff5a64;
+
+  --glass: rgba(22, 22, 27, 0.72);
+  --shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+
+  --r-sm: 12px;
+  --r: 20px;
+  --r-lg: 28px;
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+  --font-num: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Unbounded", var(--font);
+
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: max(env(safe-area-inset-bottom, 0px), 8px);
+  --tabbar-h: 64px;
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#root {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+.num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+}
+
+/* ───────── Экраны */
+
+.page {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding: calc(var(--sat) + 14px) 16px calc(var(--sab) + var(--tabbar-h) + 36px);
+  scrollbar-width: none;
+}
+.page::-webkit-scrollbar {
+  display: none;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 28px;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  margin: 6px 0 0;
+}
+
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  margin-bottom: 14px;
+}
+
+.section-title {
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 28px 2px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.section-title a,
+.section-title button {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+/* ───────── Карточки */
+
+.card {
+  background: var(--card);
+  border-radius: var(--r-lg);
+  padding: 18px;
+  border: 1px solid var(--line);
+  position: relative;
+  overflow: hidden;
+}
+
+.card-title {
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.card-sub {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-top: 2px;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.muted {
+  color: var(--text-2);
+}
+.faint {
+  color: var(--text-3);
+}
+
+/* ───────── Кнопки */
+
+.icon-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--card-2);
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.btn {
+  height: 54px;
+  padding: 0 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 650;
+  font-size: 16px;
+  background: var(--card-2);
+  color: var(--text);
+  white-space: nowrap;
+}
+.btn-primary {
+  background: var(--text);
+  color: var(--text-inv);
+}
+.btn-accent {
+  background: linear-gradient(135deg, var(--kcal), var(--kcal-2));
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(124, 140, 255, 0.35);
+}
+.btn-danger {
+  background: rgba(255, 90, 100, 0.14);
+  color: var(--danger);
+}
+.btn-block {
+  width: 100%;
+}
+.btn-sm {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 15px;
+}
+.btn:disabled {
+  opacity: 0.4;
+}
+
+.chip {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--card-2);
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
+}
+.chip.on {
+  background: var(--text);
+  color: var(--text-inv);
+}
+
+/* ───────── Поля ввода */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field label {
+  font-size: 13px;
+  color: var(--text-2);
+  padding-left: 4px;
+}
+.input {
+  height: 52px;
+  border-radius: 16px;
+  background: var(--card-2);
+  border: 1px solid transparent;
+  padding: 0 16px;
+  outline: none;
+  font-size: 17px;
+  width: 100%;
+  transition: border-color 0.2s;
+}
+.input:focus {
+  border-color: var(--line-2);
+}
+.input::placeholder {
+  color: var(--text-3);
+}
+
+/* ───────── Списки */
+
+.list {
+  background: var(--card);
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.list-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  width: 100%;
+  text-align: left;
+  position: relative;
+}
+.list-item + .list-item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 54px;
+  right: 0;
+  height: 1px;
+  background: var(--line);
+}
+.list-item .li-icon {
+  width: 24px;
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+}
+.list-item .li-title {
+  font-size: 16px;
+  font-weight: 500;
+}
+.list-item .li-sub {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+/* ───────── Скелетоны */
+
+.skeleton {
+  background: linear-gradient(90deg, var(--card-2) 0%, var(--card-3) 50%, var(--card-2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite linear;
+  border-radius: 12px;
+}
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.center-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px;
+  gap: 14px;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

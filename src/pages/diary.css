@@ -1,0 +1,243 @@
+/* Неделя */
+.week-wrap {
+  position: relative;
+  overflow: hidden;
+  margin: 0 -16px 14px;
+  padding: 0 10px;
+}
+.week {
+  display: flex;
+  justify-content: space-between;
+  touch-action: pan-y;
+}
+.wday {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+}
+.wday-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.wday.on .wday-name {
+  color: var(--text);
+}
+.wday-circle {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+}
+.wday-circle svg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+.wday-track {
+  fill: none;
+  stroke: var(--card-3);
+  stroke-width: 3;
+}
+.wday-progress {
+  fill: none;
+  stroke: var(--kcal);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.wday-fill {
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: var(--text);
+}
+.wday-num {
+  position: relative;
+  font-size: 16px;
+  font-weight: 700;
+}
+.wday.on .wday-num {
+  color: var(--text-inv);
+}
+.wday.future .wday-num {
+  color: var(--text-3);
+}
+.wday.future.on .wday-num {
+  color: var(--text-inv);
+}
+.wday-today {
+  width: 4px;
+  height: 4px;
+  border-radius: 2px;
+  background: transparent;
+}
+.wday-today.show {
+  background: var(--kcal);
+}
+
+/* Итоги дня */
+.summary {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 18px 18px 20px;
+  background:
+    radial-gradient(120% 90% at 0% 0%, rgba(124, 140, 255, 0.12), transparent 60%),
+    var(--card);
+}
+.summary-top {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+.summary-side {
+  text-align: center;
+}
+.summary-side-v {
+  font-size: 18px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+.summary-side-l {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+.summary-big {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.summary-caption {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 4px;
+}
+.summary-macros {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 18px;
+}
+.summary-macro {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.legend-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-weight: 500;
+  font-size: 13px;
+}
+.legend-val {
+  font-weight: 750;
+  font-size: 15px;
+}
+.legend-val .faint {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Приём пищи */
+.meal {
+  padding: 0;
+}
+.meal-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px 14px 16px;
+}
+.meal-emoji {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: var(--card-2);
+  display: grid;
+  place-items: center;
+  font-size: 21px;
+  flex-shrink: 0;
+}
+.meal-name {
+  font-size: 17px;
+  font-weight: 650;
+}
+.meal-sub {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.meal-add {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--card-2);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.entry-wrap {
+  position: relative;
+  overflow: hidden;
+}
+.entry-delete {
+  position: absolute;
+  inset: 0;
+  background: var(--danger);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 20px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+}
+.entry {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px 11px 70px;
+  background: var(--card);
+  text-align: left;
+  touch-action: pan-y;
+}
+.entry::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 70px;
+  right: 0;
+  height: 1px;
+  background: var(--line);
+}
+.entry-name {
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.entry-sub {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 1px;
+}
+.entry-kcal {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-2);
+}

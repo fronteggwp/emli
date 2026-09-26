@@ -1,0 +1,145 @@
+.nav-base {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+.nav-screen {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  box-shadow: -20px 0 50px rgba(0, 0, 0, 0.5);
+  will-change: transform;
+  touch-action: pan-y;
+}
+
+.nav-sheet-wrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.nav-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: auto;
+}
+
+.nav-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--kb, 0px);
+  max-height: calc(100% - var(--sat) - 24px - var(--kb, 0px));
+  background: var(--bg-2);
+  border-radius: 28px 28px 0 0;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4);
+  padding-bottom: var(--sab);
+  transition: bottom 0.25s ease;
+}
+.nav-sheet.full {
+  height: calc(100% - var(--sat) - 24px - var(--kb, 0px));
+}
+
+/* Под шторкой продолжаем фон, чтобы при «пружине» вверх не было щели */
+.nav-sheet::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 400px;
+  background: var(--bg-2);
+}
+
+.nav-sheet-grab {
+  height: 22px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  cursor: grab;
+  touch-action: none;
+}
+.nav-sheet-grab span {
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line-2);
+}
+
+/* Шапка шторки и прокручиваемое тело */
+.sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 16px 12px;
+  touch-action: none;
+  flex-shrink: 0;
+}
+.sheet-head h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+.sheet-head .icon-btn {
+  width: 38px;
+  height: 38px;
+}
+.sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 16px 16px;
+  scrollbar-width: none;
+}
+.sheet-body::-webkit-scrollbar {
+  display: none;
+}
+.sheet-foot {
+  padding: 10px 16px 6px;
+  flex-shrink: 0;
+}
+
+/* Шапка вложенного экрана */
+.screen-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: calc(var(--sat) + 8px) 12px 10px;
+  background: linear-gradient(var(--bg) 70%, transparent);
+}
+.screen-head h1 {
+  flex: 1;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: -0.01em;
+}
+.screen-head .icon-btn {
+  width: 40px;
+  height: 40px;
+}
+.screen-scroll {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+}
+.screen-scroll::-webkit-scrollbar {
+  display: none;
+}
+.screen-body {
+  padding: 4px 16px calc(var(--sab) + 32px);
+}
