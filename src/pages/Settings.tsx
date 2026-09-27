@@ -26,6 +26,7 @@ export function SettingsScreen() {
       <div className="faint" style={{ textAlign: "center", fontSize: 12, marginTop: 28 }}>
         Emli · сделано с ❤️
       </div>
+      {!inTelegram && <ScreenInfo />}
     </Screen>
   );
 }
@@ -358,5 +359,24 @@ function DataBlock() {
         </button>
       </div>
     </>
+  );
+}
+
+/** Служебная строка про размеры экрана — помогает разобраться с отображением на телефоне */
+function ScreenInfo() {
+  const root = document.getElementById("root")?.getBoundingClientRect();
+  const cs = getComputedStyle(document.documentElement);
+  const info = [
+    `st ${(navigator as Navigator & { standalone?: boolean }).standalone ? 1 : 0}/${matchMedia("(display-mode: standalone)").matches ? 1 : 0}`,
+    `scr ${screen.width}×${screen.height}`,
+    `win ${window.innerWidth}×${window.innerHeight}`,
+    `vv ${Math.round(window.visualViewport?.height ?? 0)}`,
+    `root ${Math.round(root?.top ?? 0)}+${Math.round(root?.height ?? 0)}`,
+    `vvh ${cs.getPropertyValue("--vvh").trim() || "-"}`,
+  ].join(" · ");
+  return (
+    <div className="faint" style={{ textAlign: "center", fontSize: 10, marginTop: 6, fontFamily: "monospace" }}>
+      {info}
+    </div>
   );
 }

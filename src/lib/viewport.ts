@@ -9,7 +9,9 @@ export function initViewport() {
   if (!vv) return;
   // Приложение на главном экране iOS: браузер отдаёт высоту без полосы статус-бара,
   // и снизу остаётся пустая полоса. Там приложение всегда на весь экран — берём высоту экрана.
-  const standalone = (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  const standalone =
+    (navigator as Navigator & { standalone?: boolean }).standalone === true || !!window.matchMedia?.("(display-mode: standalone)").matches;
+  html.classList.toggle("standalone", standalone);
   const screenH = () => (window.innerWidth > window.innerHeight ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height));
   let full = standalone ? screenH() : vv.height;
   let raf = 0;
