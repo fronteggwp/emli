@@ -434,3 +434,6 @@ verify_jwt = false
 
 [functions.account]
 verify_jwt = false
+
+[functions.ai-food]
+verify_jwt = false
