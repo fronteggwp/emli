@@ -133,6 +133,18 @@ body {
   transition: height 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
+/* Приложение на главном экране iPhone (iOS 26): 100% и dvh короче экрана на высоту
+   статус-бара — снизу остаётся пустая полоса. lvh — полная высота экрана. */
+html.standalone,
+html.standalone body {
+  height: 100lvh;
+}
+html.standalone:not(.kb) #root {
+  position: absolute;
+  top: 0;
+  height: 100lvh;
+}
+
 /* Клавиатура открыта: нижние отступы под «полоску» iPhone не нужны, меню прячем */
 html.kb .tabbar {
   opacity: 0;
