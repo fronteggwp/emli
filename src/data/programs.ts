@@ -1,4 +1,6 @@
 // Готовые программы тренировок. Упражнения — id из каталога (free-exercise-db).
+import { FAMOUS } from "./famousPrograms";
+
 // reps: диапазон повторов («8-12»), «макс» — до отказа, «30-45 с» — на время.
 
 export type ProgramExercise = { ex: string; sets: number; reps: string; rest: number; note?: string };
@@ -18,11 +20,15 @@ export type Program = {
   schedule: string;
   days: ProgramDay[];
   tips: string[];
+  /** Для знаменитых программ: автор, первоисточник и правила прогрессии */
+  author?: string;
+  source?: string;
+  progression?: string[];
 };
 
 const X = (ex: string, sets: number, reps: string, rest = 90, note?: string): ProgramExercise => ({ ex, sets, reps, rest, note });
 
-export const PROGRAMS: Program[] = [
+const BASIC: Program[] = [
   {
     key: "start-fullbody",
     title: "Старт: всё тело",
@@ -70,8 +76,14 @@ export const PROGRAMS: Program[] = [
   },
   {
     key: "strength-5x5",
-    title: "Сила 5×5",
+    title: "StrongLifts 5×5",
     subtitle: "Классика силового тренинга",
+    author: "Мехди Хадим",
+    source: "https://stronglifts.com/5x5/",
+    progression: [
+      "Каждую тренировку добавляй 2,5 кг в приседе, жимах и тяге штанги; 5 кг — в становой",
+      "Не сделал 5×5 — повтори тот же вес. Три неудачи подряд — сбрось 10% и снова расти",
+    ],
     description:
       "Три тяжёлых базовых упражнения за тренировку, 5 подходов по 5 повторов. Каждую тренировку вес растёт на 2,5 кг — простая и очень эффективная схема для роста силы и массы.",
     level: "intermediate",
@@ -549,6 +561,8 @@ export const PROGRAMS: Program[] = [
     tips: ["Руки растут от тяжёлой базы — не бросай жимы и тяги ради изоляции"],
   },
 ];
+
+export const PROGRAMS: Program[] = [...FAMOUS, ...BASIC];
 
 export const GOAL_RU = { muscle: "Масса", strength: "Сила", fat: "Жиросжигание", tone: "Тонус" } as const;
 export const PLACE_RU = { gym: "Зал", home: "Дом", any: "Где угодно" } as const;

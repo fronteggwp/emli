@@ -70,6 +70,7 @@ function Tabs({ tab }: { tab: Tab }) {
           {PAGES[t]()}
         </TabPage>
       ))}
+      <div className="top-scrim" />
       <ActiveBar tab={tab} />
       <TabBar />
       <DeepLinks />

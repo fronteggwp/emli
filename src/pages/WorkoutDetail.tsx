@@ -104,6 +104,18 @@ export function WorkoutDetailScreen({ id, celebrate = false }: { id: string; cel
           kcal: w.kcal,
           prs: w.prs.length,
           muscles: topMuscles.map(([m]) => MUSCLE_RU[m]),
+          load: Object.fromEntries(Object.entries(load).map(([k, v]) => [k, Math.round(Number(v) * 100) / 100])),
+          top: groups
+            .map(([exId, sets]) => {
+              const work = sets.filter((x) => x.kind !== "warmup");
+              const vol = work.reduce((acc, x) => acc + (x.weight ?? 0) * (x.reps ?? 0), 0);
+              const bestSet = [...work].sort((p, q) => (q.weight ?? 0) * (1 + (q.reps ?? 0) / 30) - (p.weight ?? 0) * (1 + (p.reps ?? 0) / 30))[0];
+              const v = bestSet?.seconds ? `${bestSet.seconds} с` : bestSet?.weight ? `${fmtW(bestSet.weight)} × ${bestSet.reps}` : `${bestSet?.reps ?? 0} повт.`;
+              return { n: catalog.byId.get(exId)?.n ?? exId, v, pr: w.prs.some((pr) => pr.ex === exId), vol };
+            })
+            .sort((p, q) => Number(q.pr) - Number(p.pr) || q.vol - p.vol)
+            .slice(0, 3)
+            .map(({ n, v, pr }) => ({ n, v, pr })),
         }}
       />,
       { full: true },

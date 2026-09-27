@@ -35,7 +35,20 @@ export type PostAttachment =
   | { type: "day"; day: string; kcal: number; protein: number; fat: number; carbs: number; target: number }
   | { type: "weight"; change: number; days: number; current?: number | null }
   | { type: "streak"; days: number }
-  | { type: "workout"; name: string; duration: number; volume: number; sets: number; kcal: number; prs: number; muscles: string[] };
+  | {
+      type: "workout";
+      name: string;
+      duration: number;
+      volume: number;
+      sets: number;
+      kcal: number;
+      prs: number;
+      muscles: string[];
+      /** нагрузка по мышцам 0..1 — для мини-схемы */
+      load?: Record<string, number>;
+      /** лучшие подходы: название и «80 × 5» */
+      top?: { n: string; v: string; pr?: boolean }[];
+    };
 
 export type Comment = { id: string; post_id: string; author_id: string; text: string; created_at: string; author?: Person };
 

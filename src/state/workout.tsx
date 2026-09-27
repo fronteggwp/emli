@@ -43,7 +43,6 @@ const KEY = "emli-workout";
 const Ctx = createContext<Api | null>(null);
 export const useWorkoutDraft = () => useContext(Ctx)!;
 
-const fmtW = (n: number | null | undefined) => (n == null ? "" : String(n).replace(".", ","));
 
 export function newSet(prev?: Partial<SetDraft>, target?: string): SetDraft {
   return { id: uuid(), kind: "normal", weight: prev?.weight ?? "", reps: prev?.reps ?? "", seconds: prev?.seconds ?? "", done: false, target };
@@ -53,15 +52,9 @@ export function newSet(prev?: Partial<SetDraft>, target?: string): SetDraft {
 export function exDraftFrom(ex: string, tpl: RoutineExercise | null, last?: SetRow[]): ExDraft {
   const working = (last ?? []).filter((s) => s.kind !== "warmup");
   const count = tpl?.sets.length ?? Math.max(working.length, 3);
-  const sets = Array.from({ length: count }, (_, i) => {
-    const prev = working[i] ?? working[working.length - 1];
-    return {
-      ...newSet(undefined, tpl?.sets[i]?.reps),
-      weight: fmtW(prev?.weight),
-      // Повторы оставляем пустыми: цель видна подсказкой, а прошлый результат — в колонке «Прошлый раз»
-      seconds: prev?.seconds ? String(prev.seconds) : "",
-    };
-  });
+  // Поля пустые: серые подсказки (прошлый раз / предыдущий подход) видны прямо в полях,
+  // а галочка по пустому подходу берёт значения из подсказки
+  const sets = Array.from({ length: count }, (_, i) => newSet(undefined, tpl?.sets[i]?.reps));
   return { key: uuid(), ex, rest: tpl?.rest ?? 90, note: tpl?.note, sets };
 }
 

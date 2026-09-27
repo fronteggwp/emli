@@ -114,7 +114,7 @@ export function NewPostSheet({ preset, attach }: { preset?: Kind; attach?: PostA
           <Tap className="chip" onClick={() => input.current?.click()}>
             <ImagePlus size={16} /> Фото
           </Tap>
-          {options.map((o) => (
+          {!attach && options.map((o) => (
             <Tap
               key={o.kind}
               className={`chip ${kind === o.kind ? "on" : ""}`}

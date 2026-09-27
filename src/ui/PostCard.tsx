@@ -9,6 +9,8 @@ import { haptic } from "@/lib/telegram";
 import type { Post, PostAttachment } from "@/lib/types";
 import { Avatar } from "./Avatar";
 import { Rings } from "./Rings";
+import { MuscleMap } from "./MuscleMap";
+import type { Muscle } from "@/lib/exercise";
 import { PersonScreen } from "@/pages/Person";
 import { PostScreen } from "@/pages/PostScreen";
 import { PostMenuSheet } from "@/sheets/PostMenu";
@@ -82,25 +84,58 @@ export function AttachmentCard({ a }: { a: PostAttachment }) {
     const h = Math.floor(a.duration / 3600);
     const m = Math.round((a.duration % 3600) / 60);
     return (
-      <div className="attach" style={{ background: "radial-gradient(120% 120% at 0% 0%, rgba(79,209,139,.22), transparent 60%), var(--card-2)", alignItems: "flex-start" }}>
-        <span className="icon-btn" style={{ background: "rgba(79,209,139,.18)", color: "var(--good)", width: 52, height: 52, fontSize: 24 }}>
-          🏋️
-        </span>
-        <div style={{ minWidth: 0 }}>
-          <div className="muted" style={{ fontSize: 13 }}>
-            Тренировка{a.prs ? ` · 🏆 ${a.prs} ${a.prs === 1 ? "рекорд" : "рекорда"}` : ""}
+      <div className="wk-post">
+        <div className="wk-post-head">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="wk-post-kicker">🏋️ Тренировка</div>
+            <div className="wk-post-title">{a.name}</div>
+            {a.prs > 0 && (
+              <span className="wk-post-pr">
+                🏆 {a.prs} {a.prs === 1 ? "рекорд" : a.prs < 5 ? "рекорда" : "рекордов"}
+              </span>
+            )}
           </div>
-          <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.2 }}>{a.name}</div>
-          <div className="num muted" style={{ fontSize: 13, marginTop: 4 }}>
-            {h ? `${h} ч ` : ""}
-            {m} мин · {a.sets} подх. · {fmtNum(a.volume)} кг · {a.kcal} ккал
-          </div>
-          {a.muscles.length > 0 && (
-            <div className="faint" style={{ fontSize: 12.5, marginTop: 2 }}>
-              {a.muscles.join(" · ")}
+          {a.load && Object.keys(a.load).length > 0 && (
+            <div className="wk-post-map">
+              <MuscleMap load={a.load as Record<Muscle, number>} height={96} labels={false} color="#4fd18b" />
             </div>
           )}
         </div>
+        <div className="wk-post-stats">
+          <div>
+            <b className="num">{h ? `${h}:${String(m).padStart(2, "0")}` : m}</b>
+            <span>{h ? "часов" : "минут"}</span>
+          </div>
+          <div>
+            <b className="num">{a.sets}</b>
+            <span>подходов</span>
+          </div>
+          <div>
+            <b className="num">{a.volume >= 1000 ? fmtNum(a.volume / 1000, 1) : fmtNum(a.volume)}</b>
+            <span>{a.volume >= 1000 ? "тонн" : "кг"}</span>
+          </div>
+          <div>
+            <b className="num">{a.kcal}</b>
+            <span>ккал</span>
+          </div>
+        </div>
+        {a.top?.length ? (
+          <div className="wk-post-top">
+            {a.top.map((t, i) => (
+              <div key={i}>
+                <span>{t.n}</span>
+                <b className="num">
+                  {t.pr && "🏆 "}
+                  {t.v}
+                </b>
+              </div>
+            ))}
+          </div>
+        ) : a.muscles.length ? (
+          <div className="faint" style={{ fontSize: 12.5, marginTop: 10 }}>
+            {a.muscles.join(" · ")}
+          </div>
+        ) : null}
       </div>
     );
   }

@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import { ChevronRight, Dumbbell, History, Library, Play, Plus, Trophy } from "lucide-react";
 import { useNav } from "@/nav/Nav";
 import { useSettings } from "@/data/api";
-import { PROGRAMS, programByKey, GOAL_RU } from "@/data/programs";
+import { PROGRAMS, programByKey } from "@/data/programs";
+import { ProgramTile, ProgramsScreen } from "./Programs";
 import { nextProgramDay, useCatalog, useLastSets, useRoutines, useWorkouts, type Routine, type WorkoutRow } from "@/data/workouts";
 import { fmtDuration, useNow, useWorkoutDraft } from "@/state/workout";
 import type { Muscle } from "@/lib/exercise";
@@ -46,6 +47,8 @@ export function WorkoutsPage() {
   const nextExercises = nextRoutine?.exercises ?? next?.day.exercises.map((x) => ({ ex: x.ex, sets: [], rest: x.rest })) ?? [];
   const last = useLastSets(nextExercises.map((x) => x.ex));
   const myRoutines = (routines.data ?? []).filter((r) => !r.program);
+  // Витрина: моя программа + самые известные
+  const featured = [...(active ? [active] : []), ...PROGRAMS.filter((p) => p.key !== active?.key && ["starting-strength", "531-bbb", "reddit-ppl", "phul", "golden-six", "start-fullbody"].includes(p.key))].slice(0, 4);
 
   const week = weekStart(todayKey());
   const thisWeek = (workouts.data ?? []).filter((w) => w.started_at.slice(0, 10) >= week);
@@ -157,28 +160,14 @@ export function WorkoutsPage() {
         Программы
         {active && <button onClick={() => nav.push(<ProgramScreen programKey={active.key} />)}>Моя: {active.title}</button>}
       </div>
-      <div className="hscroll">
-        {PROGRAMS.map((p) => (
-          <Tap
-            key={p.key}
-            className="program-card"
-            scale={0.97}
-            style={{ ["--c1" as string]: p.colors[0], ["--c2" as string]: p.colors[1] }}
-            onClick={() => nav.push(<ProgramScreen programKey={p.key} />)}
-          >
-            <span className="emoji">{p.emoji}</span>
-            <div>
-              <div className="pt">{p.title}</div>
-              <div className="ps">{p.subtitle}</div>
-            </div>
-            <div className="tags">
-              <span className="tag">{p.perWeek}×/нед</span>
-              <span className="tag">{GOAL_RU[p.goal]}</span>
-              {active?.key === p.key && <span className="tag">✓ твоя</span>}
-            </div>
-          </Tap>
+      <div className="program-grid">
+        {featured.map((p) => (
+          <ProgramTile key={p.key} p={p} active={active?.key === p.key} />
         ))}
       </div>
+      <Tap className="btn btn-block btn-sm" style={{ marginTop: 10 }} onClick={() => nav.push(<ProgramsScreen />)}>
+        Все программы · {PROGRAMS.length}
+      </Tap>
 
       <div className="section-title">
         Мои шаблоны

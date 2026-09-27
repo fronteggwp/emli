@@ -453,3 +453,15 @@ img {
     transform 0.3s cubic-bezier(0.32, 0.72, 0, 1),
     visibility 0s;
 }
+
+/* Прокручиваемый контент не лезет под системные кнопки Telegram сверху */
+.top-scrim {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: calc(var(--sat) + 10px);
+  background: linear-gradient(var(--bg) 60%, rgba(11, 11, 14, 0));
+  pointer-events: none;
+  z-index: 4;
+}

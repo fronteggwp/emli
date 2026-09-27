@@ -5,7 +5,7 @@ import { GOAL_RU, PLACE_RU, programByKey } from "@/data/programs";
 import { useCatalog, useRoutines, useStartProgram, useStopProgram, useWorkouts } from "@/data/workouts";
 import { useWorkoutDraft } from "@/state/workout";
 import { LEVEL_RU, MUSCLE_RU } from "@/lib/exercise";
-import { confirmDialog, haptic } from "@/lib/telegram";
+import { confirmDialog, haptic, tg } from "@/lib/telegram";
 import { Screen } from "@/ui/Screen";
 import { ExerciseImage } from "@/ui/ExerciseImage";
 import { Tap } from "@/ui/Tap";
@@ -94,7 +94,27 @@ export function ProgramScreen({ programKey }: { programKey: string }) {
         </div>
       </div>
 
-      <p className="explain" style={{ margin: "16px 2px 0", fontSize: 15 }}>
+      {p.author && (
+        <div className="author-row">
+          <span style={{ fontSize: 18 }}>✍️</span>
+          <span style={{ flex: 1 }}>
+            Автор: <b style={{ color: "var(--text)" }}>{p.author}</b>
+          </span>
+          {p.source && (
+            <a
+              href={p.source}
+              onClick={(e) => {
+                e.preventDefault();
+                if (tg) tg.openLink(p.source!);
+                else window.open(p.source, "_blank");
+              }}
+            >
+              Первоисточник ↗
+            </a>
+          )}
+        </div>
+      )}
+      <p className="explain" style={{ margin: "14px 2px 0", fontSize: 15 }}>
         {p.description}
       </p>
       <div className="row muted" style={{ gap: 6, fontSize: 13.5, margin: "10px 2px 0" }}>
@@ -182,6 +202,19 @@ export function ProgramScreen({ programKey }: { programKey: string }) {
           );
         })}
       </div>
+
+      {p.progression && (
+        <>
+          <div className="section-title">Как прогрессировать</div>
+          <div className="stack" style={{ gap: 10 }}>
+            {p.progression.map((t, i) => (
+              <div key={i} className="prog-step">
+                <span>{t}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="section-title">Советы</div>
       <div className="stack" style={{ gap: 8 }}>

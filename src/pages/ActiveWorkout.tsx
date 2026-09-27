@@ -197,19 +197,44 @@ const ExerciseBlock = memo(function ExerciseBlock({
   const upd = (fn: (e: ExDraft) => ExDraft) => wd.update((d) => ({ ...d, exercises: d.exercises.map((e) => (e.key === x.key ? fn(e) : e)) }));
   const updSet = (id: string, patch: Partial<SetDraft>) => upd((e) => ({ ...e, sets: e.sets.map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
 
+  // Подсказки для каждого подхода: предыдущий подход этой тренировки → прошлый раз → цель
+  const hints = useMemo(() => {
+    const out: { w: string; r: string; sec: string }[] = [];
+    let workingNo = -1;
+    x.sets.forEach((st, i) => {
+      if (st.kind !== "warmup") workingNo++;
+      let j = i - 1;
+      while (j >= 0 && (x.sets[j].kind === "warmup") !== (st.kind === "warmup")) j--;
+      const lastS = st.kind === "warmup" ? undefined : (lastWorking[workingNo] ?? lastWorking[lastWorking.length - 1]);
+      if (j >= 0) {
+        const p = x.sets[j];
+        out.push({ w: p.weight || out[j].w, r: p.reps || out[j].r, sec: p.seconds || out[j].sec });
+      } else {
+        const targetR = t && !t.toFailure && !t.timed ? String(lastS?.reps && lastS.reps >= t.min && lastS.reps <= t.max ? lastS.reps : t.max) : "";
+        out.push({
+          w: lastS?.weight ? fmtW(lastS.weight) : "",
+          r: targetR || (lastS?.reps ? String(lastS.reps) : ""),
+          sec: lastS?.seconds ? String(lastS.seconds) : t?.timed ? String(t.max || t.min) : "",
+        });
+      }
+    });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [x.sets, last, target]);
+
   const toggle = (s: SetDraft, i: number) => {
     if (s.done) {
       updSet(s.id, { done: false });
       return;
     }
-    const prev = lastWorking[i] ?? lastWorking[lastWorking.length - 1];
+    const h = hints[i];
     const patch: Partial<SetDraft> = { done: true };
-    // Быстрая отметка: пустые поля берём из цели или прошлого раза
+    // Пустые поля — берём из подсказки: повторить подход можно одним нажатием
     if (timed) {
-      if (!s.seconds) patch.seconds = String(prev?.seconds ?? t?.min ?? 30);
+      if (!s.seconds) patch.seconds = h.sec || "30";
     } else {
-      if (!s.reps) patch.reps = String(prev?.reps ?? (t?.toFailure ? "" : t?.max || t?.min || "") ?? "");
-      if (weighted && !s.weight && prev?.weight) patch.weight = fmtW(prev.weight);
+      if (!s.reps) patch.reps = h.r;
+      if (!s.weight && h.w) patch.weight = h.w;
     }
     if (!timed && !parseNum(patch.reps ?? s.reps)) {
       haptic.warning();
@@ -228,6 +253,27 @@ const ExerciseBlock = memo(function ExerciseBlock({
       }, 250);
     }
     wd.startRest(x.rest, x.key);
+  };
+
+  // «Как в первом»: вес и повторы первого рабочего подхода — во все остальные незаполненные
+  const firstIdx = x.sets.findIndex((z) => z.kind !== "warmup");
+  const first = firstIdx >= 0 ? x.sets[firstIdx] : undefined;
+  const firstVals = first ? { w: first.weight || hints[firstIdx].w, r: first.reps || hints[firstIdx].r } : null;
+  const canCopy =
+    !timed &&
+    !!first &&
+    (first.done || !!first.weight || !!first.reps) &&
+    x.sets.some(
+      (z, k) =>
+        k > firstIdx && z.kind !== "warmup" && !z.done && ((z.weight || hints[k].w) !== firstVals!.w || (z.reps || hints[k].r) !== firstVals!.r),
+    );
+  const copyFirst = () => {
+    if (!firstVals) return;
+    haptic.select();
+    upd((e) => ({
+      ...e,
+      sets: e.sets.map((z, k) => (k > firstIdx && z.kind !== "warmup" && !z.done ? { ...z, weight: firstVals.w, reps: firstVals.r } : z)),
+    }));
   };
 
   const addSet = () => {
@@ -300,7 +346,8 @@ const ExerciseBlock = memo(function ExerciseBlock({
               num={s.kind === "normal" ? String(workingNo) : KIND_LABEL[s.kind]}
               prevText={prevText}
               timed={timed}
-              repsPlaceholder={t ? (t.toFailure ? "макс" : t.min === t.max ? String(t.min) : `${t.min}-${t.max}`) : prev?.reps ? String(prev.reps) : "0"}
+              hint={hints[i]}
+              toFailure={!!t?.toFailure}
               onKind={() => {
                 haptic.select();
                 updSet(s.id, { kind: KIND_NEXT[s.kind] });
@@ -316,9 +363,16 @@ const ExerciseBlock = memo(function ExerciseBlock({
           );
         })}
       </div>
-      <button className="aw-add-set press" onClick={addSet} {...keepFocus}>
-        + Подход
-      </button>
+      <div className="row" style={{ gap: 8, marginTop: 8 }}>
+        <button className="aw-add-set press" style={{ marginTop: 0, flex: 1 }} onClick={addSet} {...keepFocus}>
+          + Подход
+        </button>
+        {canCopy && (
+          <button className="aw-add-set press" style={{ marginTop: 0, flex: 1, color: "var(--kcal)" }} onClick={copyFirst} {...keepFocus}>
+            ⤓ Как в 1-м подходе
+          </button>
+        )}
+      </div>
     </div>
   );
 });
@@ -328,7 +382,8 @@ function SetRowView({
   num,
   prevText,
   timed,
-  repsPlaceholder,
+  hint,
+  toFailure,
   onKind,
   onChange,
   onToggle,
@@ -338,13 +393,23 @@ function SetRowView({
   num: string;
   prevText: string;
   timed: boolean;
-  repsPlaceholder: string;
+  hint: { w: string; r: string; sec: string };
+  toFailure: boolean;
   onKind: () => void;
   onChange: (p: Partial<SetDraft>) => void;
   onToggle: () => void;
   onDelete: () => void;
 }) {
   const clean = (v: string) => v.replace(/[^\d.,]/g, "").slice(0, 6);
+  // «Далее» на клавиатуре — к следующему полю
+  const nextField = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const all = [...document.querySelectorAll<HTMLInputElement>(".aw .set-in")];
+    const next = all[all.indexOf(e.currentTarget) + 1];
+    if (next) next.focus({ preventScroll: false });
+    else e.currentTarget.blur();
+  };
   const onDragEnd = (_: unknown, info: PanInfo) => {
     if (info.offset.x < -90 || info.velocity.x < -600) onDelete();
   };
@@ -364,11 +429,11 @@ function SetRowView({
       </motion.button>
       <span className="set-prev num">{prevText}</span>
       {timed ? (
-        <input className="set-in" inputMode="numeric" placeholder="сек" value={s.seconds} onChange={(e) => onChange({ seconds: clean(e.target.value) })} />
+        <input className="set-in" inputMode="numeric" enterKeyHint="next" onKeyDown={nextField} placeholder={hint.sec || "сек"} value={s.seconds} onChange={(e) => onChange({ seconds: clean(e.target.value) })} />
       ) : (
         <>
-          <input className="set-in" inputMode="decimal" placeholder="0" value={s.weight} onChange={(e) => onChange({ weight: clean(e.target.value) })} />
-          <input className="set-in" inputMode="numeric" placeholder={repsPlaceholder} value={s.reps} onChange={(e) => onChange({ reps: clean(e.target.value) })} />
+          <input className="set-in" inputMode="decimal" enterKeyHint="next" onKeyDown={nextField} placeholder={hint.w || "0"} value={s.weight} onChange={(e) => onChange({ weight: clean(e.target.value) })} />
+          <input className="set-in" inputMode="numeric" enterKeyHint="next" onKeyDown={nextField} placeholder={hint.r || (toFailure ? "макс" : "0")} value={s.reps} onChange={(e) => onChange({ reps: clean(e.target.value) })} />
         </>
       )}
       <button className={`set-done ${s.done ? "on" : ""}`} onClick={onToggle} {...keepFocus} aria-label="Подход выполнен">
