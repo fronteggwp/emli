@@ -4,7 +4,10 @@ import { useSettings } from "@/data/api";
 import { GOAL_RU, PLACE_RU, programByKey } from "@/data/programs";
 import { useCatalog, useRoutines, useStartProgram, useStopProgram, useWorkouts } from "@/data/workouts";
 import { useWorkoutDraft } from "@/state/workout";
-import { LEVEL_RU, MUSCLE_RU } from "@/lib/exercise";
+import { useMemo } from "react";
+import { LEVEL_RU } from "@/lib/exercise";
+import { MuscleMap } from "@/ui/MuscleMap";
+import { programStats } from "@/data/programStats";
 import { confirmDialog, haptic, tg } from "@/lib/telegram";
 import { Screen } from "@/ui/Screen";
 import { ExerciseImage } from "@/ui/ExerciseImage";
@@ -59,12 +62,7 @@ export function ProgramScreen({ programKey }: { programKey: string }) {
     nav.push(<ActiveWorkoutScreen />);
   };
 
-  // Мышцы, которые программа нагружает (по основным мышцам упражнений)
-  const muscles = new Map<string, number>();
-  for (const d of p.days)
-    for (const x of d.exercises)
-      for (const m of catalog.byId.get(x.ex)?.pm ?? []) muscles.set(m, (muscles.get(m) ?? 0) + x.sets);
-  const topMuscles = [...muscles.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const st = useMemo(() => programStats(p, catalog.byId), [p, catalog.byId]);
 
   return (
     <Screen title="">
@@ -89,8 +87,16 @@ export function ProgramScreen({ programKey }: { programKey: string }) {
           <span>минут</span>
         </div>
         <div>
-          <b className="num">{p.days.length}</b>
-          <span>{p.days.length === 1 ? "тренировка" : "разных дня"}</span>
+          <b className="num">{st.weeklySets}</b>
+          <span>подходов в неделю</span>
+        </div>
+      </div>
+
+      <div className="for-who">
+        <span>👤</span>
+        <div>
+          <div className="pcard-label">Для кого</div>
+          <div style={{ fontSize: 15, marginTop: 2 }}>{p.forWho}</div>
         </div>
       </div>
 
@@ -120,12 +126,25 @@ export function ProgramScreen({ programKey }: { programKey: string }) {
       <div className="row muted" style={{ gap: 6, fontSize: 13.5, margin: "10px 2px 0" }}>
         <Clock size={15} /> {p.schedule}
       </div>
-      <div className="row" style={{ flexWrap: "wrap", gap: 6, marginTop: 12 }}>
-        {topMuscles.map(([m]) => (
-          <span key={m} className="ex-badge">
-            {MUSCLE_RU[m as keyof typeof MUSCLE_RU]}
-          </span>
-        ))}
+      <div className="card" style={{ marginTop: 14 }}>
+        <div className="card-title">Нагрузка на мышцы</div>
+        <div className="card-sub">по всем тренировкам программы за неделю</div>
+        <div className="row" style={{ gap: 12, marginTop: 12, alignItems: "center" }}>
+          <div className="pcard-map">
+            <MuscleMap load={st.load} height={170} labels={false} color="#ff8a5c" />
+          </div>
+          <div className="pcard-bars">
+            {st.groups.map((g) => (
+              <div key={g.key} className="pcard-bar">
+                <span>{g.title}</span>
+                <div>
+                  <i style={{ width: `${Math.min(100, g.pct * 2.2)}%`, background: g.color }} />
+                </div>
+                <b className="num">{g.pct}%</b>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {isActive ? (

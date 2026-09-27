@@ -48,7 +48,7 @@ export function WorkoutsPage() {
   const last = useLastSets(nextExercises.map((x) => x.ex));
   const myRoutines = (routines.data ?? []).filter((r) => !r.program);
   // Витрина: моя программа + самые известные
-  const featured = [...(active ? [active] : []), ...PROGRAMS.filter((p) => p.key !== active?.key && ["starting-strength", "531-bbb", "reddit-ppl", "phul", "golden-six", "start-fullbody"].includes(p.key))].slice(0, 4);
+  const featured = [...(active ? [active] : []), ...PROGRAMS.filter((p) => p.key !== active?.key && ["starting-strength", "531-bbb", "reddit-ppl", "phul", "golden-six", "start-fullbody"].includes(p.key))].slice(0, 2);
 
   const week = weekStart(todayKey());
   const thisWeek = (workouts.data ?? []).filter((w) => w.started_at.slice(0, 10) >= week);
@@ -160,7 +160,7 @@ export function WorkoutsPage() {
         Программы
         {active && <button onClick={() => nav.push(<ProgramScreen programKey={active.key} />)}>Моя: {active.title}</button>}
       </div>
-      <div className="program-grid">
+      <div className="stack">
         {featured.map((p) => (
           <ProgramTile key={p.key} p={p} active={active?.key === p.key} />
         ))}

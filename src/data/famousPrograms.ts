@@ -7,6 +7,7 @@ const X = (ex: string, sets: number, reps: string, rest = 90, note?: string): Pr
 export const FAMOUS: Program[] = [
   {
     key: "starting-strength",
+    forWho: "Новичкам, которые хотят быстро стать сильнее и освоить базу со штангой",
     title: "Starting Strength",
     subtitle: "Легендарная программа для новичка",
     author: "Марк Риппето",
@@ -51,6 +52,7 @@ export const FAMOUS: Program[] = [
   },
   {
     key: "texas-method",
+    forWho: "Тем, у кого вес перестал расти каждую тренировку после программы для новичков",
     title: "Texas Method",
     subtitle: "Объём, восстановление, интенсивность",
     author: "Гленн Пендли и Марк Риппето",
@@ -100,6 +102,7 @@ export const FAMOUS: Program[] = [
   },
   {
     key: "531-bbb",
+    forWho: "Среднему уровню: сила и масса на месяцы вперёд без застоев",
     title: "5/3/1 Boring But Big",
     subtitle: "Медленно, но надолго",
     author: "Джим Вендлер",
@@ -162,6 +165,7 @@ export const FAMOUS: Program[] = [
   },
   {
     key: "phul",
+    forWho: "Тем, кто хочет и силу, и красивую форму — 4 тренировки в неделю",
     title: "PHUL",
     subtitle: "Сила + масса, верх/низ",
     author: "Брэндон Кэмпбелл",
@@ -232,6 +236,7 @@ export const FAMOUS: Program[] = [
   },
   {
     key: "phat",
+    forWho: "Опытным: максимум массы и силы, если есть время на 5 тренировок",
     title: "PHAT",
     subtitle: "Пауэрбилдинг 5 дней",
     author: "Лейн Нортон",
@@ -325,6 +330,7 @@ export const FAMOUS: Program[] = [
   },
   {
     key: "reddit-ppl",
+    forWho: "Тем, кто готов тренироваться 6 дней и хочет быстро набрать массу",
     title: "Reddit PPL",
     subtitle: "Самый популярный бесплатный сплит",
     author: "Metallicadpa (r/Fitness)",
@@ -409,6 +415,7 @@ export const FAMOUS: Program[] = [
   },
   {
     key: "gzclp",
+    forWho: "Новичкам, которым нужна понятная схема с большим запасом прогресса",
     title: "GZCLP",
     subtitle: "Умная линейная прогрессия",
     author: "Коди Лефевер",
@@ -470,6 +477,7 @@ export const FAMOUS: Program[] = [
   },
   {
     key: "golden-six",
+    forWho: "Новичкам, которые хотят набрать первую массу по классике",
     title: "Golden Six Арнольда",
     subtitle: "Первая программа легенды",
     author: "Арнольд Шварценеггер (по Регу Парку)",
@@ -503,6 +511,7 @@ export const FAMOUS: Program[] = [
   },
   {
     key: "arnold-split",
+    forWho: "Опытным любителям объёма и «накачки», кто хорошо восстанавливается",
     title: "Сплит Арнольда",
     subtitle: "Тренировки чемпиона «Мистер Олимпия»",
     author: "Арнольд Шварценеггер",
@@ -564,6 +573,7 @@ export const FAMOUS: Program[] = [
   },
   {
     key: "blood-and-guts",
+    forWho: "Опытным, у кого мало времени: коротко, тяжело и до отказа",
     title: "Blood & Guts",
     subtitle: "Высокоинтенсивный тренинг",
     author: "Дориан Ятс",
@@ -637,6 +647,7 @@ export const FAMOUS: Program[] = [
   },
   {
     key: "bwf-rr",
+    forWho: "Тем, кто тренируется дома или на площадке без железа",
     title: "Recommended Routine",
     subtitle: "Калистеника от r/bodyweightfitness",
     author: "Сообщество r/bodyweightfitness",

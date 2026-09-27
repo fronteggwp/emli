@@ -84,7 +84,7 @@ export function ExercisesScreen({ pick = false, single = false, onPick }: { pick
               setGroup(group === g.key ? null : g.key);
             }}
           >
-            {g.emoji} {g.title}
+            {g.title}
           </Tap>
         ))}
       </div>

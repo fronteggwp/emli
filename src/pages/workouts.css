@@ -884,3 +884,163 @@ html.kb .rest {
   color: var(--good);
   font-weight: 800;
 }
+
+/* ───────── Карточка программы */
+.pcard {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border-radius: 26px;
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+.pcard-top {
+  position: relative;
+  overflow: hidden;
+  padding: 16px 16px 14px;
+  color: #fff;
+  background: linear-gradient(140deg, var(--c1), var(--c2));
+}
+.pcard-emoji {
+  position: absolute;
+  right: 6px;
+  top: 4px;
+  font-size: 64px;
+  transform: rotate(-10deg);
+  opacity: 0.95;
+}
+.pcard-active {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #111;
+  margin-bottom: 8px;
+}
+.pcard-title {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.12;
+  max-width: 75%;
+}
+.pcard-author {
+  position: relative;
+  font-size: 12.5px;
+  opacity: 0.88;
+  margin-top: 4px;
+}
+.pcard-for {
+  position: relative;
+  font-size: 14px;
+  line-height: 1.35;
+  margin-top: 10px;
+  max-width: 88%;
+  font-weight: 500;
+}
+.pcard-body {
+  padding: 12px 14px 14px;
+}
+.pcard-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pcard-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--card-2);
+  color: var(--text-2);
+}
+.lvl {
+  display: inline-flex;
+  gap: 2px;
+}
+.lvl b {
+  width: 4px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--card-3);
+}
+.lvl b.on {
+  background: var(--good);
+}
+.pcard-focus {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.pcard-map {
+  flex-shrink: 0;
+  padding: 4px 2px;
+  border-radius: 16px;
+  background: var(--bg-2);
+}
+.pcard-bars {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.pcard-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.pcard-bar {
+  display: grid;
+  grid-template-columns: 78px 1fr 34px;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.pcard-bar > div {
+  height: 7px;
+  border-radius: 4px;
+  background: var(--card-3);
+  overflow: hidden;
+}
+.pcard-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+}
+.pcard-bar b {
+  text-align: right;
+  font-size: 12.5px;
+}
+.pcard-ex {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--text-2);
+}
+.for-who {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.for-who > span {
+  font-size: 22px;
+}

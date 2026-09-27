@@ -1,10 +1,13 @@
 import { useMemo, useState } from "react";
 import { useNav } from "@/nav/Nav";
 import { useSettings } from "@/data/api";
-import { GOAL_RU, PLACE_RU, PROGRAMS, type Program } from "@/data/programs";
+import { GOAL_RU, PROGRAMS, type Program } from "@/data/programs";
 import { LEVEL_RU } from "@/lib/exercise";
 import { haptic } from "@/lib/telegram";
 import { Screen } from "@/ui/Screen";
+import { MuscleMap } from "@/ui/MuscleMap";
+import { useCatalog } from "@/data/workouts";
+import { programStats } from "@/data/programStats";
 import { Tap } from "@/ui/Tap";
 import { ProgramScreen } from "./Program";
 import "./workouts.css";
@@ -66,7 +69,7 @@ export function ProgramsScreen() {
       {famous.length > 0 && (
         <>
           <div className="section-title">Легендарные</div>
-          <div className="program-grid">
+          <div className="stack">
             {famous.map((p) => (
               <ProgramTile key={p.key} p={p} active={active === p.key} />
             ))}
@@ -76,7 +79,7 @@ export function ProgramsScreen() {
       {rest.length > 0 && (
         <>
           <div className="section-title">От Emli</div>
-          <div className="program-grid">
+          <div className="stack">
             {rest.map((p) => (
               <ProgramTile key={p.key} p={p} active={active === p.key} />
             ))}
@@ -88,23 +91,63 @@ export function ProgramsScreen() {
   );
 }
 
+const LEVEL_DOTS = { beginner: 1, intermediate: 2, expert: 3 } as const;
+
+/** Широкая карточка программы: для кого, нагрузка на мышцы, что внутри */
 export function ProgramTile({ p, active }: { p: Program; active?: boolean }) {
   const nav = useNav();
+  const catalog = useCatalog();
+  const st = useMemo(() => programStats(p, catalog.byId), [p, catalog.byId]);
   return (
     <Tap
-      className="program-tile"
-      scale={0.97}
+      className="pcard"
+      scale={0.98}
       style={{ ["--c1" as string]: p.colors[0], ["--c2" as string]: p.colors[1] }}
       onClick={() => nav.push(<ProgramScreen programKey={p.key} />)}
     >
-      <span className="emoji">{p.emoji}</span>
-      <div className="pt">{p.title}</div>
-      {p.author && <div className="pa">{p.author}</div>}
-      <div className="tags">
-        <span className="tag">{p.perWeek}×/нед</span>
-        <span className="tag">{GOAL_RU[p.goal]}</span>
-        {p.place !== "gym" && <span className="tag">{PLACE_RU[p.place]}</span>}
-        {active && <span className="tag">✓ твоя</span>}
+      <div className="pcard-top">
+        <span className="pcard-emoji">{p.emoji}</span>
+        {active && <span className="pcard-active">✓ Твоя программа</span>}
+        <div className="pcard-title">{p.title}</div>
+        {p.author && <div className="pcard-author">{p.author}</div>}
+        <div className="pcard-for">{p.forWho}</div>
+      </div>
+      <div className="pcard-body">
+        <div className="pcard-meta">
+          <span>
+            <i className="lvl">
+              {[1, 2, 3].map((n) => (
+                <b key={n} className={n <= LEVEL_DOTS[p.level] ? "on" : ""} />
+              ))}
+            </i>
+            {LEVEL_RU[p.level]}
+          </span>
+          <span>📅 {p.perWeek}×/нед</span>
+          <span>⏱ ~{p.minutes} мин</span>
+          <span>{p.place === "gym" ? "🏋️ Зал" : p.place === "home" ? "🏠 Дом" : "🌳 Где угодно"}</span>
+          <span>🎯 {GOAL_RU[p.goal]}</span>
+        </div>
+        <div className="pcard-focus">
+          <div className="pcard-map">
+            <MuscleMap load={st.load} height={118} labels={false} color="#ff8a5c" />
+          </div>
+          <div className="pcard-bars">
+            <div className="pcard-label">Акцент нагрузки</div>
+            {st.groups.slice(0, 4).map((g) => (
+              <div key={g.key} className="pcard-bar">
+                <span>{g.title}</span>
+                <div>
+                  <i style={{ width: `${Math.min(100, g.pct * 2.2)}%`, background: g.color }} />
+                </div>
+                <b className="num">{g.pct}%</b>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="pcard-ex">
+          <span className="pcard-label">Внутри</span> {st.key.join(" · ")}
+          {st.exercises > st.key.length ? ` и ещё ${st.exercises - st.key.length}` : ""}
+        </div>
       </div>
     </Tap>
   );

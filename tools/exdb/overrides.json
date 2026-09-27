@@ -377,5 +377,55 @@
  },
  "Side_To_Side_Chins": {
   "p": 0
+ },
+ "Power_Clean": {
+  "n": "Взятие штанги на грудь (силовое)",
+  "a": [
+   "пауэр клин",
+   "power clean",
+   "взятие на грудь"
+  ]
+ },
+ "EZ-Bar_Skullcrusher": {
+  "n": "Французский жим лёжа с EZ-грифом",
+  "a": [
+   "французский жим",
+   "skullcrusher",
+   "черепокрушитель"
+  ],
+  "p": 3
+ },
+ "External_Rotation_with_Cable": {
+  "n": "Наружная ротация плеча на блоке"
+ },
+ "Preacher_Hammer_Dumbbell_Curl": {
+  "n": "Молотки на скамье Скотта"
+ },
+ "Clean_Shrug": {
+  "n": "Шраги в стиле взятия на грудь"
+ },
+ "Machine_Preacher_Curls": {
+  "n": "Сгибания рук в тренажёре Скотта"
+ },
+ "Two-Arm_Dumbbell_Preacher_Curl": {
+  "n": "Сгибания с гантелями на скамье Скотта"
+ },
+ "Clean_Pull": {
+  "n": "Тяга рывковая для взятия на грудь"
+ },
+ "Elevated_Cable_Rows": {
+  "n": "Тяга нижнего блока с возвышения"
+ },
+ "Cable_Rope_Rear-Delt_Rows": {
+  "n": "Тяга каната к лицу на задние дельты"
+ },
+ "Single-Arm_Cable_Crossover": {
+  "n": "Сведение руки в кроссовере одной рукой"
+ },
+ "One_Arm_Dumbbell_Preacher_Curl": {
+  "n": "Сгибание руки с гантелью на скамье Скотта"
+ },
+ "Reverse_Barbell_Preacher_Curls": {
+  "n": "Сгибания обратным хватом на скамье Скотта"
  }
 }

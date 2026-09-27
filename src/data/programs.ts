@@ -9,6 +9,8 @@ export type Program = {
   key: string;
   title: string;
   subtitle: string;
+  /** Кому подойдёт — одной строкой */
+  forWho: string;
   description: string;
   level: "beginner" | "intermediate" | "expert";
   goal: "muscle" | "strength" | "fat" | "tone";
@@ -31,6 +33,7 @@ const X = (ex: string, sets: number, reps: string, rest = 90, note?: string): Pr
 const BASIC: Program[] = [
   {
     key: "start-fullbody",
+    forWho: "Тем, кто только пришёл в зал и хочет правильно начать",
     title: "Старт: всё тело",
     subtitle: "Первые 2–3 месяца в зале",
     description:
@@ -76,6 +79,7 @@ const BASIC: Program[] = [
   },
   {
     key: "strength-5x5",
+    forWho: "Новичкам, которые хотят силу и массу на самой простой схеме",
     title: "StrongLifts 5×5",
     subtitle: "Классика силового тренинга",
     author: "Мехди Хадим",
@@ -122,6 +126,7 @@ const BASIC: Program[] = [
   },
   {
     key: "upper-lower",
+    forWho: "Тем, кто освоил базу и готов к 4 тренировкам в неделю",
     title: "Верх / Низ",
     subtitle: "4 тренировки: сила + объём",
     description:
@@ -189,6 +194,7 @@ const BASIC: Program[] = [
   },
   {
     key: "ppl",
+    forWho: "Опытным, кто хочет прорабатывать каждую мышцу дважды в неделю",
     title: "Push / Pull / Legs",
     subtitle: "Жимы · тяги · ноги",
     description:
@@ -245,6 +251,7 @@ const BASIC: Program[] = [
   },
   {
     key: "bro-split",
+    forWho: "Любителям хорошенько «забить» одну группу мышц за тренировку",
     title: "Классический сплит",
     subtitle: "Одна группа мышц — один день",
     description:
@@ -321,6 +328,7 @@ const BASIC: Program[] = [
   },
   {
     key: "home-dumbbells",
+    forWho: "Тем, кто тренируется дома и у кого есть гантели",
     title: "Дома с гантелями",
     subtitle: "Нужны только гантели и скамья/пол",
     description:
@@ -364,6 +372,7 @@ const BASIC: Program[] = [
   },
   {
     key: "calisthenics",
+    forWho: "Тем, у кого есть турник и брусья, но нет зала",
     title: "Свой вес",
     subtitle: "Турник, брусья и пол",
     description:
@@ -406,6 +415,7 @@ const BASIC: Program[] = [
   },
   {
     key: "glutes",
+    forWho: "Тем, кто хочет подтянутые ягодицы и сильные ноги",
     title: "Ягодицы и ноги",
     subtitle: "Форма и сила нижней части тела",
     description:
@@ -448,6 +458,7 @@ const BASIC: Program[] = [
   },
   {
     key: "fatburn",
+    forWho: "Тем, кто худеет и хочет больше двигаться и потеть",
     title: "Жиросжигающая круговая",
     subtitle: "Много движения, мало отдыха",
     description:
@@ -490,6 +501,7 @@ const BASIC: Program[] = [
   },
   {
     key: "core",
+    forWho: "Всем — как 15-минутное дополнение к основной программе",
     title: "Пресс и кор",
     subtitle: "15 минут в конце тренировки",
     description:
@@ -520,6 +532,7 @@ const BASIC: Program[] = [
   },
   {
     key: "arms",
+    forWho: "Тем, кто хочет большие руки и плечи — как дополнение к основной",
     title: "Руки и плечи",
     subtitle: "Спецпрограмма на объём рук",
     description:

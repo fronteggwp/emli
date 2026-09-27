@@ -108,9 +108,7 @@ export function HistoryScreen({ initialTab = "list" }: { initialTab?: "list" | "
               const low = g.sets < ZONE[0];
               return (
                 <div key={g.key} className="mload">
-                  <span>
-                    {g.emoji} {g.title}
-                  </span>
+                  <span>{g.title}</span>
                   <div className="mload-bar">
                     <span className="mload-zone" style={{ left: `${(ZONE[0] / scale) * 100}%`, width: `${((ZONE[1] - ZONE[0]) / scale) * 100}%` }} />
                     <i style={{ width: `${Math.min(g.sets / scale, 1) * 100}%`, background: GROUP_COLORS[g.key] }} />
