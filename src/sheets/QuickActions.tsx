@@ -21,6 +21,7 @@ import "./sheets.css";
 import { Icon3D } from "@/ui/Icon3D";
 import { PhotoFoodSheet } from "./PhotoFood";
 import { PhotoBanner } from "@/ui/PhotoBanner";
+import { MealPlanScreen } from "@/pages/MealPlan";
 
 export function QuickActions() {
   const nav = useNav();
@@ -85,6 +86,22 @@ export function QuickActions() {
           ))}
         </div>
         <div className="list" style={{ marginTop: 14 }}>
+          <button
+            className="list-item press"
+            onClick={() => {
+              layer.close();
+              nav.push(<MealPlanScreen />);
+            }}
+          >
+            <span className="li-icon">
+              <Icon3D name="meal-plan" size={26} />
+            </span>
+            <span style={{ flex: 1 }}>
+              <div className="li-title">План питания на неделю</div>
+              <div className="li-sub">Меню под твою норму, заготовки и общий список покупок</div>
+            </span>
+            <span className="mp-ai-pill">ИИ</span>
+          </button>
           <button className="list-item press" onClick={() => open(<QuickAddSheet />)}>
             <span className="li-icon">
               <Zap size={20} />

@@ -5,6 +5,7 @@ import { planFor, historyFor, roleOf, sessionSuccess, type Session } from "../sr
 import { estimateTdee, trendSeries, macrosFor, checkinPlan, isCompleteDay, completeDays, caloriesFor } from "../src/lib/nutrition";
 import { burnedKcal, e1rm, type Exercise } from "../src/lib/exercise";
 import { planSplit, withPlans, type CheatPlan } from "../src/lib/cheat";
+import { buildPlan, cookSessions, shoppingList, qtyText, removeItem, replaceItem, sumItems, type Dish, type PlanPrefs, type Dict } from "../src/lib/mealplan";
 
 let passed = 0;
 let failed = 0;
@@ -171,6 +172,125 @@ test("недостаток на одном дне переносится на д
   assert.equal(s.bonus, 900);
   assert.equal(s.cuts.get("2026-09-09"), 300);
   assert.equal(s.cuts.get("2026-09-08"), 600);
+});
+
+console.log("\nПлан питания");
+const dish = (code: string, o: Partial<Dish> & { kcal: number; p?: number }): Dish => ({
+  code, kind: "recipe", ref: code, title: code, emoji: "🍽", category: "main", time: 20, servings: 4, difficulty: 1,
+  serving: { kcal: o.kcal, protein: o.p ?? 20, fat: 10, carbs: 30, grams: 300 },
+  ingredients: [{ name: "Куриное филе", grams: 600 }, { name: "Лук репчатый", grams: 180 }, { name: "Вода", grams: 500 }],
+  tags: [], flags: [], ...o,
+});
+const D = new Map<string, Dish>([
+  ["r1", dish("r1", { kcal: 500, p: 40 })],
+  ["r2", dish("r2", { kcal: 450, p: 30 })],
+  ["b1", dish("b1", { kcal: 300, p: 25, category: "breakfast", servings: 1, basic: true, meals: [0, 3], ingredients: [{ name: "Яйцо куриное", grams: 110 }] })],
+  ["b2", dish("b2", { kcal: 200, p: 30, category: "snack", servings: 1, basic: true, meals: [3], ingredients: [{ name: "Творог 5%", grams: 180 }] })],
+]);
+const prefs: PlanPrefs = { days: 3, start: "2026-10-01", meals: [0, 1, 2], people: 1, cook: "batch", time: 30, exclude: [], style: [], wishes: "" };
+const days3 = ["2026-10-01", "2026-10-02", "2026-10-03"];
+const goal = () => ({ kcal: 2000, protein: 150 });
+const dict: Dict = {
+  "Куриное филе": { n: "Куриное филе", d: "meat", u: null, l: false, s: null, x: ["poultry", "meat"] },
+  "Лук репчатый": { n: "Лук репчатый", d: "veg", u: { w: "шт", g: 90 }, l: false, s: null, x: [] },
+  "Вода": { n: "Вода", d: "other", u: null, l: true, s: "skip", x: [] },
+  "Яйцо куриное": { n: "Яйца куриные", d: "dairy", u: { w: "шт", g: 55 }, l: false, s: null, x: ["egg"] },
+};
+
+test("заготовка: обед на 3 дня — одна готовка, остальное из холодильника", () => {
+  const items = buildPlan([1, 2, 3].flatMap((d) => [{ d, m: 0, r: "b1" }, { d, m: 1, r: "r1", cook: d === 1 }, { d, m: 2, r: "r2" }]), { prefs, days: days3, dishes: D, goal });
+  const lunches = items.filter((i) => i.meal === 1);
+  assert.equal(lunches.length, 3);
+  assert.equal(lunches.filter((i) => i.cook).length, 1);
+  assert.ok(lunches.every((i) => i.batch === lunches[0].batch));
+});
+test("заготовка не дольше 3 суток: на 4-й день готовим заново", () => {
+  const days4 = ["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04"];
+  const items = buildPlan([1, 2, 3, 4].map((d) => ({ d, m: 1, r: "r1", cook: d === 1 })), { prefs: { ...prefs, days: 4, meals: [1] }, days: days4, dishes: D, goal });
+  assert.equal(items.filter((i) => i.cook).length, 2);
+});
+test("порции подгоняются к норме дня (±10%)", () => {
+  const items = buildPlan([1, 2, 3].flatMap((d) => [{ d, m: 0, r: "b1" }, { d, m: 1, r: "r1" }, { d, m: 2, r: "r2" }]), { prefs, days: days3, dishes: D, goal });
+  for (const day of days3) {
+    const k = sumItems(items.filter((i) => i.day === day)).kcal;
+    const want = 2000 * 0.9; // завтрак + обед + ужин = 90% нормы
+    assert.ok(Math.abs(k - want) / want < 0.1, `${day}: ${k} vs ${want}`);
+  }
+});
+test("пустой слот ИИ заполняется подходящим блюдом (суп не на завтрак)", () => {
+  const items = buildPlan([{ d: 1, m: 1, r: "r1" }], { prefs: { ...prefs, days: 1 }, days: [days3[0]], dishes: D, goal });
+  const breakfast = items.find((i) => i.meal === 0);
+  assert.ok(breakfast && breakfast.ref === "b1");
+});
+test("мало белка — перекус становится белковым", () => {
+  const low = new Map(D);
+  low.set("r1", dish("r1", { kcal: 600, p: 10 }));
+  low.set("r2", dish("r2", { kcal: 600, p: 10 }));
+  const items = buildPlan([{ d: 1, m: 1, r: "r1" }, { d: 1, m: 2, r: "r2" }, { d: 1, m: 3, r: "b1" }], {
+    prefs: { ...prefs, days: 1, meals: [1, 2, 3] }, days: [days3[0]], dishes: low, goal, proteinBoost: ["b2"],
+  });
+  assert.ok(items.some((i) => i.ref === "b2"));
+});
+test("удалили день готовки — готовка переезжает на следующий приём заготовки", () => {
+  const items = buildPlan([1, 2, 3].map((d) => ({ d, m: 1, r: "r1", cook: d === 1 })), { prefs: { ...prefs, meals: [1] }, days: days3, dishes: D, goal });
+  const cookId = items.find((i) => i.cook)!.id;
+  const after = removeItem(items, cookId);
+  assert.equal(after.filter((i) => i.cook).length, 1);
+  assert.equal(after.find((i) => i.cook)!.day, "2026-10-02");
+});
+test("замена одного приёма из заготовки не ломает остальные", () => {
+  const items = buildPlan([1, 2, 3].map((d) => ({ d, m: 1, r: "r1", cook: d === 1 })), { prefs: { ...prefs, meals: [1] }, days: days3, dishes: D, goal });
+  const first = items.find((i) => i.cook)!;
+  const after = replaceItem(items, first.id, D.get("r2")!, "one");
+  assert.equal(after.filter((i) => i.ref === "r1" && i.cook).length, 1);
+  assert.equal(after.find((i) => i.id === first.id)!.ref, "r2");
+});
+test("покупки: заготовка на семью из 2 — продукты на все порции, вода не покупается", () => {
+  const items = buildPlan([1, 2].map((d) => ({ d, m: 1, r: "r1", cook: d === 1 })), {
+    prefs: { ...prefs, days: 2, meals: [1], people: 2 }, days: days3.slice(0, 2), dishes: D, goal: () => ({ kcal: 500 / 0.35, protein: 100 }),
+  });
+  const s = cookSessions(items, 2);
+  assert.equal(s.length, 1);
+  assert.equal(s[0].servings, 4); // 1+1 твои + по порции второму человеку
+  const list = shoppingList(items, (it) => D.get(it.ref), dict, 2);
+  assert.equal(list.find((l) => l.name === "Куриное филе")!.grams, 600); // рецепт на 4 порции
+  assert.ok(!list.some((l) => l.name === "Вода"));
+  assert.equal(qtyText(list.find((l) => l.name === "Лук репчатый")!).main, "2 шт");
+});
+test("количество: упаковки и килограммы по-человечески", () => {
+  assert.deepEqual(qtyText({ grams: 780, unit: { w: "пачка", g: 200 }, liquid: false }), { main: "775 г", sub: "4 пачки" });
+  assert.equal(qtyText({ grams: 1260, unit: null, liquid: true }).main, "1,3 л");
+  assert.equal(qtyText({ grams: 110, unit: { w: "шт", g: 55 }, liquid: false }).main, "2 шт");
+});
+
+test("каждый приём получает свою долю: лёгкий завтрак увеличивается, а не обед", () => {
+  const items = buildPlan([{ d: 1, m: 0, r: "b1" }, { d: 1, m: 1, r: "r1" }, { d: 1, m: 2, r: "r2" }], { prefs: { ...prefs, days: 1 }, days: [days3[0]], dishes: D, goal });
+  const b = items.find((i) => i.meal === 0)!;
+  // 25% из 90% нормы 2000 ≈ 555 ккал, завтрак 300 ккал → порция растёт до ~1,75
+  assert.ok(b.kcal >= 450, `завтрак ${b.kcal}`);
+});
+test("«не дома» из пожеланий: приём не заполняется и не раздувает остальные", () => {
+  const items = buildPlan([{ d: 1, m: 0, r: "b1" }, { d: 1, m: 1, r: "r1" }], {
+    prefs: { ...prefs, days: 1, skips: ["2026-10-01|2"] }, days: [days3[0]], dishes: D, goal,
+  });
+  assert.ok(!items.some((i) => i.meal === 2));
+  const k = sumItems(items).kcal;
+  assert.ok(Math.abs(k - 2000 * 0.6) / (2000 * 0.6) < 0.12, `${k}`);
+});
+test("режим заготовок: повтор блюда — из заготовки, даже если ИИ забыл cook:false", () => {
+  const items = buildPlan([1, 2, 3].map((d) => ({ d, m: 1, r: "r1", cook: true })), { prefs: { ...prefs, meals: [1] }, days: days3, dishes: D, goal });
+  assert.equal(items.filter((i) => i.cook).length, 1);
+});
+test("режим «каждый день»: слушаемся ИИ — повтор готовится заново", () => {
+  const items = buildPlan([1, 2].map((d) => ({ d, m: 1, r: "r1", cook: true })), { prefs: { ...prefs, meals: [1], cook: "daily" }, days: days3.slice(0, 2), dishes: D, goal });
+  assert.equal(items.filter((i) => i.cook).length, 2);
+});
+test("быстрые блюда (до 10 мин) собираются каждый раз и не считаются готовкой", () => {
+  const q = new Map(D);
+  q.set("r3", dish("r3", { kcal: 400, time: 5 }));
+  const items = buildPlan([1, 2].map((d) => ({ d, m: 1, r: "r3", cook: false })), { prefs: { ...prefs, meals: [1] }, days: days3.slice(0, 2), dishes: q, goal });
+  assert.ok(items.every((i) => i.cook && i.quick));
+  assert.equal(cookSessions(items, 1).length, 0);
 });
 
 console.log(`\n${passed} прошло, ${failed} упало`);

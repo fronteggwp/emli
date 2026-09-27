@@ -1,0 +1,1654 @@
+/* ───────── План питания */
+
+/* Мастер создания */
+.mp-steps {
+  display: flex;
+  gap: 6px;
+  padding: 0 16px 8px;
+}
+.mp-steps i {
+  flex: 1;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--card-3);
+  transition: background 0.35s ease;
+}
+.mp-steps i.on {
+  background: linear-gradient(90deg, var(--kcal), var(--kcal-2));
+}
+.mp-setup {
+  overflow-x: hidden;
+}
+.mp-stephead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 6px 0 18px;
+}
+.mp-stephead h3 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.mp-stephead p {
+  margin: 4px 0 0;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.35;
+}
+.mp-label {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  margin: 20px 2px 10px;
+}
+.mp-days {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.mp-daycard {
+  border-radius: 20px;
+  background: var(--card-2);
+  border: 2px solid transparent;
+  padding: 14px 8px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.mp-daycard b {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+}
+.mp-daycard span {
+  font-size: 12px;
+  color: var(--text-2);
+  text-align: center;
+}
+.mp-daycard.on {
+  border-color: var(--kcal);
+  background: color-mix(in srgb, var(--kcal) 14%, var(--card-2));
+}
+.mp-meals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.mp-meal {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: var(--card-2);
+  border: 2px solid transparent;
+  font-weight: 650;
+  font-size: 15px;
+  opacity: 0.6;
+  transition: opacity 0.2s, border-color 0.2s;
+}
+.mp-meal.on {
+  opacity: 1;
+  border-color: var(--line-2);
+}
+.mp-check {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--line-2);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  transition: background 0.2s, border-color 0.2s;
+}
+.mp-meal.on .mp-check {
+  background: var(--good);
+  border-color: var(--good);
+}
+.mp-hint {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--soft);
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.mp-hint.warn {
+  background: color-mix(in srgb, var(--fat) 14%, transparent);
+  color: var(--text);
+}
+.mp-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 20px;
+  background: var(--card-2);
+  border: 2px solid transparent;
+  text-align: left;
+  transition: border-color 0.2s, background 0.2s;
+}
+.mp-option.on {
+  border-color: var(--kcal);
+  background: color-mix(in srgb, var(--kcal) 12%, var(--card-2));
+}
+.mp-option-ico {
+  font-size: 28px;
+  width: 44px;
+  text-align: center;
+}
+.mp-option-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mp-option-text small {
+  color: var(--text-2);
+  font-size: 13px;
+}
+.mp-radio {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--line-2);
+  flex-shrink: 0;
+  transition: border 0.2s;
+}
+.mp-option.on .mp-radio {
+  border: 7px solid var(--kcal);
+}
+.mp-people {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 20px;
+  background: var(--card-2);
+}
+.mp-people-mid {
+  flex: 1;
+  text-align: center;
+}
+.mp-people-row {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  font-size: 24px;
+  min-height: 32px;
+}
+.mp-person {
+  display: inline-block;
+}
+.mp-people-mid b {
+  font-size: 14px;
+  color: var(--text-2);
+  font-weight: 600;
+}
+.mp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mp-wishes {
+  height: auto;
+  min-height: 84px;
+  padding: 12px 14px;
+  font-size: 15.5px;
+  line-height: 1.4;
+  resize: none;
+  font-family: inherit;
+  color: var(--text);
+}
+.mp-wish-chip {
+  height: 30px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.mp-foot {
+  border-top: 1px solid var(--line);
+  background: var(--bg-2);
+}
+.mp-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  margin-bottom: 8px;
+}
+.mp-go {
+  position: relative;
+  overflow: hidden;
+}
+.mp-go::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: mp-shine 3.2s ease-in-out infinite;
+}
+@keyframes mp-shine {
+  0%,
+  55% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Ошибка */
+.mp-error {
+  text-align: center;
+  padding: 28px 4px 8px;
+}
+.mp-error-ico {
+  font-size: 46px;
+  width: 84px;
+  height: 84px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--card-2);
+  color: var(--text-2);
+}
+.mp-error b {
+  font-size: 20px;
+  display: block;
+}
+.mp-error p {
+  color: var(--text-2);
+  font-size: 14.5px;
+  line-height: 1.4;
+  margin: 8px auto 18px;
+  max-width: 320px;
+}
+
+/* Сборка плана */
+.mp-build {
+  text-align: center;
+  padding: 18px 0 8px;
+}
+.mp-orbit {
+  position: relative;
+  width: 230px;
+  height: 230px;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+}
+.mp-orbit::before {
+  content: "";
+  position: absolute;
+  inset: 22px;
+  border-radius: 50%;
+  border: 2px dashed color-mix(in srgb, var(--kcal) 45%, transparent);
+}
+.mp-orbit::after {
+  content: "";
+  position: absolute;
+  inset: 55px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--kcal) 35%, transparent), transparent 70%);
+  filter: blur(8px);
+}
+.mp-orbit-ring {
+  position: absolute;
+  inset: 0;
+}
+.mp-orbit-item {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 38px;
+  height: 38px;
+  margin: -19px 0 0 -19px;
+  transform: rotate(var(--a)) translateY(-93px) rotate(calc(-1 * var(--a)));
+}
+.mp-orbit-core {
+  position: relative;
+  z-index: 1;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--card);
+  border: 1px solid var(--line-2);
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--kcal) 35%, transparent);
+}
+.mp-orbit-done {
+  position: absolute;
+  right: 2px;
+  bottom: 6px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--good);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--good) 50%, transparent);
+}
+.mp-build-title {
+  margin: 14px 0 4px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.mp-build-sub {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 14px;
+}
+.mp-build-steps {
+  margin: 22px auto 0;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+.mp-build-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 550;
+}
+.mp-build-step i {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--line-2);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #fff;
+  transition: background 0.3s, border-color 0.3s;
+}
+.mp-build-step.ok i {
+  background: var(--good);
+  border-color: var(--good);
+}
+.mp-build-step.now i {
+  border-color: transparent;
+}
+.mp-spin {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2.5px solid var(--kcal);
+  border-top-color: transparent;
+  animation: mp-rot 0.8s linear infinite;
+}
+@keyframes mp-rot {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Обложка плана */
+.mp-hero {
+  position: relative;
+  border-radius: var(--r-lg);
+  padding: 18px;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--kcal-2) 32%, transparent), transparent 60%),
+    radial-gradient(100% 80% at 0% 100%, color-mix(in srgb, var(--protein) 20%, transparent), transparent 60%),
+    var(--card);
+  border: 1px solid var(--line);
+}
+.mp-hero-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mp-hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--kcal);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.mp-hero-title {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-top: 4px;
+}
+.mp-hero-stats {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.mp-hero-stats b {
+  color: var(--text);
+  font-size: 15px;
+}
+.mp-hero-art {
+  flex-shrink: 0;
+  margin: -6px -4px 0 0;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.25));
+}
+.mp-note {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--line);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.mp-note-ico {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--kcal-2);
+}
+.mp-family {
+  margin-top: 10px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 8px 8px;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 600;
+}
+.mp-avatars {
+  display: flex;
+}
+.mp-avatars > * + * {
+  margin-left: -8px;
+}
+.mp-avatars > * {
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--card);
+}
+.mp-family-text {
+  flex: 1;
+  text-align: left;
+}
+.mp-tabs {
+  margin: 14px 0 12px;
+}
+
+/* Лента дней */
+.mp-daystrip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin: 0 -16px;
+  padding: 2px 16px 6px;
+  scroll-snap-type: x proximity;
+}
+.mp-day {
+  flex: 0 0 auto;
+  width: 54px;
+  padding: 8px 0 7px;
+  border-radius: 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  scroll-snap-align: center;
+  transition: background 0.2s, color 0.2s;
+}
+.mp-day-w {
+  font-size: 11px;
+  color: var(--text-3);
+  text-transform: lowercase;
+  font-weight: 600;
+}
+.mp-day b {
+  font-size: 19px;
+  font-weight: 750;
+}
+.mp-day-dots {
+  display: flex;
+  gap: 3px;
+  height: 8px;
+  align-items: center;
+}
+.mp-day-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--card-3);
+}
+.mp-day-dots i.on {
+  background: var(--good);
+}
+.mp-day-dots em {
+  font-style: normal;
+  font-size: 9px;
+  color: var(--good);
+  margin-left: 1px;
+}
+.mp-day.today {
+  border-color: color-mix(in srgb, var(--kcal) 60%, transparent);
+}
+.mp-day.today .mp-day-w {
+  color: var(--kcal);
+}
+.mp-day.past {
+  opacity: 0.55;
+}
+.mp-day.on {
+  background: var(--text);
+  color: var(--text-inv);
+  opacity: 1;
+}
+.mp-day.on .mp-day-w {
+  color: var(--text-inv);
+  opacity: 0.7;
+}
+.mp-day.on .mp-day-dots i:not(.on) {
+  background: color-mix(in srgb, var(--text-inv) 30%, transparent);
+}
+
+/* Итоги дня */
+.mp-daysum {
+  margin-top: 8px;
+  padding: 16px;
+  border-radius: 24px;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.mp-daysum-title {
+  font-weight: 700;
+  font-size: 16px;
+}
+.mp-daysum-title::first-letter {
+  text-transform: uppercase;
+}
+.mp-daysum-eaten {
+  font-size: 13px;
+  color: var(--good);
+  font-weight: 600;
+}
+.mp-daysum-kcal {
+  margin-top: 6px;
+  color: var(--text-2);
+  font-size: 15px;
+}
+.mp-daysum-kcal b {
+  font-size: 32px;
+  color: var(--text);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.mp-macros {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+.mp-macro-top {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.mp-macro-top b {
+  font-size: 14px;
+  color: var(--text);
+}
+.mp-macro-top small {
+  color: var(--text-3);
+  font-weight: 500;
+}
+.mp-macro-bar {
+  margin-top: 5px;
+  height: 5px;
+  border-radius: 5px;
+  background: var(--card-3);
+  overflow: hidden;
+}
+.mp-macro-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+}
+
+/* Готовим сегодня */
+.mp-cooktoday {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--protein) 20%, var(--card)), var(--card));
+  border: 1px solid color-mix(in srgb, var(--protein) 30%, transparent);
+}
+.mp-cooktoday-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--protein);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.mp-cooktoday-row {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 0 2px;
+  text-align: left;
+  font-size: 15px;
+}
+.mp-cooktoday-row b {
+  flex: 1;
+  min-width: 0;
+  font-weight: 650;
+}
+.mp-cooktoday-row small {
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+/* Приёмы пищи и блюда */
+.mp-mealcard {
+  border-radius: 24px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  padding: 12px 12px 6px;
+}
+.mp-mealcard-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px 6px;
+}
+.mp-mealcard-head b {
+  font-size: 17px;
+  flex: 1;
+}
+.mp-mealcard-head span {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.mp-empty-meal {
+  font-size: 13.5px;
+  color: var(--text-3);
+  padding: 6px 4px 8px;
+}
+.mp-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.mp-dish-wrap {
+  overflow: hidden;
+}
+.mp-dish {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  transition: opacity 0.3s;
+}
+.mp-dish + .mp-dish,
+.mp-dish-wrap + .mp-dish-wrap .mp-dish {
+  border-top: 1px solid var(--line);
+}
+.mp-dish.eaten .mp-dish-main {
+  opacity: 0.55;
+}
+.mp-dish-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  transition: opacity 0.3s;
+}
+.mp-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--kcal) 25%, var(--card-2)), var(--card-2));
+  display: grid;
+  place-items: center;
+}
+.mp-thumb.big {
+  width: 64px;
+  height: 64px;
+}
+.mp-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mp-thumb-emoji {
+  font-size: 28px;
+}
+.mp-dish-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mp-dish-text b {
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.mp-dish-sub {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.mp-badges {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.mp-badge {
+  font-size: 11px;
+  font-weight: 650;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.mp-badge.cook {
+  background: color-mix(in srgb, var(--protein) 16%, transparent);
+  color: var(--protein);
+}
+.mp-badge.left {
+  background: color-mix(in srgb, var(--kcal) 16%, transparent);
+  color: var(--kcal);
+}
+.mp-badge.quick {
+  background: color-mix(in srgb, var(--good) 16%, transparent);
+  color: var(--good);
+}
+.mp-badge.warn {
+  background: color-mix(in srgb, var(--fat) 18%, transparent);
+  color: var(--fat);
+}
+.mp-dish-kcal {
+  font-size: 16px;
+  font-weight: 750;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+.mp-dish-kcal small {
+  font-size: 11px;
+  color: var(--text-3);
+  font-weight: 500;
+}
+.mp-eat {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  background: var(--card-2);
+  color: var(--text-2);
+  border: 1.5px solid var(--line-2);
+  transition: background 0.25s, color 0.25s, border-color 0.25s;
+}
+.mp-eat > span {
+  display: grid;
+  grid-area: 1 / 1;
+}
+.mp-eat.on {
+  background: var(--good);
+  border-color: var(--good);
+  color: #fff;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--good) 40%, transparent);
+}
+.mp-regen-day {
+  margin-top: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+
+/* Покупки */
+.mp-shophead {
+  padding: 14px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--good) 16%, var(--card)), var(--card));
+  border: 1px solid var(--line);
+}
+.mp-shophead-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mp-shophead-top b {
+  display: block;
+  font-size: 18px;
+  font-weight: 750;
+}
+.mp-shophead-top small {
+  color: var(--text-2);
+  font-size: 13px;
+}
+.mp-progress {
+  margin-top: 12px;
+  height: 8px;
+  border-radius: 8px;
+  background: var(--card-3);
+  overflow: hidden;
+}
+.mp-progress i {
+  display: block;
+  height: 100%;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--good), #7be0a8);
+}
+.mp-addrow {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+.mp-addrow .input {
+  height: 46px;
+  font-size: 15.5px;
+}
+.mp-addrow .icon-btn {
+  width: 46px;
+  height: 46px;
+}
+.mp-group {
+  margin-top: 14px;
+}
+.mp-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 750;
+  padding: 0 4px 6px;
+}
+.mp-group-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-3);
+  font-weight: 600;
+}
+.mp-group-body {
+  border-radius: 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.mp-shop {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.mp-shop + .mp-shop {
+  border-top: 1px solid var(--line);
+}
+.mp-shop-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 6px 12px 14px;
+  text-align: left;
+}
+.mp-box {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--line-2);
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  transition: background 0.2s, border-color 0.2s;
+}
+.mp-box.on {
+  background: var(--good);
+  border-color: var(--good);
+}
+.mp-shop-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mp-shop-text b {
+  font-size: 15px;
+  font-weight: 600;
+}
+.mp-shop-text small {
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mp-shop.done .mp-shop-text b {
+  text-decoration: line-through;
+  color: var(--text-3);
+}
+.mp-qty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  flex-shrink: 0;
+}
+.mp-qty b {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.mp-qty small {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.mp-shop.done .mp-qty {
+  opacity: 0.45;
+}
+.mp-shop-side {
+  width: 40px;
+  height: 40px;
+  margin-right: 6px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+.mp-allset {
+  margin-top: 14px;
+  padding: 20px;
+  border-radius: 24px;
+  text-align: center;
+  background: color-mix(in srgb, var(--good) 12%, var(--card));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mp-allset span {
+  font-size: 36px;
+}
+.mp-allset small {
+  color: var(--text-2);
+}
+.mp-pantry,
+.mp-donebox {
+  margin-top: 14px;
+  border-radius: 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.mp-pantry-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  text-align: left;
+  font-size: 22px;
+}
+.mp-pantry-head b {
+  display: block;
+  font-size: 15px;
+}
+.mp-pantry-head small {
+  display: block;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.mp-pantry .mp-shop {
+  border-top: 1px solid var(--line);
+}
+.mp-chevron {
+  font-size: 22px;
+  color: var(--text-3);
+  transition: transform 0.25s;
+  line-height: 1;
+}
+.mp-done-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--good);
+}
+.mp-donebox .mp-shop {
+  border-top: 1px solid var(--line);
+}
+.mp-reset {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 13.5px;
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+/* Готовка */
+.mp-cooksum {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.mp-cooksum > div {
+  padding: 12px;
+  border-radius: 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+}
+.mp-cooksum b {
+  font-size: 20px;
+  font-weight: 800;
+}
+.mp-cooksum small {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.mp-cookday {
+  margin-top: 16px;
+}
+.mp-cookday.past {
+  opacity: 0.5;
+}
+.mp-cookday-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 0 4px 8px;
+}
+.mp-cookday-head::first-letter {
+  text-transform: uppercase;
+}
+.mp-today-pill {
+  font-size: 11px;
+  font-weight: 750;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--kcal);
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.mp-cookcard {
+  width: 100%;
+  display: flex;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 22px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  text-align: left;
+}
+.mp-cookcard + .mp-cookcard {
+  margin-top: 8px;
+}
+.mp-cook-img {
+  width: 84px;
+  height: 84px;
+  border-radius: 16px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--protein) 25%, var(--card-2)), var(--card-2));
+  display: grid;
+  place-items: center;
+}
+.mp-cook-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mp-cook-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mp-cook-body b {
+  font-size: 15.5px;
+  line-height: 1.2;
+}
+.mp-cook-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.mp-cook-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.mp-cook-eats {
+  font-size: 12.5px;
+  color: var(--kcal);
+  font-weight: 600;
+}
+.mp-cook-tip {
+  font-size: 11.5px;
+  color: var(--text-3);
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+  line-height: 1.3;
+}
+.mp-cook-tip svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.mp-cook-empty {
+  text-align: center;
+  padding: 36px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.mp-cook-empty small {
+  color: var(--text-2);
+}
+
+/* Нет плана */
+.mp-landing {
+  text-align: center;
+  padding: 8px 4px 4px;
+}
+.mp-landing-art {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(60% 60% at 50% 45%, color-mix(in srgb, var(--kcal) 30%, transparent), transparent 70%),
+    radial-gradient(80% 80% at 50% 60%, color-mix(in srgb, var(--protein) 18%, transparent), transparent 70%);
+}
+.mp-landing-badge {
+  position: absolute;
+  top: 12px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, var(--kcal), var(--kcal-2));
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--kcal) 45%, transparent);
+}
+.mp-landing h2 {
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 12px 0 6px;
+}
+.mp-landing p {
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1.45;
+  margin: 0 auto 16px;
+  max-width: 340px;
+}
+.mp-benefits {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+  text-align: left;
+}
+.mp-benefit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.mp-benefit > span:first-child {
+  font-size: 26px;
+  width: 36px;
+  text-align: center;
+}
+.mp-benefit b {
+  display: block;
+  font-size: 15px;
+}
+.mp-benefit small {
+  color: var(--text-2);
+  font-size: 13px;
+}
+.mp-shared {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 22px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  text-align: left;
+}
+.mp-shared b {
+  display: block;
+}
+.mp-shared small {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+/* Шторка блюда */
+.mp-ds-cover {
+  position: relative;
+  height: 190px;
+  border-radius: 26px;
+  overflow: hidden;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--kcal) 35%, var(--card-2)), color-mix(in srgb, var(--protein) 25%, var(--card-2)));
+  display: grid;
+  place-items: center;
+}
+.mp-ds-cover img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mp-ds-emoji {
+  font-size: 80px;
+}
+.mp-ds-when {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+.mp-ds-when::first-letter {
+  text-transform: uppercase;
+}
+.mp-ds-title {
+  font-size: 23px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 14px 2px 2px;
+  line-height: 1.2;
+}
+.mp-ds-sub {
+  color: var(--text-2);
+  font-size: 14px;
+  margin: 0 2px;
+}
+.mp-ds-portion {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 10px;
+  border-radius: 22px;
+  background: var(--card-2);
+}
+.mp-ds-portion-mid {
+  flex: 1;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+}
+.mp-ds-portion-mid b {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.mp-ds-portion-mid span {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.mp-ds-macros {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+.mp-ds-macros > div {
+  padding: 10px 4px;
+  border-radius: 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+}
+.mp-ds-macros b {
+  font-size: 18px;
+  font-weight: 800;
+}
+.mp-ds-macros small {
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+.mp-ds-batch {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--kcal) 12%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--kcal) 25%, transparent);
+}
+.mp-ds-batch-ico {
+  font-size: 26px;
+}
+.mp-ds-batch b {
+  display: block;
+  font-size: 14.5px;
+}
+.mp-ds-batch small {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.mp-ai-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, var(--kcal), var(--kcal-2));
+}
+
+/* Замена */
+.mp-swap-cur {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 20px;
+  background: var(--card-2);
+  font-size: 26px;
+}
+.mp-swap-cur small {
+  display: block;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.mp-swap-cur b {
+  display: block;
+  font-size: 15px;
+}
+.mp-swap-cur .num {
+  font-size: 13px;
+}
+.mp-swap-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 16px 2px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--kcal);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.mp-swap-skel {
+  height: 86px;
+  border-radius: 22px;
+}
+.mp-swap-opt {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 22px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  text-align: left;
+}
+.mp-swap-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mp-swap-text b {
+  font-size: 15px;
+  line-height: 1.2;
+}
+.mp-swap-text .num {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.mp-swap-text small {
+  font-size: 12.5px;
+  color: var(--kcal);
+  line-height: 1.3;
+}
+.mp-scope-q {
+  margin: 16px 2px 14px;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+/* Выбор блюда */
+.mp-pick {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 18px;
+  text-align: left;
+}
+.mp-pick:active {
+  background: var(--soft);
+}
+.mp-pick-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mp-pick-text b {
+  font-size: 15px;
+  line-height: 1.2;
+}
+.mp-pick-text span {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+/* Семья */
+.mp-share-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 20px;
+  background: var(--card-2);
+}
+.mp-share-hero p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-2);
+}
+
+/* Приглашение в план */
+.mp-invite {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--kcal) 14%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--kcal) 30%, transparent);
+}
+.mp-invite span {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+/* Карточка в дневнике */
+.mp-diary {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 24px;
+  text-align: left;
+  background:
+    radial-gradient(120% 120% at 100% 0%, color-mix(in srgb, var(--kcal-2) 26%, transparent), transparent 60%),
+    var(--card);
+  border: 1px solid var(--line);
+}
+.mp-diary-text {
+  flex: 1;
+  min-width: 0;
+}
+.mp-diary-text b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+}
+.mp-diary-text small {
+  display: block;
+  font-size: 13px;
+  color: var(--text-2);
+  margin-top: 2px;
+}
+.mp-planned {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 8px 8px 8px 10px;
+  border-radius: 16px;
+  border: 1.5px dashed var(--line-2);
+}
+.mp-planned-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+.mp-planned .mp-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+.mp-planned .mp-thumb-emoji {
+  font-size: 20px;
+}
+.mp-planned-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mp-planned-text small {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--kcal);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.mp-planned-text b {
+  font-size: 14.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mp-planned-kcal {
+  font-size: 13px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.mp-cookday > .mp-cook-tip {
+  margin: 8px 6px 0;
+  font-size: 12.5px;
+}

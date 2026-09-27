@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Bell, Check, Heart, MessageCircle, Trophy, UserPlus, Users } from "lucide-react";
+import { Bell, Check, Heart, MessageCircle, ShoppingBasket, Trophy, UserPlus, Users } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNav } from "@/nav/Nav";
 import { fullName, markNoticesRead, sk, useFriendActions, useFriendships, useNotices, usePeople } from "@/data/social";
@@ -13,6 +13,8 @@ import { PersonScreen } from "./Person";
 import { PostScreen } from "./PostScreen";
 import { ChallengeScreen } from "./Challenges";
 import { useChallengeActions, useMyChallenges } from "@/data/engage";
+import { useRespondPlan } from "@/data/mealplan";
+import { MealPlanScreen } from "./MealPlan";
 import "./social.css";
 
 const META: Record<Notice["kind"], { text: string; Icon: typeof Heart; color: string }> = {
@@ -21,6 +23,7 @@ const META: Record<Notice["kind"], { text: string; Icon: typeof Heart; color: st
   like: { text: "оценил твою запись", Icon: Heart, color: "#ff4d6d" },
   comment: { text: "прокомментировал:", Icon: MessageCircle, color: "var(--carbs)" },
   challenge: { text: "зовёт тебя в челлендж", Icon: Trophy, color: "var(--fat)" },
+  plan: { text: "делится с тобой планом питания и общим списком покупок", Icon: ShoppingBasket, color: "var(--good)" },
 };
 
 export function NotificationsScreen() {
@@ -31,6 +34,7 @@ export function NotificationsScreen() {
   const actions = useFriendActions();
   const challenges = useMyChallenges();
   const chActions = useChallengeActions();
+  const planRespond = useRespondPlan();
   const people = usePeople((notices.data ?? []).map((n) => n.actor_id));
 
   useEffect(() => {
@@ -55,7 +59,7 @@ export function NotificationsScreen() {
                 style={{ alignItems: "flex-start", background: n.read_at ? undefined : "rgba(124,140,255,.06)" }}
                 onClick={() =>
                   nav.push(
-                    n.challenge_id ? <ChallengeScreen id={n.challenge_id} /> : n.post_id ? <PostScreen id={n.post_id} /> : <PersonScreen id={n.actor_id} />,
+                    n.plan_id ? <MealPlanScreen id={n.plan_id} /> : n.challenge_id ? <ChallengeScreen id={n.challenge_id} /> : n.post_id ? <PostScreen id={n.post_id} /> : <PersonScreen id={n.actor_id} />,
                   )
                 }
               >
@@ -90,6 +94,20 @@ export function NotificationsScreen() {
                     <Check size={18} strokeWidth={3} />
                   </Tap>
                 )}
+                {n.kind === "plan" && n.plan_id && (
+                  <Tap
+                    className="icon-btn"
+                    style={{ width: 38, height: 38, background: "var(--good)", color: "#062a14" }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      haptic.success();
+                      planRespond.mutate({ id: n.plan_id!, accept: true });
+                    }}
+                    aria-label="Принять"
+                  >
+                    <Check size={18} strokeWidth={3} />
+                  </Tap>
+                )}
                 {pending && (
                   <Tap
                     className="icon-btn"
@@ -113,7 +131,7 @@ export function NotificationsScreen() {
       ) : (
         <div className="empty">
           <Bell size={40} style={{ display: "block", margin: "0 auto 10px" }} />
-          Здесь появятся лайки, комментарии, заявки в друзья и приглашения в челленджи
+          Здесь появятся лайки, комментарии, заявки в друзья приглашения в челленджи и общие планы питания
         </div>
       )}
     </Screen>

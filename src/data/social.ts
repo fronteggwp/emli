@@ -425,6 +425,7 @@ export function useRealtime() {
         qc.invalidateQueries({ queryKey: sk.notices });
         qc.invalidateQueries({ queryKey: sk.friendships });
         qc.invalidateQueries({ queryKey: ["challenges"] });
+        qc.invalidateQueries({ queryKey: ["meal-plans"] });
       })
       .subscribe((status) => {
         // Соединение восстановилось — сверяем то, что могли пропустить

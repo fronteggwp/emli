@@ -55,9 +55,10 @@ export type Comment = { id: string; post_id: string; author_id: string; text: st
 export type Notice = {
   id: number;
   actor_id: string;
-  kind: "friend_request" | "friend_accept" | "like" | "comment" | "challenge";
+  kind: "friend_request" | "friend_accept" | "like" | "comment" | "challenge" | "plan";
   post_id: string | null;
   challenge_id?: string | null;
+  plan_id?: string | null;
   preview: string | null;
   created_at: string;
   read_at: string | null;

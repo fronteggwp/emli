@@ -14,13 +14,14 @@ import { AddFoodSheet } from "@/sheets/AddFood";
 import { LogWeightSheet } from "@/sheets/LogWeight";
 import { WeekReportScreen } from "@/pages/WeekReport";
 import { ChallengeScreen } from "@/pages/Challenges";
+import { MealPlanScreen } from "@/pages/MealPlan";
 import { useDay } from "@/state/day";
 import { todayKey } from "@/lib/dates";
 import type { Meal } from "@/lib/types";
 
 /**
  * Переходы из бота и приглашений: ?ref=код, ?chat=id, ?post=id, ?user=id, ?friends,
- * ?add=приём, ?workout, ?weigh, ?week, ?challenge=id
+ * ?add=приём, ?workout, ?weigh, ?week, ?challenge=id, ?plan=id
  * (или start_param вида ref_код, если приложение открыто прямой ссылкой).
  */
 export function DeepLinks() {
@@ -39,7 +40,7 @@ export function DeepLinks() {
     const hash = new URLSearchParams(location.search);
     const start = tg?.initDataUnsafe.start_param ?? "";
     if (start.startsWith("ref_")) hash.set("ref", start.slice(4));
-    const linked = ["ref", "chat", "post", "user", "friends", "add", "workout", "weigh", "week", "challenge"].some((k) => hash.has(k));
+    const linked = ["ref", "chat", "post", "user", "friends", "add", "workout", "weigh", "week", "challenge", "plan"].some((k) => hash.has(k));
     if (linked) history.replaceState(null, "", location.pathname + location.hash);
 
     (async () => {
@@ -95,7 +96,13 @@ export function DeepLinks() {
       }
       if (hash.has("week")) {
         const start = hash.get("week");
-        setTimeout(() => nav.push(<WeekReportScreen start={start && /^d{4}-d{2}-d{2}$/.test(start) ? start : undefined} />), 250);
+        setTimeout(() => nav.push(<WeekReportScreen start={start && /^\d{4}-\d{2}-\d{2}$/.test(start) ? start : undefined} />), 250);
+        return;
+      }
+      const plan = hash.get("plan");
+      if (plan) {
+        nav.setTab("diary");
+        setTimeout(() => nav.push(<MealPlanScreen id={plan} tab="shop" />), 250);
         return;
       }
       const challenge = hash.get("challenge");

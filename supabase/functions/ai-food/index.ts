@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
 
   // Лимит запросов в сутки
   const since = new Date(Date.now() - 86400_000).toISOString();
-  const { count } = await admin.from("ai_usage").select("id", { count: "exact", head: true }).eq("user_id", uid).gte("created_at", since);
+  const { count } = await admin.from("ai_usage").select("id", { count: "exact", head: true }).eq("user_id", uid).eq("kind", "food-photo").gte("created_at", since);
   if ((count ?? 0) >= DAILY_LIMIT) return json({ error: "limit", limit: DAILY_LIMIT }, 429);
 
   const body = await req.json().catch(() => ({}));

@@ -26,6 +26,7 @@ import { LogRecipeSheet } from "@/sheets/LogRecipe";
 import { RecipeEditorScreen } from "./RecipeEditor";
 import "./engage.css";
 import "./recipes.css";
+import { BASICS } from "@/lib/basics";
 
 export type RecipeVM = {
   key: string;
@@ -52,9 +53,9 @@ export type RecipeVM = {
 
 const DIFF = ["", "Легко", "Средне", "Сложно"];
 
-export function RecipeScreen({ id }: { id: string }) {
+export function RecipeScreen({ id, servings }: { id: string; servings?: number }) {
   const recipes = useRecipes();
-  const r = recipes.data?.find((x) => x.id === id);
+  const r = recipes.data?.find((x) => x.id === id) ?? BASICS.find((x) => x.id === id);
   if (!r) return <Screen title="">{recipes.isLoading ? <div className="skeleton" style={{ height: 260, borderRadius: 28 }} /> : <div className="empty">Рецепт не найден</div>}</Screen>;
   const c = catOf(r.category);
   return (
@@ -80,11 +81,12 @@ export function RecipeScreen({ id }: { id: string }) {
         credit: r.photo,
         rawWeight: true,
       }}
+      cookServings={servings}
     />
   );
 }
 
-export function UserRecipeScreen({ id }: { id: string }) {
+export function UserRecipeScreen({ id, servings }: { id: string; servings?: number }) {
   const nav = useNav();
   const list = useUserRecipes();
   const r = list.data?.find((x) => x.id === id);
@@ -110,13 +112,15 @@ export function UserRecipeScreen({ id }: { id: string }) {
         onEdit: () => nav.push(<RecipeEditorScreen recipe={r} />),
         rawWeight: !r.cooked_g,
       }}
+      cookServings={servings}
     />
   );
 }
 
-function RecipeView({ vm }: { vm: RecipeVM }) {
+function RecipeView({ vm, cookServings }: { vm: RecipeVM; cookServings?: number }) {
   const nav = useNav();
-  const [cook, setCook] = useState(vm.servings);
+  // Из плана питания открываем сразу на нужное число порций заготовки
+  const [cook, setCook] = useState(() => (cookServings ? Math.max(1, Math.ceil(cookServings)) : vm.servings));
   const [done, setDone] = useState<Set<number>>(new Set());
   const k = cook / vm.servings;
   const s = vm.serving;

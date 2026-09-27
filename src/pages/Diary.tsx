@@ -31,6 +31,11 @@ import { fmtDuration } from "@/state/workout";
 import { CheckinCard, DayCompleteness } from "@/ui/Checkin";
 import "./diary.css";
 import { Icon3D, MEAL_ICON } from "@/ui/Icon3D";
+import { dishOfItem, planEnd, useActivePlan, useDishes, useEatItem, type MealPlan } from "@/data/mealplan";
+import type { PlanItem } from "@/lib/mealplan";
+import { MealPlanScreen } from "./MealPlan";
+import { PlanDishSheet } from "@/sheets/PlanDish";
+import "@/sheets/mealplan.css";
 
 /** Какую долю дневной нормы обычно занимает приём пищи — для полоски у каждого приёма */
 const MEAL_SHARE = [0.25, 0.35, 0.3, 0.1];
@@ -57,6 +62,8 @@ export function DiaryPage() {
   const target = targets.forDay(day);
   const sum = useMemo(() => sumMacros(entries.data ?? []), [entries.data]);
   const isToday = day === todayKey();
+  const { plan } = useActivePlan();
+  const planned = plan && day >= plan.start_day && day <= planEnd(plan) ? plan.items.filter((i) => i.day === day && !i.skipped) : [];
 
   return (
     <div className="page diary">
@@ -96,6 +103,8 @@ export function DiaryPage() {
 
       <DayWorkouts day={day} />
 
+      <PlanDayCard plan={plan} day={day} items={planned} />
+
       {/* Пока грузится выбранный день, записи прошлого дня приглушены и не нажимаются */}
       <div className={`stack ${entries.isPlaceholderData ? "diary-stale" : ""}`} style={{ marginTop: 14 }} aria-busy={entries.isPlaceholderData}>
         {MEALS.map((m, i) => (
@@ -105,6 +114,8 @@ export function DiaryPage() {
             entries={(entries.data ?? []).filter((e) => e.meal === m.id)}
             index={i}
             budget={target.calories * MEAL_SHARE[i]}
+            planned={plan ? planned.filter((p) => p.meal === m.id && !p.eaten) : []}
+            planId={plan?.id}
           />
         ))}
       </div>
@@ -436,7 +447,7 @@ function DayBanner({ target, day }: { target: DayTarget; day: string }) {
 
 // ───────────────────────── Приёмы пищи
 
-function MealCard({ meal, entries, index, budget }: { meal: Meal; entries: Entry[]; index: number; budget: number }) {
+function MealCard({ meal, entries, index, budget, planned, planId }: { meal: Meal; entries: Entry[]; index: number; budget: number; planned: PlanItem[]; planId?: string }) {
   const nav = useNav();
   const info = MEALS[meal];
   const total = sumMacros(entries);
@@ -457,7 +468,9 @@ function MealCard({ meal, entries, index, budget }: { meal: Meal; entries: Entry
               <i style={{ width: `${ratio * 100}%`, background: MEAL_STYLE[meal] }} />
             </div>
           ) : (
-            <div className="meal-sub">≈ {fmtNum(Math.round(budget / 10) * 10)} ккал по плану</div>
+            <div className="meal-sub">
+              {planned.length ? `в плане питания: ${fmtNum(planned.reduce((a, p) => a + p.kcal, 0))} ккал` : `≈ ${fmtNum(Math.round(budget / 10) * 10)} ккал по норме`}
+            </div>
           )}
         </div>
         {entries.length > 0 && (
@@ -489,6 +502,7 @@ function MealCard({ meal, entries, index, budget }: { meal: Meal; entries: Entry
         {entries.map((e) => (
           <EntryRow key={e.id} entry={e} />
         ))}
+        {planId && planned.map((p) => <PlannedRow key={p.id} item={p} planId={planId} />)}
       </AnimatePresence>
     </div>
   );
@@ -544,6 +558,83 @@ function EntryRow({ entry }: { entry: Entry }) {
           <small>ккал</small>
         </div>
       </motion.button>
+    </motion.div>
+  );
+}
+
+// ───────────────────────── План питания в дневнике
+
+function PlanDayCard({ plan, day, items }: { plan: MealPlan | null; day: string; items: PlanItem[] }) {
+  const nav = useNav();
+  const today = todayKey();
+  if (!plan) {
+    // Нет плана — ненавязчивое приглашение, только на сегодня
+    if (day !== today) return null;
+    return (
+      <Tap className="mp-diary" scale={0.98} onClick={() => (haptic.tap(), nav.push(<MealPlanScreen />))}>
+        <Icon3D name="meal-plan" size={46} />
+        <span className="mp-diary-text">
+          <b>
+            Меню на неделю <span className="mp-ai-pill">ИИ</span>
+          </b>
+          <small>Подберу блюда под норму и соберу список покупок</small>
+        </span>
+        <span className="faint">›</span>
+      </Tap>
+    );
+  }
+  if (!items.length) return null;
+  const eaten = items.filter((i) => i.eaten).length;
+  const cook = items.filter((i) => i.cook && !i.basic && !i.quick);
+  const n = items.length;
+  return (
+    <Tap className="mp-diary" scale={0.98} onClick={() => (haptic.tap(), nav.push(<MealPlanScreen id={plan.id} />))}>
+      <Icon3D name="meal-plan" size={46} />
+      <span className="mp-diary-text">
+        <b>План питания</b>
+        <small>
+          {eaten === n ? "Всё по плану съедено 🎉" : `По плану ${n} ${n === 1 ? "блюдо" : n < 5 ? "блюда" : "блюд"} · съедено ${eaten}`}
+          {cook.length ? ` · 🔥 готовим: ${cook[0].title}${cook.length > 1 ? ` и ещё ${cook.length - 1}` : ""}` : ""}
+        </small>
+      </span>
+      <span className="faint">›</span>
+    </Tap>
+  );
+}
+
+function PlannedRow({ item, planId }: { item: PlanItem; planId: string }) {
+  const nav = useNav();
+  const toast = useToast();
+  const eat = useEatItem(planId);
+  const { map } = useDishes();
+  const img = dishOfItem(map, item)?.img;
+  const future = item.day > todayKey();
+  return (
+    <motion.div layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} style={{ overflow: "hidden" }}>
+      <div className="mp-planned">
+        <button className="mp-planned-main press" onClick={() => nav.sheet(<PlanDishSheet planId={planId} itemId={item.id} own />)}>
+          <span className="mp-thumb">{img ? <img src={img} alt="" loading="lazy" /> : <span className="mp-thumb-emoji">{item.emoji}</span>}</span>
+          <span className="mp-planned-text">
+            <small>по плану</small>
+            <b>{item.title}</b>
+          </span>
+          <span className="mp-planned-kcal num">{fmtNum(item.kcal)} ккал</span>
+        </button>
+        {!future && (
+          <Tap
+            className="mp-eat"
+            scale={0.85}
+            onClick={() => {
+              haptic.success();
+              eat.mutate({ item, eat: true });
+              toast(`${item.title}: +${fmtNum(item.kcal)} ккал`);
+            }}
+            aria-label="Съел"
+          >
+            <Plus size={17} strokeWidth={2.6} />
+          </Tap>
+        )}
+      </div>
     </motion.div>
   );
 }
