@@ -7,7 +7,8 @@ import { deleteAccount, exportData, hm, useReminders, useSaveReminders, type Rem
 import { forgetSession, revokeThisDevice } from "@/lib/auth";
 import { isStandalone } from "./Welcome";
 import { useHomeScreen } from "@/lib/homescreen";
-import { confirmDialog, haptic, inTelegram, tg } from "@/lib/telegram";
+import { confirmDialog, haptic, hapticsOn, inTelegram, setHapticsOn, tg, vibrate } from "@/lib/telegram";
+import { setSoundOn, sfx, soundOn } from "@/lib/sound";
 import { getThemePref, setThemePref, type ThemePref } from "@/lib/theme";
 import { Screen } from "@/ui/Screen";
 import { Switch } from "@/ui/Switch";
@@ -20,6 +21,7 @@ export function SettingsScreen() {
   return (
     <Screen title="Настройки">
       <ThemePicker />
+      <FeelBlock />
       <RemindersBlock />
       <HomeBlock />
       <DataBlock />
@@ -377,6 +379,37 @@ function ScreenInfo() {
   return (
     <div className="faint" style={{ textAlign: "center", fontSize: 10, marginTop: 6, fontFamily: "monospace" }}>
       {info}
+    </div>
+  );
+}
+
+// ───────────── Звуки и вибрация
+
+function FeelBlock() {
+  const [sound, setSound] = useState(soundOn());
+  const [buzz, setBuzz] = useState(hapticsOn());
+  return (
+    <div className="stack" style={{ gap: 8, marginTop: 12 }}>
+      <Switch
+        on={sound}
+        onChange={(v) => {
+          setSoundOn(v);
+          setSound(v);
+          if (v) setTimeout(() => sfx.success(), 30);
+        }}
+        label="Звуки"
+        hint="Мягкие звуки нажатий, подходов и достижений. В беззвучном режиме телефона молчат"
+      />
+      <Switch
+        on={buzz}
+        onChange={(v) => {
+          setHapticsOn(v);
+          setBuzz(v);
+          if (v) vibrate("success");
+        }}
+        label="Вибрация"
+        hint="Лёгкий отклик на касания"
+      />
     </div>
   );
 }

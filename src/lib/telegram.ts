@@ -1,4 +1,5 @@
 // Тонкая обёртка над Telegram WebApp API. Вне Telegram всё безопасно превращается в no-op.
+import { sfx } from "./sound";
 
 type Inset = { top: number; bottom: number; left: number; right: number };
 
@@ -89,16 +90,85 @@ function applySafeArea() {
   }
 }
 
+// ───────────── Вибрация
+// В Telegram — его отклик. Вне Telegram на iPhone (iOS 18+) — через системный переключатель
+// (<input switch>: нажатие на него даёт лёгкий «тик»), на Android — navigator.vibrate.
+
+type Feel = "light" | "soft" | "medium" | "rigid" | "heavy" | "select" | "success" | "warning" | "error";
+const HAPTICS_KEY = "emli-haptics";
+
+export function hapticsOn() {
+  try {
+    return localStorage.getItem(HAPTICS_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+export function setHapticsOn(on: boolean) {
+  try {
+    localStorage.setItem(HAPTICS_KEY, on ? "on" : "off");
+  } catch {
+    /* ничего */
+  }
+}
+
+let switchLabel: HTMLLabelElement | null = null;
+function iosTick() {
+  if (!switchLabel) {
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.setAttribute("switch", "");
+    input.id = "emli-haptic";
+    input.style.cssText = "position:fixed;opacity:0;pointer-events:none;width:1px;height:1px;left:-10px;top:-10px";
+    switchLabel = document.createElement("label");
+    switchLabel.htmlFor = input.id;
+    switchLabel.style.cssText = "position:fixed;opacity:0;pointer-events:none;width:1px;height:1px;left:-10px;top:-10px";
+    document.body.append(input, switchLabel);
+  }
+  switchLabel.click();
+}
+const isIOS = typeof navigator !== "undefined" && /iPhone|iPad|iPod/.test(navigator.userAgent);
+const PATTERN: Record<Feel, number[]> = {
+  light: [0],
+  soft: [0],
+  select: [0],
+  medium: [0],
+  rigid: [0],
+  heavy: [0, 60],
+  success: [0, 110],
+  warning: [0, 140],
+  error: [0, 90, 180],
+};
+
+/** Только вибрация, без звука */
+export function vibrate(kind: Feel) {
+  if (!hapticsOn()) return;
+  const h = tg?.HapticFeedback;
+  if (h) {
+    if (kind === "select") h.selectionChanged();
+    else if (kind === "success" || kind === "warning" || kind === "error") h.notificationOccurred(kind);
+    else h.impactOccurred(kind);
+    return;
+  }
+  try {
+    if (isIOS) PATTERN[kind].forEach((ms) => setTimeout(iosTick, ms));
+    else navigator.vibrate?.(kind === "heavy" || kind === "error" ? [18, 40, 18] : kind === "success" ? [12, 60, 12] : 10);
+  } catch {
+    /* нет вибромотора */
+  }
+}
+
+/** Вибрация + мягкий звук к каждому виду отклика */
 export const haptic = {
-  tap: () => tg?.HapticFeedback?.impactOccurred("light"),
-  soft: () => tg?.HapticFeedback?.impactOccurred("soft"),
-  medium: () => tg?.HapticFeedback?.impactOccurred("medium"),
-  rigid: () => tg?.HapticFeedback?.impactOccurred("rigid"),
-  heavy: () => tg?.HapticFeedback?.impactOccurred("heavy"),
-  select: () => tg?.HapticFeedback?.selectionChanged(),
-  success: () => tg?.HapticFeedback?.notificationOccurred("success"),
-  warning: () => tg?.HapticFeedback?.notificationOccurred("warning"),
-  error: () => tg?.HapticFeedback?.notificationOccurred("error"),
+  tap: () => (vibrate("light"), sfx.tap()),
+  soft: () => (vibrate("soft"), sfx.pop()),
+  medium: () => (vibrate("medium"), sfx.pop()),
+  rigid: () => (vibrate("rigid"), sfx.swipe()),
+  heavy: () => (vibrate("heavy"), sfx.thump()),
+  select: () => (vibrate("select"), sfx.tick()),
+  success: () => (vibrate("success"), sfx.success()),
+  warning: () => (vibrate("warning"), sfx.error()),
+  error: () => (vibrate("error"), sfx.error()),
 };
 
 export function confirmDialog(message: string): Promise<boolean> {

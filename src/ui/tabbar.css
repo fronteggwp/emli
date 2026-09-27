@@ -80,3 +80,14 @@
     opacity 0.2s,
     transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 }
+
+/* Иконка выбранной вкладки «подпрыгивает» */
+.tab.on .tab-icon {
+  animation: tab-bounce 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes tab-bounce {
+  0% { transform: scale(1); }
+  35% { transform: translateY(-4px) scale(1.18); }
+  65% { transform: translateY(0) scale(0.96); }
+  100% { transform: translateY(-1px) scale(1.08); }
+}

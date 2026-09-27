@@ -1,3 +1,4 @@
+import { sfx } from "@/lib/sound";
 import {
   createContext,
   useCallback,
@@ -49,8 +50,20 @@ export function NavProvider({ tabs }: { tabs: (tab: Tab) => ReactNode }) {
   const add = useCallback((kind: Layer["kind"], node: ReactNode, opts: SheetOpts = {}) => {
     setLayers((l) => [...l, { id: ++seq.current, kind, node, opts, closing: false }]);
   }, []);
-  const push = useCallback((node: ReactNode) => add("screen", node), [add]);
-  const sheet = useCallback((node: ReactNode, opts?: SheetOpts) => add("sheet", node, opts), [add]);
+  const push = useCallback(
+    (node: ReactNode) => {
+      sfx.tick();
+      add("screen", node);
+    },
+    [add],
+  );
+  const sheet = useCallback(
+    (node: ReactNode, opts?: SheetOpts) => {
+      sfx.pop();
+      add("sheet", node, opts);
+    },
+    [add],
+  );
   const closeId = useCallback((id: number) => setLayers((l) => l.map((x) => (x.id === id ? { ...x, closing: true } : x))), []);
   const remove = useCallback((id: number) => setLayers((l) => l.filter((x) => x.id !== id)), []);
   const pop = useCallback(

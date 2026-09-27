@@ -11,7 +11,8 @@ import { parseReps, programByKey } from "@/data/programs";
 import { exDraftFrom, fmtDuration, newSet, useNow, useWorkoutDraft, type Draft, type ExDraft, type SetDraft, type SetKind } from "@/state/workout";
 import { burnedKcal, e1rm, isTimed, metOf, usesWeight, weightStep, type Exercise, type Muscle } from "@/lib/exercise";
 import { parseNum } from "@/lib/hooks";
-import { confirmDialog, haptic, inTelegram } from "@/lib/telegram";
+import { confirmDialog, haptic, inTelegram, vibrate } from "@/lib/telegram";
+import { sfx } from "@/lib/sound";
 import { keepFocus } from "@/lib/viewport";
 import { SheetHeader } from "@/ui/Screen";
 import { ExerciseImage } from "@/ui/ExerciseImage";
@@ -327,14 +328,16 @@ const ExerciseBlock = memo(function ExerciseBlock({
       toast("Впиши количество повторов");
       return;
     }
-    haptic.success();
+    vibrate("success");
+    sfx.set();
     updSet(s.id, patch);
     // Новый рекорд прямо во время подхода
     const w = parseNum(patch.weight ?? s.weight);
     const r = parseNum(patch.reps ?? s.reps);
     if (s.kind !== "warmup" && best && w > 0 && best.best_e1rm && e1rm(w, r) > best.best_e1rm) {
       setTimeout(() => {
-        haptic.heavy();
+        vibrate("heavy");
+        sfx.fanfare();
         toast(`🏆 Рекорд: ${ex.n} — ${fmtW(w)} × ${r}`);
       }, 250);
     }
@@ -571,12 +574,23 @@ function RestTimer() {
   const fired = useRef<number | null>(null);
   const rest = wd.rest;
   const left = rest ? (rest.endAt - now) / 1000 : 0;
+  const whole = Math.ceil(left);
+  const counted = useRef(0);
+
+  // Последние 3 секунды — тихий отсчёт
+  useEffect(() => {
+    if (!rest || whole < 1 || whole > 3 || counted.current === whole) return;
+    counted.current = whole;
+    vibrate("select");
+    sfx.tick();
+  }, [whole, rest]);
 
   useEffect(() => {
     if (!rest || left > 0 || fired.current === rest.endAt) return;
     fired.current = rest.endAt;
-    haptic.success();
-    setTimeout(() => haptic.heavy(), 250);
+    vibrate("success");
+    sfx.bell();
+    setTimeout(() => vibrate("heavy"), 250);
     const t = setTimeout(() => wd.stopRest(), 4000);
     return () => clearTimeout(t);
   }, [left, rest, wd]);

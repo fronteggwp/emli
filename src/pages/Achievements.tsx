@@ -7,10 +7,9 @@ import { useUid } from "@/lib/auth";
 import { ek, syncAchievements, useAchievements } from "@/data/engage";
 import { ACHIEVEMENTS, ACH_GROUPS, achByKey, groupOf } from "@/lib/achievements";
 import { fmt } from "@/lib/dates";
-import { haptic } from "@/lib/telegram";
 import { Screen } from "@/ui/Screen";
 import { Tap } from "@/ui/Tap";
-import { useToast } from "@/ui/Toast";
+import { celebrate } from "@/ui/Celebration";
 import "./engage.css";
 import "./achievements.css";
 
@@ -103,7 +102,6 @@ export function AchievementStrip({ uid, name }: { uid: string; name?: string }) 
 export function AchievementWatcher() {
   const qc = useQueryClient();
   const uid = useUid();
-  const toast = useToast();
   const timer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
@@ -111,14 +109,20 @@ export function AchievementWatcher() {
       const fresh = await syncAchievements().catch(() => []);
       if (!fresh.length) return;
       qc.invalidateQueries({ queryKey: ek.achievements(uid) });
-      fresh.forEach((k, i) => {
-        const a = achByKey(k);
-        if (!a) return;
-        setTimeout(() => {
-          haptic.success();
-          toast(`Достижение: ${a.title}`, <span style={{ fontSize: 18 }}>{a.emoji}</span>);
-        }, 600 + i * 2400);
-      });
+      const list = fresh.map(achByKey).filter((a): a is NonNullable<typeof a> => !!a);
+      if (!list.length) return;
+      if (list.length > 3) {
+        // Сразу много (например, при первом запуске) — одна общая карточка вместо очереди
+        celebrate({
+          emoji: "🏅",
+          title: `Открыто достижений: ${list.length}`,
+          desc: list.slice(0, 4).map((a) => `${a.emoji} ${a.title}`).join(" · "),
+          colors: ["#ffc247", "#ff7a5c"],
+          label: "Твои достижения",
+        });
+        return;
+      }
+      list.forEach((a) => celebrate({ emoji: a.emoji, title: a.title, desc: a.desc, colors: groupOf(a.group).colors }));
     };
     const schedule = (ms: number) => {
       window.clearTimeout(timer.current);
@@ -132,7 +136,7 @@ export function AchievementWatcher() {
       unsub();
       window.clearTimeout(timer.current);
     };
-  }, [qc, uid, toast]);
+  }, [qc, uid]);
 
   return null;
 }

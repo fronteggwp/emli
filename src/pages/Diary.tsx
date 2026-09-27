@@ -448,7 +448,7 @@ function MealCard({ meal, entries, index, budget }: { meal: Meal; entries: Entry
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="row" style={{ gap: 8, alignItems: "baseline" }}>
             <span className="meal-name">{info.name}</span>
-            {entries.length > 0 && <span className="meal-kcal num">{fmtNum(total.kcal)} ккал</span>}
+            {entries.length > 0 && <span className="meal-kcal num"><NumberTicker value={Math.round(total.kcal)} duration={0.5} /> ккал</span>}
           </div>
           {entries.length ? (
             <div className="meal-bar">

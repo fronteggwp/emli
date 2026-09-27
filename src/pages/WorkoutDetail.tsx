@@ -6,7 +6,8 @@ import { fmtDuration } from "@/state/workout";
 import { MUSCLE_RU, type Muscle } from "@/lib/exercise";
 import { fmt } from "@/lib/dates";
 import { fmtNum } from "@/lib/nutrition";
-import { confirmDialog, haptic } from "@/lib/telegram";
+import { confirmDialog, haptic, vibrate } from "@/lib/telegram";
+import { sfx } from "@/lib/sound";
 import { Screen } from "@/ui/Screen";
 import { ExerciseImage } from "@/ui/ExerciseImage";
 import { MuscleMap } from "@/ui/MuscleMap";
@@ -67,7 +68,10 @@ export function WorkoutDetailScreen({ id, celebrate = false }: { id: string; cel
   const saveRoutine = useSaveRoutine();
 
   useEffect(() => {
-    if (celebrate) haptic.success();
+    if (celebrate) {
+      vibrate("success");
+      sfx.celebrate();
+    }
   }, [celebrate]);
 
   const w = q.data?.workout;

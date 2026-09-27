@@ -16,6 +16,7 @@ import { ActiveBar } from "@/ui/ActiveBar";
 import { Onboarding } from "@/pages/Onboarding";
 import { Welcome } from "@/pages/Welcome";
 import { AchievementWatcher } from "@/pages/Achievements";
+import { CelebrationHost } from "@/ui/Celebration";
 import { useSyncTimezone } from "@/data/engage";
 
 export function App() {
@@ -85,7 +86,12 @@ function Tabs({ tab }: { tab: Tab }) {
 /** Фоновые задачи: часовой пояс для напоминаний, проверка достижений */
 function Background() {
   useSyncTimezone();
-  return <AchievementWatcher />;
+  return (
+    <>
+      <AchievementWatcher />
+      <CelebrationHost />
+    </>
+  );
 }
 
 function TabPage({ active, children }: { active: boolean; children: React.ReactNode }) {
