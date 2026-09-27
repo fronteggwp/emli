@@ -395,3 +395,65 @@
 .action-tile .ico.ico-3d {
   background: var(--card-2);
 }
+
+/* Продукт с этикетки */
+.cf-label-note {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--kcal) 12%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--kcal) 28%, transparent);
+  font-size: 22px;
+}
+.cf-label-note b {
+  display: block;
+  font-size: 14.5px;
+}
+.cf-label-note small {
+  display: block;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+/* Сканер: товар не найден */
+.sc-miss {
+  margin-top: 12px;
+  padding: 16px;
+  border-radius: 22px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  text-align: center;
+}
+.sc-miss > b {
+  font-size: 17px;
+}
+.sc-miss-name {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--text-2);
+}
+.sc-miss p {
+  margin: 10px 0 14px;
+  font-size: 13.5px;
+  color: var(--text-2);
+  line-height: 1.4;
+}
+
+/* Откуда данные о продукте */
+.fd-origin {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.fd-origin img {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--card-2);
+}

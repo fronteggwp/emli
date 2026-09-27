@@ -1,5 +1,5 @@
 // Open Food Facts — открытая мировая база упакованных продуктов (штрихкоды, бренды).
-import type { FoodDraft } from "@/lib/types";
+import type { FoodDraft, FoodOrigin } from "@/lib/types";
 
 const FIELDS = "code,product_name,product_name_ru,generic_name_ru,brands,nutriments,serving_quantity,serving_quantity_unit,serving_size";
 
@@ -81,3 +81,87 @@ export async function offSearch(q: string, signal?: AbortSignal): Promise<FoodDr
   const data = await res.json();
   return Array.isArray(data) ? (data as FoodDraft[]) : [];
 }
+
+// ───────────── Поиск по штрихкоду: цепочка источников на сервере (функция barcode)
+
+export type BarcodeProduct = {
+  barcode: string;
+  name: string | null;
+  brand: string | null;
+  kcal: number | null;
+  protein: number | null;
+  fat: number | null;
+  carbs: number | null;
+  serving_g: number | null;
+  net_g: number | null;
+  liquid: boolean;
+  source: FoodOrigin["source"];
+  image_url: string | null;
+};
+export type BarcodeResult = { status: "found" | "estimate" | "miss" | "invalid"; product: BarcodeProduct | null; tried?: string[] };
+
+/** Контрольная цифра EAN/UPC: камера иногда ошибается в одной цифре — такие коды не ищем */
+export function barcodeValid(code: string) {
+  if (![8, 12, 13, 14].includes(code.length) || !/^\d+$/.test(code)) return false;
+  const d = code.split("").map(Number);
+  const check = d.pop()!;
+  const sum = d.reverse().reduce((a, x, i) => a + x * (i % 2 === 0 ? 3 : 1), 0);
+  return (10 - (sum % 10)) % 10 === check;
+}
+
+async function invokeBarcode<T>(body: Record<string, unknown>): Promise<T> {
+  const { supabase } = await import("@/lib/supabase");
+  const { data, error } = await supabase.functions.invoke("barcode", { body });
+  if (error) {
+    const ctx = (error as { context?: Response }).context;
+    const b = ctx ? await ctx.json().catch(() => null) : null;
+    throw new Error(b?.error ?? (ctx ? "failed" : "network"));
+  }
+  return data as T;
+}
+
+export const lookupBarcode = (code: string) => invokeBarcode<BarcodeResult>({ action: "lookup", code });
+
+/** Товар из общей базы → черновик продукта для карточки */
+export function productDraft(p: BarcodeProduct): FoodDraft | null {
+  if (p.kcal == null) return null;
+  return {
+    name: p.name ?? `Товар ${p.barcode}`,
+    brand: p.brand,
+    barcode: p.barcode,
+    category: null,
+    kcal: Math.round(p.kcal),
+    protein: p.protein ?? 0,
+    fat: p.fat ?? 0,
+    carbs: p.carbs ?? 0,
+    serving_g: p.serving_g,
+    serving_name: p.serving_g ? "порция" : null,
+    source: "off",
+    origin: { source: p.source, image: p.image_url, net_g: p.net_g, liquid: p.liquid },
+  };
+}
+
+export type LabelRead = { name: string | null; brand: string | null; kcal: number; protein: number; fat: number; carbs: number; net_g: number | null; serving_g: number | null; liquid: boolean };
+
+/** Фото этикетки → КБЖУ на 100 г (ИИ читает таблицу пищевой ценности) */
+export async function readLabel(image: string, hint?: string): Promise<LabelRead | null> {
+  const r = await invokeBarcode<{ ok: boolean; label?: LabelRead }>({ action: "label", image, hint });
+  return r.ok && r.label ? r.label : null;
+}
+
+/** Добавить товар в общую базу — следующий, кто отсканирует, найдёт его сразу */
+export const contributeBarcode = (p: { barcode: string; name: string; brand: string | null; kcal: number; protein: number; fat: number; carbs: number; serving_g: number | null; net_g?: number | null; liquid?: boolean; from: "label" | "user" }) =>
+  invokeBarcode<{ ok: boolean; shared: boolean }>({ action: "contribute", ...p });
+
+/** Откуда данные — подпись для карточки продукта */
+export const ORIGIN_TEXT: Record<FoodOrigin["source"], string> = {
+  off: "Open Food Facts",
+  off_label: "Прочитано ИИ с фото этикетки (Open Food Facts)",
+  usda: "USDA FoodData Central",
+  label: "С этикетки — добавили пользователи Emli",
+  user: "Добавили пользователи Emli",
+  estimate: "Оценка ИИ по названию — сверь с этикеткой",
+  name: "Известно только название",
+  miss: "",
+  mine: "Твой продукт",
+};

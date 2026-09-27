@@ -126,7 +126,14 @@ export type Food = Macros & {
 export type MissingMacro = "protein" | "fat" | "carbs";
 
 /** Продукт, который ещё не сохранён в базе (например, из Open Food Facts) */
-export type FoodDraft = Omit<Food, "id" | "owner_id"> & { id?: string; owner_id?: string | null; missing?: MissingMacro[] };
+/** Откуда данные о товаре со штрихкодом — показываем пользователю, насколько им верить */
+export type FoodOrigin = {
+  source: "off" | "off_label" | "usda" | "label" | "user" | "estimate" | "name" | "miss" | "mine";
+  image?: string | null;
+  net_g?: number | null;
+  liquid?: boolean;
+};
+export type FoodDraft = Omit<Food, "id" | "owner_id"> & { id?: string; owner_id?: string | null; missing?: MissingMacro[]; origin?: FoodOrigin };
 
 export type Meal = 0 | 1 | 2 | 3;
 

@@ -495,3 +495,69 @@
   font-size: 54px;
   margin-top: 6px;
 }
+
+/* ───────── Фото этикетки */
+.lbl-art {
+  display: grid;
+  place-items: center;
+  padding: 8px 0 14px;
+}
+.lbl-card {
+  position: relative;
+  width: 210px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: #fbfaf5;
+  color: #1b1b1f;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  transform: rotate(-3deg);
+  overflow: hidden;
+  font-size: 12.5px;
+}
+.lbl-card b {
+  display: block;
+  font-size: 14px;
+}
+.lbl-card > span {
+  font-size: 11px;
+  color: #6b6b73;
+}
+.lbl-card > i {
+  display: block;
+  height: 2px;
+  margin: 6px 0;
+  background: #1b1b1f;
+}
+.lbl-card div {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  border-bottom: 1px solid #e3e1d8;
+}
+.lbl-card em {
+  font-style: normal;
+  font-weight: 700;
+}
+.lbl-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 44px;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--kcal), transparent);
+  box-shadow: 0 0 14px var(--kcal);
+}
+.lbl-tips {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13.5px;
+  color: var(--text-2);
+}
+.lbl-step {
+  text-align: center;
+  margin-top: 14px;
+  font-weight: 600;
+  color: var(--text-2);
+}

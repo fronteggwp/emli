@@ -11,6 +11,8 @@ import { SheetHeader } from "@/ui/Screen";
 import { Tap } from "@/ui/Tap";
 import { useToast } from "@/ui/Toast";
 import { FoodDetailSheet } from "./FoodDetail";
+import { Switch } from "@/ui/Switch";
+import { contributeBarcode } from "@/data/off";
 import "./sheets.css";
 
 const str = (n: number | null | undefined) => (n || n === 0 ? String(n) : "");
@@ -22,12 +24,15 @@ export function CreateFoodSheet({
   barcode,
   meal,
   onDone,
+  fromLabel,
 }: {
   food?: Food | FoodDraft;
   name?: string;
   barcode?: string;
   meal?: Meal;
   onDone?: () => void;
+  /** Цифры прочитаны ИИ с фото этикетки — просим проверить */
+  fromLabel?: boolean;
 }) {
   const { day } = useDay();
   const nav = useNav();
@@ -45,6 +50,10 @@ export function CreateFoodSheet({
   const [c, setC] = useState(str(food?.carbs));
   const [servingG, setServingG] = useState(str(food?.serving_g));
   const [servingName, setServingName] = useState(food?.serving_name ?? "");
+  const code = food?.barcode ?? barcode ?? null;
+  // Товар со штрихкодом можно отдать в общую базу — следующий человек найдёт его сразу
+  const [share, setShare] = useState(!!code && !editing);
+  const origin = food && "origin" in food ? food.origin : undefined;
 
   const fromMacros = kcalOfMacros(parseNum(p), parseNum(f), parseNum(c));
   const kcalValue = kcal ? parseNum(kcal) : fromMacros;
@@ -69,7 +78,25 @@ export function CreateFoodSheet({
     try {
       const saved = await save.mutateAsync(draft);
       haptic.success();
-      toast(editing ? "Продукт обновлён" : "Продукт создан", <Check size={18} color="var(--good)" />);
+      let shared = false;
+      if (code && share) {
+        shared = await contributeBarcode({
+          barcode: code,
+          name: draft.name,
+          brand: draft.brand,
+          kcal: draft.kcal,
+          protein: draft.protein,
+          fat: draft.fat,
+          carbs: draft.carbs,
+          serving_g: draft.serving_g,
+          net_g: origin?.net_g ?? null,
+          liquid: origin?.liquid ?? false,
+          from: fromLabel ? "label" : "user",
+        })
+          .then((r) => r.shared)
+          .catch(() => false);
+      }
+      toast(shared ? "Спасибо! Товар теперь находится у всех 🙌" : editing ? "Продукт обновлён" : "Продукт создан", <Check size={18} color="var(--good)" />);
       layer.close();
       if (!editing && meal !== undefined) nav.sheet(<FoodDetailSheet food={saved} meal={meal} day={day} onDone={onDone} />);
     } catch (e) {
@@ -92,6 +119,15 @@ export function CreateFoodSheet({
     <>
       <SheetHeader title={editing ? "Продукт" : "Новый продукт"} />
       <div className="sheet-body stack">
+        {fromLabel && (
+          <div className="cf-label-note">
+            <span>✨</span>
+            <span>
+              <b>Прочитано с этикетки</b>
+              <small>Сверь цифры с упаковкой — ИИ иногда путает 1 и 7{!name.trim() ? ", и допиши название" : ""}</small>
+            </span>
+          </div>
+        )}
         <div className="field">
           <label>Название</label>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Например, сырники мамины" />
@@ -119,7 +155,10 @@ export function CreateFoodSheet({
             <input className="input" value={servingName} onChange={(e) => setServingName(e.target.value)} placeholder="шт, кусок, пачка" />
           </div>
         </div>
-        {(food?.barcode ?? barcode) && <div className="faint" style={{ fontSize: 13 }}>Штрихкод: {food?.barcode ?? barcode}</div>}
+        {code && <div className="faint" style={{ fontSize: 13 }}>Штрихкод: {code}</div>}
+        {code && !editing && (
+          <Switch on={share} onChange={setShare} label="Добавить в общую базу Emli" hint="Следующий, кто отсканирует этот штрихкод, сразу найдёт продукт" />
+        )}
       </div>
       <div className="sheet-foot row">
         {editing && (

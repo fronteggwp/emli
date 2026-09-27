@@ -1,5 +1,25 @@
-// Прокси к поиску Open Food Facts (search-a-licious не отдаёт CORS-заголовки).
+// Поиск упакованных продуктов по названию: сначала общая база штрихкодов Emli
+// (товары России/Беларуси из Open Food Facts, с этикеток и от пользователей), затем живой поиск Open Food Facts.
 // Нормализует ответ в формат продукта Emli и кэширует популярные запросы в памяти.
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false, autoRefreshToken: false } });
+
+type Row = { barcode: string; name: string; brand: string | null; kcal: number; protein: number; fat: number; carbs: number; serving_g: number | null; source: string; image_url: string | null; net_g: number | null; liquid: boolean };
+const fromEmli = (b: Row) => ({
+  name: b.name,
+  brand: b.brand,
+  barcode: b.barcode,
+  category: null,
+  kcal: Math.round(Number(b.kcal)),
+  protein: Number(b.protein),
+  fat: Number(b.fat),
+  carbs: Number(b.carbs),
+  serving_g: b.serving_g ? Number(b.serving_g) : null,
+  serving_name: b.serving_g ? "порция" : null,
+  source: "off",
+  origin: { source: b.source, image: b.image_url, net_g: b.net_g, liquid: b.liquid },
+});
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -70,26 +90,31 @@ Deno.serve(async (req) => {
   const url =
     `https://search.openfoodfacts.org/search?q=${encodeURIComponent(q)}&langs=ru,en&page_size=40` +
     `&fields=code,product_name,product_name_ru,brands,nutriments,serving_quantity,serving_quantity_unit`;
+  // Общая база Emli — быстро и без внешних лимитов
+  const { data: own } = await admin.rpc("search_barcode_products", { q, lim: 20 });
+  const emli = ((own ?? []) as Row[]).map(fromEmli);
   try {
     const res = await fetch(url, { headers: { "User-Agent": "Emli/0.1 (Telegram nutrition diary)" }, signal: AbortSignal.timeout(6000) });
     if (!res.ok) throw new Error(`off ${res.status}`);
     const data = await res.json();
-    const seen = new Set<string>();
+    const seen = new Set<string>(emli.flatMap((f) => [`${f.name}|${f.brand}`.toLowerCase(), `#${f.barcode}`]));
     const foods = ((data.hits ?? []) as Hit[])
       .map(toFood)
       .filter((f): f is NonNullable<ReturnType<typeof toFood>> => {
         if (!f) return false;
         const key = `${f.name}|${f.brand}`.toLowerCase();
-        if (seen.has(key)) return false;
+        if (seen.has(key) || (f.barcode && seen.has(`#${f.barcode}`))) return false;
         seen.add(key);
         return true;
       })
       .slice(0, 25);
-    const body = JSON.stringify(foods);
+    const body = JSON.stringify([...emli, ...foods].slice(0, 35));
     if (cache.size > 500) cache.clear();
     cache.set(q, { at: Date.now(), body });
     return new Response(body, { headers: { ...cors, "Content-Type": "application/json" } });
   } catch (e) {
+    // Open Food Facts недоступен — отдаём хотя бы своё
+    if (emli.length) return new Response(JSON.stringify(emli), { headers: { ...cors, "Content-Type": "application/json" } });
     return new Response(JSON.stringify({ error: String(e) }), { status: 502, headers: { ...cors, "Content-Type": "application/json" } });
   }
 });

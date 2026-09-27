@@ -1,20 +1,23 @@
 import { useEffect, useRef, useState } from "react";
-import { CameraOff, RotateCcw, ScanBarcode, Search } from "lucide-react";
+import { Camera, CameraOff, PenLine, RotateCcw, ScanBarcode, Search } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useDay } from "@/state/day";
 import { useLayer, useNav } from "@/nav/Nav";
 import { findFoodByBarcode } from "@/data/api";
-import { offByBarcode } from "@/data/off";
+import { barcodeValid, lookupBarcode, productDraft } from "@/data/off";
+import { LabelScanSheet } from "./LabelScan";
 import { loadDetector } from "@/lib/barcode";
 import { mealByTime } from "@/lib/nutrition";
 import { haptic } from "@/lib/telegram";
-import type { Meal } from "@/lib/types";
+import type { Food, FoodDraft, Meal } from "@/lib/types";
 import { SheetHeader } from "@/ui/Screen";
 import { Tap } from "@/ui/Tap";
 import { FoodDetailSheet } from "./FoodDetail";
 import { CreateFoodSheet } from "./CreateFood";
 import "./sheets.css";
 
-type Status = "starting" | "scanning" | "looking" | "denied" | "notfound" | "offline";
+type Status = "starting" | "scanning" | "looking" | "denied" | "notfound" | "offline" | "invalid";
+const LOOK_STEPS = ["База Emli", "Open Food Facts", "Каталоги штрихкодов", "ИИ читает этикетку"];
 
 export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: () => void }) {
   const { day } = useDay();
@@ -26,6 +29,15 @@ export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: ()
   const [status, setStatus] = useState<Status>("starting");
   const [live, setLive] = useState(false);
   const [code, setCode] = useState("");
+  // Нашли только название (без КБЖУ) — показываем его и предлагаем сфоткать этикетку
+  const [known, setKnown] = useState<{ name: string; brand: string | null } | null>(null);
+  const [lookStep, setLookStep] = useState(0);
+  useEffect(() => {
+    if (status !== "looking") return;
+    setLookStep(0);
+    const t = setInterval(() => setLookStep((x) => Math.min(x + 1, LOOK_STEPS.length - 1)), 900);
+    return () => clearInterval(t);
+  }, [status]);
   // paused — распознавание на паузе, пока ищем продукт; finished — сканер отработал, больше не реагируем
   const paused = useRef(false);
   const finished = useRef(false);
@@ -41,14 +53,25 @@ export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: ()
   const lookup = async (barcode: string) => {
     if (finished.current) return;
     paused.current = true;
-    setStatus("looking");
     setCode(barcode);
+    setKnown(null);
+    if (!barcodeValid(barcode)) {
+      haptic.warning();
+      setStatus("invalid");
+      return;
+    }
+    setStatus("looking");
     abort.current?.abort();
     const ac = new AbortController();
     abort.current = ac;
     try {
       const mine = await findFoodByBarcode(barcode);
-      const food = mine ?? (await offByBarcode(barcode, ac.signal));
+      let food: Food | FoodDraft | null = mine;
+      if (!food) {
+        const r = await lookupBarcode(barcode);
+        if (r.product && (r.status === "found" || r.status === "estimate")) food = productDraft(r.product);
+        if (!food && r.product?.name) setKnown({ name: r.product.name, brand: r.product.brand });
+      }
       if (finished.current || closed.current || ac.signal.aborted) return;
       if (food) {
         finished.current = true;
@@ -78,6 +101,8 @@ export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: ()
   useEffect(() => {
     let timer: number | undefined;
     let alive = true;
+    // StrictMode монтирует эффект дважды — после первой «очистки» окно снова открыто
+    closed.current = false;
     const detector = loadDetector(); // грузим параллельно с камерой
 
     // Камеру включаем, когда шторка уже выехала — чтобы анимация не дёргалась
@@ -103,7 +128,8 @@ export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: ()
             try {
               const found = await d.detect(v);
               const value = found[0]?.rawValue;
-              if (value && !paused.current && !finished.current) {
+              // Код с неверной контрольной цифрой — ошибка распознавания, ждём следующий кадр
+              if (value && barcodeValid(value) && !paused.current && !finished.current) {
                 haptic.rigid();
                 await lookup(value);
               }
@@ -160,10 +186,22 @@ export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: ()
 
         <div className="muted" style={{ textAlign: "center", fontSize: 14, marginTop: 14, minHeight: 20 }}>
           {status === "scanning" && "Наведи камеру на штрихкод"}
-          {status === "looking" && `Ищу ${code}…`}
-          {status === "notfound" && `Продукт ${code} не найден`}
+          {status === "looking" && (
+            <AnimatePresence mode="wait">
+              <motion.span key={lookStep} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} style={{ display: "inline-block" }}>
+                Ищу {code} · {LOOK_STEPS[lookStep]}…
+              </motion.span>
+            </AnimatePresence>
+          )}
           {status === "offline" && "Нет связи — не удалось проверить продукт"}
+          {status === "invalid" && "Похоже, цифры считались с ошибкой — наведи ещё раз или проверь код"}
         </div>
+
+        {status === "invalid" && (
+          <Tap className="btn btn-block" style={{ marginTop: 12 }} onClick={rescan}>
+            <RotateCcw size={18} /> Сканировать снова
+          </Tap>
+        )}
 
         {status === "offline" && (
           <Tap className="btn btn-block" style={{ marginTop: 14 }} onClick={() => lookup(code)}>
@@ -171,21 +209,48 @@ export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: ()
           </Tap>
         )}
         {status === "notfound" && (
-          <div className="row" style={{ marginTop: 12, gap: 10 }}>
-            <Tap className="icon-btn" style={{ width: 54, height: 54 }} onClick={rescan} aria-label="Сканировать снова">
-              <RotateCcw size={20} />
-            </Tap>
+          <motion.div className="sc-miss" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            {known ? (
+              <>
+                <b>Нашёл товар, но без КБЖУ</b>
+                <div className="sc-miss-name">«{known.name}»{known.brand ? ` · ${known.brand}` : ""}</div>
+              </>
+            ) : (
+              <>
+                <b>Этого товара пока нет в базах</b>
+                <div className="sc-miss-name">Код {code} — ни в Emli, ни в Open Food Facts</div>
+              </>
+            )}
+            <p>Сфоткай таблицу КБЖУ на упаковке — ИИ прочитает цифры, а товар появится в общей базе для всех.</p>
             <Tap
               className="btn btn-accent btn-block"
               onClick={() => {
                 finished.current = true;
+                stopCamera();
                 layer.close();
-                nav.sheet(<CreateFoodSheet barcode={code} meal={meal} onDone={onDone} />);
+                nav.sheet(<LabelScanSheet barcode={code} name={known?.name} brand={known?.brand} meal={meal} onDone={onDone} />);
               }}
             >
-              Создать продукт с этим кодом
+              <Camera size={19} /> Сфоткать этикетку
             </Tap>
-          </div>
+            <div className="row" style={{ marginTop: 8, gap: 8 }}>
+              <Tap className="btn" style={{ flex: 1 }} onClick={rescan}>
+                <RotateCcw size={17} /> Ещё раз
+              </Tap>
+              <Tap
+                className="btn"
+                style={{ flex: 1 }}
+                onClick={() => {
+                  finished.current = true;
+                  stopCamera();
+                  layer.close();
+                  nav.sheet(<CreateFoodSheet name={known?.name} barcode={code} meal={meal} onDone={onDone} />);
+                }}
+              >
+                <PenLine size={17} /> Вручную
+              </Tap>
+            </div>
+          </motion.div>
         )}
 
         <div className="group-label">Или введи цифры под штрихкодом</div>
@@ -193,7 +258,7 @@ export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: ()
           className="row"
           onSubmit={(e) => {
             e.preventDefault();
-            if (code.length >= 6) lookup(code);
+            if (code.length >= 8) lookup(code);
           }}
         >
           <input

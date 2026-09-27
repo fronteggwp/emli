@@ -13,3 +13,6 @@ supabase/.branches
 tools/recipes/.sheets/
 tools/recipes/.sheets_part*.json
 assets/visual-concepts/
+
+# Выгрузки открытых баз для импорта
+tools/.cache/

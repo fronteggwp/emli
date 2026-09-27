@@ -15,6 +15,8 @@ import { NumberTicker } from "@/ui/NumberTicker";
 import { Tap } from "@/ui/Tap";
 import { useToast } from "@/ui/Toast";
 import { CreateFoodSheet } from "./CreateFood";
+import { LabelScanSheet } from "./LabelScan";
+import { ORIGIN_TEXT } from "@/data/off";
 import { FavButton } from "@/ui/FavButton";
 import "@/pages/engage.css";
 import "./sheets.css";
@@ -185,6 +187,28 @@ function Detail({ food, entry, meal: meal0, day: day0, grams: grams0, onDone }: 
             .filter(Boolean)
             .join(" · ")}
         </div>
+
+        {"origin" in food && food.origin && food.origin.source !== "miss" ? (
+          food.origin.source === "estimate" ? (
+            <button
+              className="fd-missing"
+              onClick={() =>
+                nav.sheet(<LabelScanSheet barcode={food.barcode ?? undefined} name={food.name} brand={food.brand} meal={meal0} onDone={onDone} />)
+              }
+            >
+              🤖 Точных данных нет ни в одной базе — это <b>оценка ИИ по названию</b>. <b>Сфоткай этикетку</b> — посчитаю точно и добавлю товар для всех
+            </button>
+          ) : (
+            <div className="fd-origin">
+              {food.origin.image && <img src={food.origin.image} alt="" loading="lazy" />}
+              <span>
+                {food.origin.source === "off_label" ? "📸 " : food.origin.source === "label" || food.origin.source === "user" ? "🙌 " : "📦 "}
+                {ORIGIN_TEXT[food.origin.source]}
+                {food.origin.net_g ? ` · упаковка ${fmtNum(food.origin.net_g)} ${food.origin.liquid ? "мл" : "г"}` : ""}
+              </span>
+            </div>
+          )
+        ) : null}
 
         {"missing" in food && food.missing?.length ? (
           <button className="fd-missing" onClick={() => nav.sheet(<CreateFoodSheet food={food as Food} />)}>
