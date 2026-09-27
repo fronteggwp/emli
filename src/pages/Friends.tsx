@@ -18,6 +18,7 @@ export function shareInvite(link: string) {
   const text = "Давай вместе следить за питанием в Emli 🌿";
   const url = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
   if (tg) tg.openTelegramLink(url);
+  else if (navigator.share) navigator.share({ text, url: link }).catch(() => {});
   else window.open(url, "_blank");
 }
 

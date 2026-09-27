@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Bell, Download, Smartphone, Trash } from "lucide-react";
+import { Bell, Copy, Download, LogOut, Smartphone, Trash } from "lucide-react";
 import { useNav } from "@/nav/Nav";
 import { useSettings } from "@/data/api";
 import { BOT_USERNAME } from "@/data/social";
 import { deleteAccount, exportData, hm, useReminders, useSaveReminders, type Reminders } from "@/data/engage";
-import { forgetSession } from "@/lib/auth";
+import { forgetSession, revokeThisDevice } from "@/lib/auth";
+import { isStandalone } from "./Welcome";
 import { useHomeScreen } from "@/lib/homescreen";
 import { confirmDialog, haptic, inTelegram, tg } from "@/lib/telegram";
 import { getThemePref, setThemePref, type ThemePref } from "@/lib/theme";
@@ -154,11 +155,12 @@ function RemindersBlock() {
 
         <RemRow emoji="📊" title="Итоги недели" hint="Каждое воскресенье в 19:00: питание, вес, тренировки и совет" on={d.weekly} onToggle={(v) => set({ weekly: v })} />
       </div>
-      {inTelegram && (
-        <button className="rem-bot press" onClick={() => tg?.openTelegramLink(`https://t.me/${BOT_USERNAME}`)}>
-          <Bell size={16} /> Не приходят сообщения? Открой @{BOT_USERNAME} и нажми «Запустить»
-        </button>
-      )}
+      <button
+        className="rem-bot press"
+        onClick={() => (tg ? tg.openTelegramLink(`https://t.me/${BOT_USERNAME}`) : (location.href = `tg://resolve?domain=${BOT_USERNAME}`))}
+      >
+        <Bell size={16} /> Не приходят сообщения? Открой @{BOT_USERNAME} и нажми «Запустить»
+      </button>
     </>
   );
 }
@@ -219,23 +221,72 @@ function TimeChip({ label, value, onChange }: { label: string; value: string; on
 
 // ───────────── Главный экран
 
+const APP_LINK = "https://fronteggwp.github.io/emli/";
+
 function HomeBlock() {
   const home = useHomeScreen();
-  if (!home.status || home.status === "unsupported") return null;
+  const toast = useToast();
+  const tgHome = !!home.status && home.status !== "unsupported";
+  const copy = async () => {
+    haptic.success();
+    try {
+      await navigator.clipboard.writeText(APP_LINK);
+      toast("Ссылка скопирована — открой её в Safari");
+    } catch {
+      toast(APP_LINK);
+    }
+  };
+  if (!inTelegram) {
+    return (
+      <>
+        <div className="section-title">Приложение</div>
+        <div className="list">
+          <button
+            className="list-item press"
+            onClick={async () => {
+              if (!(await confirmDialog("Выйти из Emli на этом устройстве? Данные останутся в аккаунте."))) return;
+              await revokeThisDevice();
+              forgetSession();
+              location.reload();
+            }}
+          >
+            <span className="li-icon">
+              <LogOut size={21} />
+            </span>
+            <span style={{ flex: 1 }}>
+              <div className="li-title">Выйти на этом устройстве</div>
+              <div className="li-sub">{isStandalone() ? "Приложение на главном экране" : "Браузер"}</div>
+            </span>
+          </button>
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <div className="section-title">Приложение</div>
       <div className="list">
+        <button className="list-item press" onClick={copy}>
+          <span className="li-icon">
+            <Copy size={21} />
+          </span>
+          <span style={{ flex: 1 }}>
+            <div className="li-title">Emli без Telegram</div>
+            <div className="li-sub">Скопируй ссылку, открой в Safari → «Поделиться» → «На экран „Домой"». Откроется сразу, без Telegram</div>
+          </span>
+        </button>
+        {tgHome && (
         <button className="list-item press" onClick={() => home.status !== "added" && home.add()}>
           <span className="li-icon">
             <Smartphone size={21} />
           </span>
           <span style={{ flex: 1 }}>
-            <div className="li-title">Иконка на главном экране</div>
+            <div className="li-title">Иконка Telegram-версии</div>
             <div className="li-sub">{home.status === "added" ? "Уже добавлена ✓" : "Открывай Emli в одно касание, как обычное приложение"}</div>
           </span>
           {home.status !== "added" && <span className="chip on" style={{ height: 30, fontSize: 13 }}>Добавить</span>}
         </button>
+        )}
       </div>
     </>
   );
@@ -249,7 +300,6 @@ function DataBlock() {
   const [busy, setBusy] = useState<"export" | "delete" | null>(null);
 
   const onExport = async () => {
-    if (!inTelegram) return toast("Выгрузка работает внутри Telegram");
     setBusy("export");
     try {
       const r = await exportData();

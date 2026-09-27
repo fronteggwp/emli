@@ -29,7 +29,10 @@ function apply() {
   const t = resolvedTheme();
   const root = document.documentElement;
   if (root.dataset.theme !== t) root.dataset.theme = t;
-  paintChrome(t === "light" ? "#f2f2f7" : "#0b0b0e");
+  const bg = t === "light" ? "#f2f2f7" : "#0b0b0e";
+  paintChrome(bg);
+  // Вне Telegram — цвет полосы браузера / статус-бара
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", bg);
   listeners.forEach((l) => l());
 }
 

@@ -20,6 +20,33 @@ export function useUid() {
 
 const DEV_SECRET = import.meta.env.DEV ? (import.meta.env.VITE_DEV_LOGIN_SECRET as string | undefined) : undefined;
 const STORE_KEY = "emli-token";
+const DEVICE_KEY = "emli-device";
+
+/** Ключ этого устройства для входа без Telegram (приложение на главном экране) */
+type Device = { device: string; tg_id: number };
+export function loadDevice(): Device | null {
+  try {
+    const d = JSON.parse(localStorage.getItem(DEVICE_KEY) ?? "null") as Device | null;
+    return d?.device && d.tg_id ? d : null;
+  } catch {
+    return null;
+  }
+}
+export function saveDevice(d: Device | null) {
+  try {
+    if (d) localStorage.setItem(DEVICE_KEY, JSON.stringify(d));
+    else localStorage.removeItem(DEVICE_KEY);
+  } catch {
+    /* ничего */
+  }
+}
+
+/** Вход подтверждён в боте: запоминаем устройство и токен */
+export function completeDeviceLogin(r: { access_token: string; tg_id: number; device: string }) {
+  saveDevice({ device: r.device, tg_id: r.tg_id });
+  const claims = decode(r.access_token);
+  saveCached({ access_token: r.access_token, uid: claims.sub, exp: claims.exp, tg_id: r.tg_id });
+}
 
 type Token = { access_token: string; uid: string; exp: number; tg_id: number };
 
@@ -77,12 +104,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let alive = true;
     let timer: number | undefined;
-    const devUser = Number(new URLSearchParams(location.search).get("dev") || 1);
-    const tgId = tg?.initDataUnsafe.user?.id ?? (DEV_SECRET ? -devUser : undefined);
+    const devParam = new URLSearchParams(location.search).get("dev");
+    const devUser = Number(devParam || 1);
+    const useDev = !!DEV_SECRET && devParam != null;
+    const device = tg ? null : loadDevice();
+    const tgId = tg?.initDataUnsafe.user?.id ?? (useDev ? -devUser : device?.tg_id);
 
     const login = () => {
       if (tg) return exchange({ initData: tg.initData });
-      if (DEV_SECRET) return exchange({ devSecret: DEV_SECRET, devUser });
+      if (useDev) return exchange({ devSecret: DEV_SECRET, devUser });
+      if (device) return exchange({ device: device.device });
       return null;
     };
 
@@ -117,7 +148,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         apply(t);
         if (alive) setState({ status: "ready", uid: t.uid });
       } catch (e) {
-        if (alive) setState({ status: "error", message: e instanceof Error ? e.message : String(e) });
+        const message = e instanceof Error ? e.message : String(e);
+        // Устройство отключили (или аккаунт удалён) — войти заново
+        if (message === "device_revoked") {
+          saveDevice(null);
+          if (alive) setState({ status: "outside" });
+          return;
+        }
+        if (alive) setState({ status: "error", message });
       }
     })();
 
@@ -149,8 +187,22 @@ export function forgetSession() {
   setAccessToken(null);
   try {
     localStorage.removeItem(STORE_KEY);
+    localStorage.removeItem(DEVICE_KEY);
     localStorage.removeItem("emli-workout");
   } catch {
     /* ничего */
+  }
+}
+
+/** Выход на этом устройстве: отзываем его ключ на сервере */
+export async function revokeThisDevice() {
+  const d = loadDevice();
+  if (!d) return;
+  try {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(d.device));
+    const hash = Array.from(new Uint8Array(buf), (x) => x.toString(16).padStart(2, "0")).join("");
+    await supabase.from("device_sessions").delete().eq("secret_hash", hash);
+  } catch {
+    /* ключ всё равно забудем локально */
   }
 }

@@ -14,6 +14,7 @@ import { WorkoutsPage } from "@/pages/Workouts";
 import { WorkoutProvider } from "@/state/workout";
 import { ActiveBar } from "@/ui/ActiveBar";
 import { Onboarding } from "@/pages/Onboarding";
+import { Welcome } from "@/pages/Welcome";
 import { AchievementWatcher } from "@/pages/Achievements";
 import { useSyncTimezone } from "@/data/engage";
 
@@ -22,7 +23,7 @@ export function App() {
   return (
     <AnimatePresence mode="wait">
       {auth.status === "loading" && <Splash key="splash" />}
-      {auth.status === "outside" && <Outside key="outside" />}
+      {auth.status === "outside" && <Welcome key="outside" />}
       {auth.status === "error" && <ErrorScreen key="error" message={auth.message} />}
       {auth.status === "ready" && <Main key="main" />}
     </AnimatePresence>
@@ -100,20 +101,6 @@ function Splash() {
   return (
     <motion.div className="center-screen" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <Logo size={84} animated />
-    </motion.div>
-  );
-}
-
-function Outside() {
-  return (
-    <motion.div className="center-screen" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <Logo size={72} animated />
-      <div className="page-title" style={{ fontSize: 26 }}>
-        Emli
-      </div>
-      <p className="muted" style={{ maxWidth: 300, margin: 0 }}>
-        Приложение работает внутри Telegram. Открой бота и нажми кнопку «Открыть».
-      </p>
     </motion.div>
   );
 }
