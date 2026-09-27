@@ -6,7 +6,11 @@ let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let last = 0;
 
+/** Звуки пока выключены целиком. Вернуть — поставить true */
+const ENABLED = false;
+
 export function soundOn() {
+  if (!ENABLED) return false;
   try {
     return localStorage.getItem(KEY) !== "off";
   } catch {
@@ -42,6 +46,7 @@ function ac() {
 
 /** Первое касание разблокирует звук (требование iOS) */
 export function initSound() {
+  if (!ENABLED) return;
   const unlock = () => {
     const c = ac();
     if (c && c.state === "suspended") c.resume().catch(() => {});

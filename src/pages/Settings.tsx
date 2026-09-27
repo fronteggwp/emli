@@ -8,7 +8,6 @@ import { forgetSession, revokeThisDevice } from "@/lib/auth";
 import { isStandalone } from "./Welcome";
 import { useHomeScreen } from "@/lib/homescreen";
 import { confirmDialog, haptic, hapticsOn, inTelegram, setHapticsOn, tg, vibrate } from "@/lib/telegram";
-import { setSoundOn, sfx, soundOn } from "@/lib/sound";
 import { getThemePref, setThemePref, type ThemePref } from "@/lib/theme";
 import { Screen } from "@/ui/Screen";
 import { Switch } from "@/ui/Switch";
@@ -386,20 +385,9 @@ function ScreenInfo() {
 // ───────────── Звуки и вибрация
 
 function FeelBlock() {
-  const [sound, setSound] = useState(soundOn());
   const [buzz, setBuzz] = useState(hapticsOn());
   return (
     <div className="stack" style={{ gap: 8, marginTop: 12 }}>
-      <Switch
-        on={sound}
-        onChange={(v) => {
-          setSoundOn(v);
-          setSound(v);
-          if (v) setTimeout(() => sfx.success(), 30);
-        }}
-        label="Звуки"
-        hint="Мягкие звуки нажатий, подходов и достижений. В беззвучном режиме телефона молчат"
-      />
       <Switch
         on={buzz}
         onChange={(v) => {
