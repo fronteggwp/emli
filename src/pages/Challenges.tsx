@@ -15,6 +15,7 @@ import { useToast } from "@/ui/Toast";
 import { PersonScreen } from "./Person";
 import "./engage.css";
 import "./challenges.css";
+import { visual } from "@/ui/Icon3D";
 
 const COLORS: Record<ChallengeMetric, [string, string]> = {
   workouts: ["#22b573", "#1d8f9a"],
@@ -85,7 +86,7 @@ export function ChallengesScreen() {
       )}
       {!list.isLoading && !invites.length && !active.length && (
         <div className="ch-empty">
-          <div style={{ fontSize: 64 }}>🏆</div>
+          <img className="ch-empty-cover" src={visual("covers", "friend-challenges")} alt="" />
           <div className="ch-empty-t">Соревнуйся с друзьями</div>
           <div className="muted">
             Кто сделает больше тренировок за неделю? Кто ни разу не пропустит дневник? Создай челлендж и позови друзей.

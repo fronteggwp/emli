@@ -24,6 +24,7 @@ import { RecipeScreen, UserRecipeScreen } from "./Recipe";
 import { RecipeEditorScreen } from "./RecipeEditor";
 import "./engage.css";
 import "./recipes.css";
+import { CATEGORY_ICON, Icon3D, visual } from "@/ui/Icon3D";
 
 const TAGS = ["высокобелковое", "быстро", "для похудения", "на массу", "вегетарианское", "без сахара", "заготовка", "бюджетно"];
 type Cat = RecipeCategory | "all" | "fav" | "mine";
@@ -73,6 +74,12 @@ export function RecipesScreen({ initial = "all" }: { initial?: Cat }) {
         </Tap>
       }
     >
+      <div className="cover-banner" style={{ backgroundImage: `url(${visual("covers", "recipe-library")})` }}>
+        <div className="cover-banner-text">
+          <b>Книга рецептов</b>
+          <span>{all.length ? `${all.length} блюд с КБЖУ на порцию` : "Блюда с КБЖУ на порцию"}</span>
+        </div>
+      </div>
       <div className="search-box" style={{ margin: "0 0 10px" }}>
         <Search size={19} className="faint" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Сырники, курица, без сахара…" enterKeyHint="search" autoComplete="off" />
@@ -144,7 +151,9 @@ export function RecipesScreen({ initial = "all" }: { initial?: Cat }) {
             return (
               <div key={c.id}>
                 <div className="section-title">
-                  {c.emoji} {c.name}
+                  <span className="row" style={{ gap: 8 }}>
+                    <Icon3D name={CATEGORY_ICON[c.id]} size={30} /> {c.name}
+                  </span>
                   <button
                     onClick={() => {
                       haptic.select();
@@ -199,8 +208,7 @@ export function RecipeCard({ r, fav }: { r: Recipe; fav?: boolean }) {
   return (
     <Tap className="recipe-card" scale={0.97} onClick={() => nav.push(<RecipeScreen id={r.id} />)}>
       <span className="recipe-cover" style={{ ["--c1" as string]: c.colors[0], ["--c2" as string]: c.colors[1] }}>
-        <span className="recipe-emoji">{r.emoji}</span>
-        {r.photo && <Photo src={recipeImg(r, true)!} alt={r.title} className="recipe-img" />}
+        {r.photo ? <Photo src={recipeImg(r, true)!} alt={r.title} className="recipe-img" /> : <Icon3D name={CATEGORY_ICON[r.category]} size={78} />}
         {fav && <span className="recipe-fav">❤️</span>}
         <span className="recipe-time">⏱ {r.time} мин</span>
       </span>
@@ -238,9 +246,8 @@ export function RecipeRow({ r, onOpen, onQuick }: { r: Recipe; onOpen: () => voi
   const c = catOf(r.category);
   return (
     <button className="food-row press" onClick={onOpen}>
-      <span className="recipe-dot" style={{ background: `linear-gradient(135deg, ${c.colors[0]}, ${c.colors[1]})` }}>
-        {r.emoji}
-        {r.photo && <Photo src={recipeImg(r, true)!} alt="" className="recipe-img" />}
+      <span className="recipe-dot" style={{ background: "var(--card-2)" }}>
+        {r.photo ? <Photo src={recipeImg(r, true)!} alt="" className="recipe-img" /> : <Icon3D name={CATEGORY_ICON[r.category]} size={34} />}
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="food-row-name">{r.title}</div>

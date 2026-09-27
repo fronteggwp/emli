@@ -14,6 +14,7 @@ import { KindPicker, OptionCard, RatePicker } from "@/ui/GoalParts";
 import { Rings } from "@/ui/Rings";
 import { Tap } from "@/ui/Tap";
 import "./onboarding.css";
+import { visual } from "@/ui/Icon3D";
 
 type Step = "hello" | "sex" | "age" | "height" | "weight" | "activity" | "goal" | "target" | "rate" | "result";
 
@@ -206,7 +207,10 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
   const c = content[step];
 
   return (
-    <div className="ob">
+    <div
+      className={`ob ${step === "hello" ? "ob-hello" : ""}`}
+      style={step === "hello" ? { ["--ob-bg" as string]: `url(${visual("backgrounds", "nutrition")})` } : undefined}
+    >
       <div className="ob-top">
         <Tap className="icon-btn" style={{ visibility: idx > 0 ? "visible" : "hidden", width: 40, height: 40 }} onClick={() => go(-1)}>
           <ChevronLeft size={22} />

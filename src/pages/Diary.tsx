@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion, type PanInfo } from "motion/react";
-import { Bookmark, CalendarDays, Flame, Plus, ScanBarcode, X } from "lucide-react";
+import { Bookmark, CalendarDays, Plus, ScanBarcode, X } from "lucide-react";
 import { useDay } from "@/state/day";
 import { useNav } from "@/nav/Nav";
 import { useDayTargets, useEntries, useProfile, useTotals, useDeleteEntry } from "@/data/api";
@@ -30,6 +30,7 @@ import { useHomeScreen } from "@/lib/homescreen";
 import { fmtDuration } from "@/state/workout";
 import { CheckinCard, DayCompleteness } from "@/ui/Checkin";
 import "./diary.css";
+import { Icon3D, MEAL_ICON } from "@/ui/Icon3D";
 
 /** Какую долю дневной нормы обычно занимает приём пищи — для полоски у каждого приёма */
 const MEAL_SHARE = [0.25, 0.35, 0.3, 0.1];
@@ -69,7 +70,7 @@ export function DiaryPage() {
         <div className="row" style={{ gap: 8 }}>
           {ins.streak > 1 && (
             <span className="streak-pill">
-              <Flame size={15} /> {ins.streak}
+              <Icon3D name="streak" size={20} className="streak-flame" /> {ins.streak}
             </span>
           )}
           <Tap className="icon-btn" onClick={() => nav.sheet(<CalendarSheet />, { full: true })} aria-label="Календарь">
@@ -137,7 +138,7 @@ function DayWorkouts({ day }: { day: string }) {
       className="day-workout press"
       onClick={() => (list.length === 1 ? nav.push(<WorkoutDetailScreen id={list[0].id} />) : nav.setTab("workouts"))}
     >
-      <span className="day-workout-ico">💪</span>
+      <span className="day-workout-ico"><Icon3D name="workouts" size={34} /></span>
       <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
         <b>{list.length === 1 ? list[0].name : `${list.length} тренировки`}</b>
         <div className="day-banner-sub">
@@ -180,14 +181,14 @@ function DiaryExtras() {
     <>
       <div className="grid-2" style={{ marginTop: 14 }}>
         <Tap className="diary-tile" scale={0.97} onClick={() => nav.push(<RecipesScreen />)}>
-          <span className="diary-tile-ico" style={{ background: "linear-gradient(135deg, #ffb35c, #ff6a5c)" }}>📖</span>
+          <span className="diary-tile-ico"><Icon3D name="recipes" size={40} /></span>
           <span>
             <b>Рецепты</b>
             <small>{recipes.data ? `${recipes.data.length} блюд с КБЖУ` : "Блюда с КБЖУ"}</small>
           </span>
         </Tap>
         <Tap className="diary-tile" scale={0.97} onClick={() => nav.sheet(<AddFoodSheet tab="mine" />, { full: true })}>
-          <span className="diary-tile-ico" style={{ background: "linear-gradient(135deg, #7c8cff, #b388ff)" }}>⭐</span>
+          <span className="diary-tile-ico"><Icon3D name="meal-plan" size={40} /></span>
           <span>
             <b>Мои приёмы</b>
             <small>{tpl ? `Сохранено: ${tpl}` : "Набор еды в 1 тап"}</small>
@@ -443,8 +444,8 @@ function MealCard({ meal, entries, index, budget }: { meal: Meal; entries: Entry
   return (
     <div className={`card meal ${entries.length ? "" : "empty-meal"}`} style={{ animationDelay: `${index * 50}ms` }}>
       <div className="meal-head">
-        <span className="meal-icon" style={{ background: MEAL_STYLE[meal] }}>
-          {info.emoji}
+        <span className="meal-icon meal-icon-3d">
+          <Icon3D name={MEAL_ICON[meal]} size={40} />
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="row" style={{ gap: 8, alignItems: "baseline" }}>

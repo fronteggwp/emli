@@ -12,6 +12,7 @@ import { Tap } from "@/ui/Tap";
 import { celebrate } from "@/ui/Celebration";
 import "./engage.css";
 import "./achievements.css";
+import { visual } from "@/ui/Icon3D";
 
 export function AchievementsScreen({ uid, name }: { uid: string; name?: string }) {
   const me = useUid();
@@ -20,6 +21,12 @@ export function AchievementsScreen({ uid, name }: { uid: string; name?: string }
   const own = uid === me;
   return (
     <Screen title={own ? "Достижения" : `Достижения · ${name ?? ""}`}>
+      <div className="cover-banner" style={{ backgroundImage: `url(${visual("covers", "progress-milestones")})`, height: 150 }}>
+        <div className="cover-banner-text">
+          <b>{own ? "Твой путь" : name}</b>
+          <span>Достижения открываются сами — по реальным данным</span>
+        </div>
+      </div>
       <div className="ach-summary">
         <div className="num ach-count">
           {earned.size}

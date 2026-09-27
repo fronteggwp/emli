@@ -150,3 +150,16 @@
     transform: rotate(360deg);
   }
 }
+
+/* Фото-заставка: сюжет внизу, сверху тёмное поле под логотип */
+.welcome {
+  background:
+    linear-gradient(180deg, var(--bg) 18%, rgba(11, 11, 14, 0.55) 55%, rgba(11, 11, 14, 0.8) 100%),
+    var(--welcome-bg) center bottom / cover no-repeat,
+    var(--bg);
+}
+.welcome-card {
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}

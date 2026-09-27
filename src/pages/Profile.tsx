@@ -21,6 +21,7 @@ import { SettingsScreen } from "./Settings";
 import { RecipesScreen } from "./Recipes";
 import { ChallengesScreen } from "./Challenges";
 import { WeekReportScreen } from "./WeekReport";
+import { Icon3D } from "@/ui/Icon3D";
 
 /** Профиль открывается экраном по аватарке в шапке вкладок */
 export function ProfileScreen() {
@@ -42,14 +43,14 @@ function ProfileBody() {
   const lost = ins.goal && ins.current != null ? ins.current - ins.goal.start_weight : null;
 
   const items = [
-    { Icon: Target, title: "Цель и программа", sub: "Калории, БЖУ, темп", go: () => nav.push(<GoalScreen />) },
-    { Icon: BarChart3, title: "Итоги недели", sub: "Оценка, питание, вес и тренировки", go: () => nav.push(<WeekReportScreen />) },
-    { Icon: ChefHat, title: "Рецепты", sub: "База блюд с КБЖУ, избранное и свои рецепты", go: () => nav.push(<RecipesScreen />) },
-    { Icon: Package, title: "Мои продукты", sub: "Созданные и отсканированные", go: () => nav.push(<MyFoodsScreen />) },
-    { Icon: RulerIcon, title: "Параметры тела", sub: "Рост, возраст, активность", go: () => nav.sheet(<EditBodySheet />) },
-    { Icon: Users, title: "Друзья", sub: fs.friends.length ? `${fs.friends.length} в друзьях${fs.incoming.length ? ` · ${fs.incoming.length} заявки` : ""}` : "Найти и пригласить", go: () => nav.push(<FriendsScreen initial={fs.incoming.length ? "requests" : "friends"} />) },
-    { Icon: Trophy, title: "Челленджи", sub: "Соревнования с друзьями", go: () => nav.push(<ChallengesScreen />) },
-    { Icon: Newspaper, title: "Мои записи", sub: "Как меня видят другие", go: () => p && nav.push(<PersonScreen id={p.id} />) },
+    { Icon: Target, i3: "goal" as const, title: "Цель и программа", sub: "Калории, БЖУ, темп", go: () => nav.push(<GoalScreen />) },
+    { Icon: BarChart3, i3: "progress" as const, title: "Итоги недели", sub: "Оценка, питание, вес и тренировки", go: () => nav.push(<WeekReportScreen />) },
+    { Icon: ChefHat, i3: "recipes" as const, title: "Рецепты", sub: "База блюд с КБЖУ, избранное и свои рецепты", go: () => nav.push(<RecipesScreen />) },
+    { Icon: Package, i3: "favorite-foods" as const, title: "Мои продукты", sub: "Созданные и отсканированные", go: () => nav.push(<MyFoodsScreen />) },
+    { Icon: RulerIcon, i3: "weight" as const, title: "Параметры тела", sub: "Рост, возраст, активность", go: () => nav.sheet(<EditBodySheet />) },
+    { Icon: Users, i3: "friends" as const, title: "Друзья", sub: fs.friends.length ? `${fs.friends.length} в друзьях${fs.incoming.length ? ` · ${fs.incoming.length} заявки` : ""}` : "Найти и пригласить", go: () => nav.push(<FriendsScreen initial={fs.incoming.length ? "requests" : "friends"} />) },
+    { Icon: Trophy, i3: "personal-record" as const, title: "Челленджи", sub: "Соревнования с друзьями", go: () => nav.push(<ChallengesScreen />) },
+    { Icon: Newspaper, i3: "messages" as const, title: "Мои записи", sub: "Как меня видят другие", go: () => p && nav.push(<PersonScreen id={p.id} />) },
     { Icon: Settings, title: "Настройки", sub: "Тема, напоминания, данные", go: () => nav.push(<SettingsScreen />) },
     { Icon: Info, title: "О приложении", sub: "Как считаются цифры", go: () => nav.sheet(<AboutSheet />) },
   ];
@@ -86,9 +87,7 @@ function ProfileBody() {
       <div className="list" style={{ marginTop: 20 }}>
         {items.map((i) => (
           <button key={i.title} className="list-item press" onClick={i.go}>
-            <span className="li-icon">
-              <i.Icon size={21} />
-            </span>
+            <span className="li-icon li-icon-3d">{"i3" in i && i.i3 ? <Icon3D name={i.i3} size={30} /> : <i.Icon size={21} />}</span>
             <span style={{ flex: 1 }}>
               <div className="li-title">{i.title}</div>
               <div className="li-sub">{i.sub}</div>

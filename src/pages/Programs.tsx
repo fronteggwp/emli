@@ -11,6 +11,7 @@ import { programStats } from "@/data/programStats";
 import { Tap } from "@/ui/Tap";
 import { ProgramScreen } from "./Program";
 import "./workouts.css";
+import { visual } from "@/ui/Icon3D";
 
 type Filter = { level?: Program["level"]; goal?: Program["goal"]; place?: "gym" | "home"; days?: "2-3" | "4" | "5+" };
 
@@ -49,6 +50,12 @@ export function ProgramsScreen() {
 
   return (
     <Screen title="Программы">
+      <div className="cover-banner" style={{ backgroundImage: `url(${visual("covers", "training-programs")})` }}>
+        <div className="cover-banner-text">
+          <b>Программы тренировок</b>
+          <span>Легендарные схемы и программы от Emli</span>
+        </div>
+      </div>
       <div className="chips-row" style={{ margin: "0 -16px", padding: "0 16px" }}>
         {chip("level", "beginner", LEVEL_RU.beginner)}
         {chip("level", "intermediate", LEVEL_RU.intermediate)}

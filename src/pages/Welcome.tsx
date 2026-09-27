@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { completeDeviceLogin } from "@/lib/auth";
 import { Logo } from "@/ui/Logo";
 import "./welcome.css";
+import { visual } from "@/ui/Icon3D";
 
 type Req = { id: string; secret: string; check: string; link: string; tgLink: string; at: number };
 
@@ -17,7 +18,7 @@ export function Welcome() {
   const standalone = isStandalone();
   const [mode, setMode] = useState<"install" | "login">(standalone || !isIOS() ? "login" : "install");
   return (
-    <div className="welcome">
+    <div className="welcome" style={{ ["--welcome-bg" as string]: `url(${visual("backgrounds", "welcome")})` }}>
       <motion.div initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 260, damping: 18 }}>
         <Logo size={84} animated />
       </motion.div>

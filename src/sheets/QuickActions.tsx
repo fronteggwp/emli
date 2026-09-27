@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Copy, PackagePlus, ScanBarcode, Scale, Search, Zap } from "lucide-react";
+import { Copy, PackagePlus, Zap } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDay } from "@/state/day";
 import { useLayer, useNav } from "@/nav/Nav";
@@ -18,6 +18,7 @@ import { LogWeightSheet } from "./LogWeight";
 import { CheatMealSheet } from "./CheatMeal";
 import { loadDetector } from "@/lib/barcode";
 import "./sheets.css";
+import { Icon3D } from "@/ui/Icon3D";
 
 export function QuickActions() {
   const nav = useNav();
@@ -57,10 +58,10 @@ export function QuickActions() {
   };
 
   const tiles = [
-    { t: "Еда", s: "Поиск по базе", Icon: Search, color: "var(--kcal)", bg: "rgba(124,140,255,.16)", go: () => open(<AddFoodSheet />, true) },
-    { t: "Штрихкод", s: "Скан упаковки", Icon: ScanBarcode, color: "var(--protein)", bg: "rgba(255,122,92,.15)", go: () => open(<ScannerSheet />, true) },
-    { t: "Вес", s: "Утреннее взвешивание", Icon: Scale, color: "var(--weight)", bg: "rgba(179,136,255,.16)", go: () => open(<LogWeightSheet />) },
-    { t: "Быстро", s: "Калории и БЖУ", Icon: Zap, color: "var(--fat)", bg: "rgba(255,194,71,.15)", go: () => open(<QuickAddSheet />) },
+    { t: "Еда", s: "Поиск по базе", icon: "diary" as const, go: () => open(<AddFoodSheet />, true) },
+    { t: "Штрихкод", s: "Скан упаковки", icon: "barcode" as const, go: () => open(<ScannerSheet />, true) },
+    { t: "Вес", s: "Утреннее взвешивание", icon: "weight" as const, go: () => open(<LogWeightSheet />) },
+    { t: "Мои приёмы", s: "Набор еды в 1 тап", icon: "meal-plan" as const, go: () => open(<AddFoodSheet tab="mine" />, true) },
   ];
 
   return (
@@ -70,8 +71,8 @@ export function QuickActions() {
         <div className="action-tiles">
           {tiles.map((x) => (
             <Tap key={x.t} className="action-tile" onClick={x.go}>
-              <span className="ico" style={{ background: x.bg, color: x.color }}>
-                <x.Icon size={22} />
+              <span className="ico ico-3d">
+                <Icon3D name={x.icon} size={40} />
               </span>
               <span>
                 <div className="t">{x.t}</div>
@@ -81,9 +82,18 @@ export function QuickActions() {
           ))}
         </div>
         <div className="list" style={{ marginTop: 14 }}>
+          <button className="list-item press" onClick={() => open(<QuickAddSheet />)}>
+            <span className="li-icon">
+              <Zap size={20} />
+            </span>
+            <span style={{ flex: 1 }}>
+              <div className="li-title">Быстрая запись</div>
+              <div className="li-sub">Только калории и БЖУ, без продукта</div>
+            </span>
+          </button>
           <button className="list-item press" onClick={() => open(<CheatMealSheet />, true)}>
-            <span className="li-icon" style={{ fontSize: 18 }}>
-              🍕
+            <span className="li-icon">
+              <Icon3D name="cheat-day" size={26} />
             </span>
             <span style={{ flex: 1 }}>
               <div className="li-title">Запланировать читмил</div>

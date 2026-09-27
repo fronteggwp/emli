@@ -72,3 +72,11 @@
   line-height: 1.45;
   text-align: left;
 }
+
+/* Первый экран знакомства — с фото-заставкой */
+.ob.ob-hello {
+  background:
+    linear-gradient(180deg, var(--bg) 25%, rgba(11, 11, 14, 0.35) 60%, rgba(11, 11, 14, 0.75) 100%),
+    var(--ob-bg) center bottom / cover no-repeat,
+    var(--bg);
+}

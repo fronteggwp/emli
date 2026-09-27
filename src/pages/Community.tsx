@@ -20,6 +20,7 @@ import { useMyChallenges } from "@/data/engage";
 import { METRICS } from "@/lib/achievements";
 import { todayKey } from "@/lib/dates";
 import "./social.css";
+import { Icon3D } from "@/ui/Icon3D";
 
 export function CommunityPage() {
   const nav = useNav();
@@ -67,14 +68,14 @@ export function CommunityPage() {
         </button>
         <button className="friend-bubble tap" onClick={() => nav.push(<FriendsScreen initial={fs.incoming.length ? "requests" : "friends"} />)}>
           <span className="invite-circle" style={{ position: "relative", borderStyle: "solid" }}>
-            <span style={{ fontSize: 22 }}>👥</span>
+            <Icon3D name="friends" size={34} />
             {fs.incoming.length > 0 && <span className="badge">{fs.incoming.length}</span>}
           </span>
           <span>Друзья</span>
         </button>
         <button className="friend-bubble tap" onClick={() => nav.push(<ChallengesScreen />)}>
           <span className="invite-circle" style={{ position: "relative", borderStyle: "solid" }}>
-            <span style={{ fontSize: 22 }}>🏆</span>
+            <Icon3D name="personal-record" size={34} />
             {chInvites > 0 && <span className="badge">{chInvites}</span>}
           </span>
           <span>Челленджи</span>

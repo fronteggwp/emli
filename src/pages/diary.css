@@ -578,3 +578,17 @@
   pointer-events: none;
   transition: opacity 0.2s;
 }
+
+/* Объёмные иконки */
+.meal-icon.meal-icon-3d {
+  background: var(--card-2);
+  box-shadow: none;
+}
+.diary-tile-ico {
+  background: none;
+}
+.streak-flame {
+  margin: -4px -1px -4px -4px;
+  transform-origin: 50% 90%;
+  animation: flame 1.6s ease-in-out infinite;
+}

@@ -391,3 +391,7 @@
 .fd-missing b {
   color: var(--kcal);
 }
+
+.action-tile .ico.ico-3d {
+  background: var(--card-2);
+}
