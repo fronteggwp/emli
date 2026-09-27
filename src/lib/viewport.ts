@@ -7,15 +7,19 @@ export function initViewport() {
   const vv = window.visualViewport;
   const html = document.documentElement;
   if (!vv) return;
-  let full = vv.height;
+  // Приложение на главном экране iOS: браузер отдаёт высоту без полосы статус-бара,
+  // и снизу остаётся пустая полоса. Там приложение всегда на весь экран — берём высоту экрана.
+  const standalone = (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  const screenH = () => (window.innerWidth > window.innerHeight ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height));
+  let full = standalone ? screenH() : vv.height;
   let raf = 0;
 
   const apply = () => {
     raf = 0;
     const h = vv.height;
     if (h > full) full = h;
-    const kbOpen = full - h > 120;
-    html.style.setProperty("--vvh", `${Math.round(h)}px`);
+    const kbOpen = full - h > (standalone ? 180 : 120);
+    html.style.setProperty("--vvh", `${Math.round(standalone && !kbOpen ? full : h)}px`);
     html.style.setProperty("--vvt", `${Math.round(Math.max(vv.offsetTop, 0))}px`);
     html.classList.toggle("kb", kbOpen);
     // Страница целиком не должна прокручиваться — только внутренние списки
@@ -29,7 +33,10 @@ export function initViewport() {
   vv.addEventListener("scroll", sync);
   window.addEventListener("orientationchange", () => {
     full = 0;
-    setTimeout(sync, 350);
+    setTimeout(() => {
+      if (standalone) full = screenH();
+      sync();
+    }, 350);
   });
   apply();
 }
