@@ -177,47 +177,43 @@ function regressionSlopeXY(pts: { x: number; y: number }[]) {
   return den ? num / den : 0;
 }
 
-/** Наклон по методу наименьших квадратов (единиц в день) */
-function regressionSlope(ys: number[]) {
-  const n = ys.length;
-  if (n < 2) return 0;
-  const mx = (n - 1) / 2;
-  const my = ys.reduce((a, y) => a + y, 0) / n;
-  let num = 0;
-  let den = 0;
-  ys.forEach((y, x) => {
-    num += (x - mx) * (y - my);
-    den += (x - mx) ** 2;
-  });
-  return den ? num / den : 0;
-}
-
 export type TdeeEstimate = { value: number; confidence: number; observed: number | null };
 
 export type DayStatus = "complete" | "incomplete";
 
 /**
- * Какие дни годятся для расчёта расхода. Отмеченные вручную — как отметил.
- * Остальные: явно недозаписанные (меньше половины обычного для тебя дня) не учитываем.
+ * Записан ли день полностью. Отмеченные вручную — как отметил. Иначе день считаем неполным, если:
+ * • калорий меньше половины от меньшего из «обычного для тебя дня» и нормы этого дня (и меньше 500), или
+ * • всего одна запись, а калорий меньше 60% нормы.
  */
-export function completeDays(totals: DayTotal[], flags?: Map<string, DayStatus>) {
-  const logged = totals.filter((t) => t.entries > 0);
-  const sorted = logged.map((t) => Number(t.kcal)).sort((a, b) => a - b);
-  const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
-  return logged.filter((t) => isCompleteDay(Number(t.kcal), median, flags?.get(t.day)));
-}
-
-export function isCompleteDay(kcal: number, typical: number, flag?: DayStatus) {
+export function isCompleteDay(kcal: number, typical: number, flag?: DayStatus, target?: number | null, entries?: number) {
   if (flag === "complete") return true;
   if (flag === "incomplete") return false;
-  return kcal >= Math.max(500, typical * 0.5);
+  const ref = Math.min(typical || Infinity, target || Infinity);
+  const base = Number.isFinite(ref) ? ref : 2000;
+  if (kcal < Math.max(500, base * 0.5)) return false;
+  if (entries != null && entries <= 1 && target && kcal < target * 0.6) return false;
+  return true;
+}
+
+/** Обычная калорийность дня — медиана записанных дней */
+export function typicalKcal(totals: DayTotal[]) {
+  const sorted = totals.filter((t) => t.entries > 0).map((t) => Number(t.kcal)).sort((a, b) => a - b);
+  return sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+}
+
+export function completeDays(totals: DayTotal[], flags?: Map<string, DayStatus>, targetOf?: (day: string) => number, typical?: number) {
+  const logged = totals.filter((t) => t.entries > 0);
+  const med = typical ?? typicalKcal(logged);
+  return logged.filter((t) => isCompleteDay(Number(t.kcal), med, flags?.get(t.day), targetOf?.(t.day), t.entries));
 }
 
 /**
- * Адаптивная оценка расхода (как в MacroFactor): средние съеденные калории минус изменение
- * запасов. Изменение веса — наклон тренда по всему окну (метод наименьших квадратов), а не
- * по двум крайним точкам: так оценка не прыгает от одного взвешивания. Неполные дни не учитываются.
- * Пока данных мало, опираемся на формулу; чем больше полных дней — тем больше веса у наблюдений.
+ * Адаптивная оценка расхода (как в MacroFactor): средние съеденные калории за полные дни минус
+ * изменение запасов. Изменение веса — наклон по самим взвешиваниям окна (метод наименьших
+ * квадратов, выбросы дальше 1,5 кг от тренда отброшены).
+ * Надёжность оценки растёт с числом полных дней и РЕАЛЬНЫХ взвешиваний в окне и падает, если
+ * последнее взвешивание давнее: дорисованные точки тренда наблюдениями не считаются.
  */
 export function estimateTdee(
   totals: DayTotal[] | undefined,
@@ -226,26 +222,34 @@ export function estimateTdee(
   endDay = shiftKey(todayKey(), -1),
   windowDays = 21,
   flags?: Map<string, DayStatus>,
+  targetOf?: (day: string) => number,
+  typical?: number,
 ): TdeeEstimate {
   const from = shiftKey(endDay, -(windowDays - 1));
-  const logged = completeDays((totals ?? []).filter((t) => t.day >= from && t.day <= endDay), flags);
+  const logged = completeDays((totals ?? []).filter((t) => t.day >= from && t.day <= endDay), flags, targetOf, typical);
   const inWindow = trend.filter((p) => p.day >= from && p.day <= endDay);
-  if (logged.length < 5 || inWindow.length < 7) return { value: fallback, confidence: 0, observed: null };
-  // Наклон — по самим взвешиваниям (без выбросов дальше 1,5 кг от тренда): у тренда есть
-  // запаздывание, а регрессия по сырым точкам несмещённая. Мало взвешиваний — по тренду.
-  const raw = inWindow.map((p, i) => ({ x: i, y: p.scale, t: p.trend })).filter((p) => p.y != null && Math.abs(p.y - p.t) < 1.5);
-  const slope = raw.length >= 6 ? regressionSlopeXY(raw.map((p) => ({ x: p.x, y: p.y as number }))) : regressionSlope(inWindow.map((p) => p.trend));
+  const weighIns = inWindow.map((p, i) => ({ x: i, y: p.scale, t: p.trend, day: p.day })).filter((p) => p.y != null);
+  if (logged.length < 5 || weighIns.length < 4) return { value: fallback, confidence: 0, observed: null };
+  const clean = weighIns.filter((p) => Math.abs((p.y as number) - p.t) < 1.5);
+  const pts = clean.length >= 4 ? clean : weighIns;
+  // Взвешивания должны покрывать хотя бы неделю — иначе наклон ненадёжен
+  const spanDays = pts[pts.length - 1].x - pts[0].x;
+  if (spanDays < 7) return { value: fallback, confidence: 0, observed: null };
+  const slope = regressionSlopeXY(pts.map((p) => ({ x: p.x, y: p.y as number })));
   const avgIntake = logged.reduce((sum, t) => sum + Number(t.kcal), 0) / logged.length;
   const observed = avgIntake - slope * KCAL_PER_KG;
-  const confidence = Math.min(1, logged.length / 14) * Math.min(1, inWindow.length / 14);
+  const lastWeighAgo = inWindow.length - 1 - pts[pts.length - 1].x;
+  const recency = Math.max(0, Math.min(1, (14 - lastWeighAgo) / 10));
+  const confidence = Math.min(1, logged.length / 14) * Math.min(1, pts.length / 10) * Math.min(1, spanDays / 14) * recency;
   const blended = confidence * observed + (1 - confidence) * fallback;
   const value = Math.round(Math.min(Math.max(blended, fallback * 0.6), fallback * 1.5));
   return { value, confidence, observed: Math.round(observed) };
 }
 
 /**
- * Еженедельная корректировка нормы. Цель достигнута — переходим на поддержание.
- * За одну корректировку норма меняется не больше чем на 250 ккал — без резких скачков.
+ * Еженедельная корректировка нормы. За одну корректировку норма меняется не больше чем
+ * на 250 ккал — без резких скачков. Цель достигнута — переход на поддержание: норма сразу
+ * равна расходу (это и есть поддержание), без ограничения шага.
  */
 export function checkinPlan(o: {
   tdee: number;
@@ -261,7 +265,7 @@ export function checkinPlan(o: {
   const reached =
     o.targetWeight != null && ((o.kind === "lose" && o.current <= o.targetWeight) || (o.kind === "gain" && o.current >= o.targetWeight));
   let calories = caloriesFor(o.tdee, reached ? 0 : o.rateKgWeek, o.sex);
-  if (o.prevCalories) calories = round10(Math.min(o.prevCalories + 250, Math.max(o.prevCalories - 250, calories)));
+  if (o.prevCalories && !reached) calories = round10(Math.min(o.prevCalories + 250, Math.max(o.prevCalories - 250, calories)));
   return { calories, ...macrosFor(calories, o.current, reached ? "maintain" : o.kind, o.heightCm, o.bodyFat), reached };
 }
 

@@ -2,7 +2,7 @@
 import "@/styles/global.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MotionConfig } from "motion/react";
 import { AuthProvider } from "@/lib/auth";
 import { initTelegram } from "@/lib/telegram";
@@ -21,9 +21,20 @@ document.addEventListener("touchstart", () => {}, { passive: true });
 
 initViewport();
 
+// Сетевые сбои (а не ошибки данных) повторяем автоматически
+const isNetwork = (e: unknown) => /fetch|network|load failed|timeout/i.test(String((e as Error)?.message ?? e));
+
 const queryClient = new QueryClient({
+  // Любое несохранившееся действие — заметно пользователю, а не молча
+  mutationCache: new MutationCache({
+    onError: (e, _v, _c, m) => {
+      if (m.meta?.silent) return;
+      window.dispatchEvent(new CustomEvent("emli-error", { detail: isNetwork(e) ? "network" : "server" }));
+    },
+  }),
   defaultOptions: {
     queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false },
+    mutations: { retry: (n, e) => n < 2 && isNetwork(e), retryDelay: (n) => 800 * 2 ** n },
   },
 });
 

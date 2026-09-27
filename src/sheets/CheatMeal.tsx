@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Check, Trash } from "lucide-react";
 import { useLayer } from "@/nav/Nav";
 import { useDayTargets, useDeletePlan, useSavePlan } from "@/data/api";
-import { CHEAT_PRESETS, applyDelta, cutShare, saveDays, type CheatPlan } from "@/lib/cheat";
+import { CHEAT_PRESETS, planSplit, saveDays, type CheatPlan } from "@/lib/cheat";
 import { daysBetween, fmt, shiftKey, todayKey } from "@/lib/dates";
 import { fmtNum } from "@/lib/nutrition";
 import { confirmDialog, haptic } from "@/lib/telegram";
@@ -33,29 +33,23 @@ export function CheatMealSheet({ day: day0, plan }: { day?: string; plan?: Cheat
   const maxSpread = effMode === "before" ? beforeAvail : 7;
   const effSpread = Math.max(1, Math.min(spread, maxSpread));
 
-  // Норма дня без этого плана (другие читмилы учитываем)
-  const baseFor = (d: string) => {
-    const t = targets.forDay(d);
-    const own = t.adjust.filter((a) => a.plan.id === plan?.id || a.plan.day === day).reduce((s, a) => s + a.delta, 0);
-    return applyDelta(t, -own);
-  };
-
-  const draft = { day, spread_days: effSpread, mode: effMode };
+  // Раскладка — та же функция, что применяется в дневнике: что видишь, то и будет
+  const draft = { day, spread_days: effSpread, mode: effMode, extra_kcal: extra };
   const affected = saveDays(draft);
-  const perDay = Math.round(extra / effSpread);
-  const cheatBase = baseFor(day);
-  const share = cutShare(extra, effSpread, cheatBase.calories);
-  const tooHard = share > 0.25;
+  const split = planSplit(draft, targets.baseOf);
+  const perDay = Math.round(split.bonus / effSpread);
+  const cheatBase = { calories: targets.baseOf(day) };
+  const tooHard = split.short > 0 || perDay / Math.max(targets.baseOf(affected[0] ?? day), 1) > 0.25;
 
   const bars = useMemo(() => {
     const days = [...affected, day].sort();
     return days.map((d) => {
-      const base = baseFor(d).calories;
-      const now = d === day ? base + extra : base - perDay;
+      const base = targets.baseOf(d);
+      const now = d === day ? base + split.bonus : base - (split.cuts.get(d) ?? 0);
       return { d, base, now, cheat: d === day };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [affected.join(), day, extra, perDay, targets]);
+  }, [affected.join(), day, split.bonus, targets]);
   const top = Math.max(...bars.map((b) => Math.max(b.base, b.now))) * 1.05;
 
   const days14 = Array.from({ length: 21 }, (_, i) => shiftKey(today, i));
@@ -80,7 +74,12 @@ export function CheatMealSheet({ day: day0, plan }: { day?: string; plan?: Cheat
             +<NumberTicker value={extra} duration={0.3} /> <span>ккал</span>
           </div>
           <div className="muted" style={{ fontSize: 13 }}>
-            в этот день можно съесть {fmtNum(cheatBase.calories + extra)} ккал
+            в этот день можно съесть {fmtNum(cheatBase.calories + split.bonus)} ккал
+            {split.short > 0 && (
+              <div style={{ color: "var(--fat)", marginTop: 4 }}>
+                Безопасно компенсировать можно только {fmtNum(split.bonus)} ккал — добавь дней или уменьши читмил
+              </div>
+            )}
           </div>
         </div>
 

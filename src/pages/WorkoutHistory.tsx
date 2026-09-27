@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNav } from "@/nav/Nav";
 import { useWorkouts } from "@/data/workouts";
+import { localDay } from "@/data/workouts";
 import { MUSCLE_GROUPS, type Muscle } from "@/lib/exercise";
 import { fmt, shiftKey, todayKey, weekStart } from "@/lib/dates";
 import { fmtNum } from "@/lib/nutrition";
@@ -32,7 +33,7 @@ export function HistoryScreen({ initialTab = "list" }: { initialTab?: "list" | "
   const weeks = useMemo(() => {
     const m = new Map<string, NonNullable<typeof workouts.data>>();
     for (const w of workouts.data ?? []) {
-      const k = weekStart(w.started_at.slice(0, 10));
+      const k = weekStart(localDay(w.started_at));
       m.set(k, [...(m.get(k) ?? []), w]);
     }
     return [...m.entries()];
@@ -120,7 +121,7 @@ export function HistoryScreen({ initialTab = "list" }: { initialTab?: "list" | "
               );
             })}
             <p className="faint" style={{ fontSize: 12.5, margin: "10px 0 0", lineHeight: 1.45 }}>
-              Основная мышца упражнения = 1 подход, вспомогательная = ½. Для роста большинству мышц хватает 10–20 рабочих подходов в неделю.
+              Подсчёт условный: основная мышца упражнения = 1 подход, вспомогательная = ½. Он не учитывает вес, близость к отказу, амплитуду и восстановление — это обзор распределения, а не точная нагрузка. Для роста большинству мышц хватает 10–20 рабочих подходов в неделю.
             </p>
           </div>
         </>

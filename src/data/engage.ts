@@ -95,6 +95,8 @@ export type Summary = {
   from: string;
   to: string;
   days_logged: number;
+  days_complete?: number;
+  workouts_plan?: number;
   avg_kcal: number | null;
   avg_protein: number | null;
   target_kcal: number | null;
@@ -248,11 +250,19 @@ export const templateTotal = (items: Macros[]) =>
 export function useLogItems() {
   const qc = useQueryClient();
   return useMutation({
+    meta: { achievements: true },
     mutationFn: async ({ items, day, meal, templateId }: { items: TemplateItem[]; day: string; meal: Meal; templateId?: string }) => {
+      // Продукт из шаблона могли удалить — такую запись добавляем без привязки, а не роняем весь набор
+      const ids = [...new Set(items.map((i) => i.food_id).filter((x): x is string => !!x))];
+      const alive = new Set<string>();
+      if (ids.length) {
+        const { data } = await supabase.from("foods").select("id").in("id", ids);
+        for (const r of data ?? []) alive.add(r.id);
+      }
       const rows = items.map((i) => ({
         day,
         meal,
-        food_id: i.food_id,
+        food_id: i.food_id && alive.has(i.food_id) ? i.food_id : null,
         name: i.name,
         brand: i.brand,
         grams: i.grams,
@@ -378,6 +388,8 @@ export type UserRecipe = {
   time: number | null;
   ingredients: TemplateItem[];
   steps: string | null;
+  /** Вес готового блюда целиком, г — после варки/запекания; если не указан, считаем по сырым продуктам */
+  cooked_g?: number | null;
   created_at: string;
 };
 
@@ -414,7 +426,8 @@ export function useDeleteUserRecipe() {
 
 export function userRecipeServing(r: UserRecipe) {
   const t = templateTotal(r.ingredients);
-  const grams = r.ingredients.reduce((a, i) => a + (i.grams ?? 0), 0);
+  const raw = r.ingredients.reduce((a, i) => a + (i.grams ?? 0), 0);
+  const grams = r.cooked_g ? Number(r.cooked_g) : raw;
   const n = Math.max(1, r.servings);
   return { kcal: t.kcal / n, protein: t.protein / n, fat: t.fat / n, carbs: t.carbs / n, grams: grams / n };
 }
@@ -496,6 +509,7 @@ export function useChallengeActions() {
   const done = () => qc.invalidateQueries({ queryKey: ek.challenges });
   return {
     create: useMutation({
+      meta: { achievements: true },
       mutationFn: async (a: { title: string; emoji: string; metric: ChallengeMetric; start: string; end: string; invitees: string[] }) =>
         unwrap<string>(
           await supabase.rpc("create_challenge", {
@@ -510,6 +524,7 @@ export function useChallengeActions() {
       onSettled: done,
     }),
     respond: useMutation({
+      meta: { achievements: true },
       mutationFn: async ({ id, accept }: { id: string; accept: boolean }) =>
         unwrap(await supabase.rpc("respond_challenge", { cid: id, accept })),
       onSettled: () => {
@@ -518,10 +533,12 @@ export function useChallengeActions() {
       },
     }),
     leave: useMutation({
+      meta: { achievements: true },
       mutationFn: async (id: string) => unwrap(await supabase.rpc("leave_challenge", { cid: id })),
       onSettled: done,
     }),
     invite: useMutation({
+      meta: { achievements: true },
       mutationFn: async ({ id, uids }: { id: string; uids: string[] }) =>
         unwrap<number>(await supabase.rpc("invite_to_challenge", { cid: id, uids })),
       onSettled: done,
@@ -534,7 +551,7 @@ export function useChallengeActions() {
 export async function exportData() {
   const { data, error } = await supabase.functions.invoke("account", { body: { action: "export" } });
   if (error) throw error;
-  return data as { ok?: boolean; error?: string };
+  return data as { ok?: boolean; error?: string; sent?: number; total?: number };
 }
 
 export async function deleteAccount() {

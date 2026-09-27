@@ -14,7 +14,7 @@ import { FoodDetailSheet } from "./FoodDetail";
 import { CreateFoodSheet } from "./CreateFood";
 import "./sheets.css";
 
-type Status = "starting" | "scanning" | "looking" | "denied" | "notfound";
+type Status = "starting" | "scanning" | "looking" | "denied" | "notfound" | "offline";
 
 export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: () => void }) {
   const { day } = useDay();
@@ -29,6 +29,9 @@ export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: ()
   // paused — распознавание на паузе, пока ищем продукт; finished — сканер отработал, больше не реагируем
   const paused = useRef(false);
   const finished = useRef(false);
+  // Окно закрыли, пока шёл поиск — поздний ответ не должен открыть карточку поверх другого экрана
+  const closed = useRef(false);
+  const abort = useRef<AbortController | null>(null);
 
   const stopCamera = () => {
     stream.current?.getTracks().forEach((t) => t.stop());
@@ -40,10 +43,13 @@ export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: ()
     paused.current = true;
     setStatus("looking");
     setCode(barcode);
+    abort.current?.abort();
+    const ac = new AbortController();
+    abort.current = ac;
     try {
       const mine = await findFoodByBarcode(barcode);
-      const food = mine ?? (await offByBarcode(barcode));
-      if (finished.current) return;
+      const food = mine ?? (await offByBarcode(barcode, ac.signal));
+      if (finished.current || closed.current || ac.signal.aborted) return;
       if (food) {
         finished.current = true;
         stopCamera();
@@ -55,7 +61,10 @@ export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: ()
       haptic.warning();
       setStatus("notfound");
     } catch {
-      setStatus("notfound");
+      if (closed.current || ac.signal.aborted) return;
+      haptic.error();
+      // Ошибка сети — это не «продукт не найден»
+      setStatus("offline");
     }
   };
 
@@ -112,6 +121,8 @@ export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: ()
 
     return () => {
       alive = false;
+      closed.current = true;
+      abort.current?.abort();
       window.clearTimeout(start);
       window.clearTimeout(timer);
       stopCamera();
@@ -151,8 +162,14 @@ export function ScannerSheet({ meal: meal0, onDone }: { meal?: Meal; onDone?: ()
           {status === "scanning" && "Наведи камеру на штрихкод"}
           {status === "looking" && `Ищу ${code}…`}
           {status === "notfound" && `Продукт ${code} не найден`}
+          {status === "offline" && "Нет связи — не удалось проверить продукт"}
         </div>
 
+        {status === "offline" && (
+          <Tap className="btn btn-block" style={{ marginTop: 14 }} onClick={() => lookup(code)}>
+            Повторить поиск
+          </Tap>
+        )}
         {status === "notfound" && (
           <div className="row" style={{ marginTop: 12, gap: 10 }}>
             <Tap className="icon-btn" style={{ width: 54, height: 54 }} onClick={rescan} aria-label="Сканировать снова">

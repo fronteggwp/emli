@@ -47,6 +47,7 @@ export type RecipeVM = {
   onEdit?: () => void;
   img?: string | null;
   credit?: Recipe["photo"];
+  rawWeight?: boolean;
 };
 
 const DIFF = ["", "Легко", "Средне", "Сложно"];
@@ -77,6 +78,7 @@ export function RecipeScreen({ id }: { id: string }) {
         favRef: r.id,
         img: recipeImg(r),
         credit: r.photo,
+        rawWeight: true,
       }}
     />
   );
@@ -106,6 +108,7 @@ export function UserRecipeScreen({ id }: { id: string }) {
         serving: s,
         toItem: (p) => userRecipeItem(r, p),
         onEdit: () => nav.push(<RecipeEditorScreen recipe={r} />),
+        rawWeight: !r.cooked_g,
       }}
     />
   );
@@ -307,7 +310,7 @@ function RecipeView({ vm }: { vm: RecipeVM }) {
       )}
 
       <div className="rc-bar">
-        <Tap className="btn btn-block btn-accent" onClick={() => nav.sheet(<LogRecipeSheet title={vm.title} emoji={vm.emoji} serving={vm.serving} toItem={vm.toItem} />)}>
+        <Tap className="btn btn-block btn-accent" onClick={() => nav.sheet(<LogRecipeSheet title={vm.title} emoji={vm.emoji} serving={vm.serving} toItem={vm.toItem} rawWeight={vm.rawWeight} />)}>
           <Plus size={19} /> Добавить в дневник
         </Tap>
       </div>

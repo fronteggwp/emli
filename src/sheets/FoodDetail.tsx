@@ -33,22 +33,26 @@ export function FoodDetailSheet(props: Props) {
     retry: false,
   });
 
-  // Для записи без привязанного продукта восстанавливаем КБЖУ на 100 г по снимку
+  // Запись в дневнике — это снимок: КБЖУ берём из неё самой (продукт могли изменить позже),
+  // а из привязанного продукта — только порцию и возможность редактировать продукт
   const food: Food | FoodDraft | null = useMemo(() => {
     if (props.food) return props.food;
     if (!entry) return null;
-    if (linked.data) return linked.data;
     if (entry.food_id && linked.isLoading) return null;
     const k = entry.grams ? 100 / entry.grams : 1;
+    const snapshot = {
+      kcal: Math.round(entry.kcal * k * 10) / 10,
+      protein: Math.round(entry.protein * k * 10) / 10,
+      fat: Math.round(entry.fat * k * 10) / 10,
+      carbs: Math.round(entry.carbs * k * 10) / 10,
+    };
+    if (linked.data) return { ...linked.data, ...snapshot, name: entry.name, brand: entry.brand };
     return {
       name: entry.name,
       brand: entry.brand,
       barcode: null,
       category: null,
-      kcal: Math.round(entry.kcal * k),
-      protein: Math.round(entry.protein * k * 10) / 10,
-      fat: Math.round(entry.fat * k * 10) / 10,
-      carbs: Math.round(entry.carbs * k * 10) / 10,
+      ...snapshot,
       serving_g: null,
       serving_name: null,
       source: "user",
@@ -119,29 +123,39 @@ function Detail({ food, entry, meal: meal0, day: day0, grams: grams0, onDone }: 
       ? [0.5, 1, 1.5, 2, 3]
       : Array.from(new Set([...(serving ? [serving] : []), 50, 100, 150, 200, 250])).slice(0, 6);
 
+  const [saving, setSaving] = useState(false);
+  // «Сохранено» — только после ответа сервера; при ошибке окно остаётся открытым
   const submit = async () => {
-    if (grams <= 0) return;
-    haptic.success();
+    if (grams <= 0 || saving) return;
+    setSaving(true);
     const payload = { name: food.name, brand: food.brand, grams: Math.round(grams * 10) / 10, ...m, meal };
-    if (entry) {
-      update.mutate({ id: entry.id, day: entry.day, patch: payload });
-      toast("Сохранено", <Check size={18} color="var(--good)" />);
-      layer.close();
-      return;
-    }
-    let foodId = "id" in food && food.id ? food.id : null;
-    if (!foodId) {
-      // Продукт из Open Food Facts или по снимку — сохраняем себе, чтобы потом находить быстрее
-      try {
-        foodId = (await saveFood.mutateAsync(food)).id;
-      } catch {
-        foodId = null;
+    try {
+      if (entry) {
+        await update.mutateAsync({ id: entry.id, day: entry.day, patch: payload });
+        haptic.success();
+        toast("Сохранено", <Check size={18} color="var(--good)" />);
+        layer.close();
+        return;
       }
+      let foodId = "id" in food && food.id ? food.id : null;
+      if (!foodId) {
+        // Продукт из Open Food Facts или по снимку — сохраняем себе, чтобы потом находить быстрее
+        try {
+          foodId = (await saveFood.mutateAsync(food)).id;
+        } catch {
+          foodId = null;
+        }
+      }
+      await add.mutateAsync({ ...payload, food_id: foodId, day });
+      haptic.success();
+      toast(`${MEALS[meal].name}: +${fmtNum(m.kcal)} ккал`, <Check size={18} color="var(--good)" />);
+      layer.close();
+      onDone?.();
+    } catch {
+      haptic.error();
+      toast("Не сохранилось — проверь связь и нажми ещё раз");
+      setSaving(false);
     }
-    add.mutate({ ...payload, food_id: foodId, day });
-    toast(`${MEALS[meal].name}: +${fmtNum(m.kcal)} ккал`, <Check size={18} color="var(--good)" />);
-    layer.close();
-    onDone?.();
   };
 
   const own = "owner_id" in food && food.owner_id === uid && "id" in food && !!food.id;
@@ -171,6 +185,13 @@ function Detail({ food, entry, meal: meal0, day: day0, grams: grams0, onDone }: 
             .filter(Boolean)
             .join(" · ")}
         </div>
+
+        {"missing" in food && food.missing?.length ? (
+          <button className="fd-missing" onClick={() => nav.sheet(<CreateFoodSheet food={food as Food} />)}>
+            ⚠️ В базе нет данных: {food.missing.map((k) => ({ protein: "белки", fat: "жиры", carbs: "углеводы" })[k]).join(", ")} — посчитаны как 0.
+            Проверь по упаковке и <b>поправь</b>
+          </button>
+        ) : null}
 
         <div className="fd-macros">
           <div className="fd-macro" style={{ background: "linear-gradient(135deg, rgba(124,140,255,.22), rgba(179,136,255,.12))" }}>
@@ -287,7 +308,7 @@ function Detail({ food, entry, meal: meal0, day: day0, grams: grams0, onDone }: 
             <Trash size={20} />
           </Tap>
         )}
-        <Tap className="btn btn-accent btn-block" onClick={submit} disabled={grams <= 0 || saveFood.isPending}>
+        <Tap className="btn btn-accent btn-block" onClick={submit} disabled={grams <= 0 || saving}>
           {entry ? "Сохранить" : "Добавить"} · <NumberTicker value={m.kcal} duration={0.4} /> ккал
         </Tap>
       </div>

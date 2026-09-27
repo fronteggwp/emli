@@ -87,7 +87,7 @@ export function DiaryPage() {
         </button>
       )}
 
-      <Hero sum={sum} target={target} loading={entries.isLoading || targets.loading} />
+      <Hero sum={sum} target={target} loading={entries.isLoading || entries.isPlaceholderData || targets.loading} />
 
       <DayBanner target={target} day={day} />
 
@@ -95,7 +95,8 @@ export function DiaryPage() {
 
       <DayWorkouts day={day} />
 
-      <div className="stack" style={{ marginTop: 14 }}>
+      {/* Пока грузится выбранный день, записи прошлого дня приглушены и не нажимаются */}
+      <div className={`stack ${entries.isPlaceholderData ? "diary-stale" : ""}`} style={{ marginTop: 14 }} aria-busy={entries.isPlaceholderData}>
         {MEALS.map((m, i) => (
           <MealCard
             key={m.id}
@@ -107,7 +108,7 @@ export function DiaryPage() {
         ))}
       </div>
 
-      <DayCompleteness day={day} kcal={sum.kcal} hasEntries={!!entries.data?.length} />
+      <DayCompleteness day={day} kcal={sum.kcal} entries={entries.data?.length ?? 0} target={target.calories} />
 
       <div className="row" style={{ marginTop: 16, gap: 10 }}>
         <Tap className="btn btn-block add-food" onClick={() => nav.sheet(<AddFoodSheet />, { full: true })}>

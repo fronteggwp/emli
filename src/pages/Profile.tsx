@@ -13,7 +13,7 @@ import { AboutSheet } from "@/sheets/About";
 import { EditProfileSheet } from "@/sheets/EditProfile";
 import { FriendsScreen } from "./Friends";
 import { PersonScreen } from "./Person";
-import { useFriendships } from "@/data/social";
+import { useFriendships, usePublicStats } from "@/data/social";
 import { Tap } from "@/ui/Tap";
 import { Screen } from "@/ui/Screen";
 import { AchievementStrip } from "./Achievements";
@@ -37,6 +37,8 @@ function ProfileBody() {
   const ins = useInsights();
   const fs = useFriendships();
   const p = profile.data;
+  // Серия и число дней — с сервера, по всей истории (локальные данные — только за полгода)
+  const stats = usePublicStats(p?.id ?? "");
   const lost = ins.goal && ins.current != null ? ins.current - ins.goal.start_weight : null;
 
   const items = [
@@ -69,8 +71,8 @@ function ProfileBody() {
       </div>
 
       <div className="kv" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-        <StatTile label="дней с записями" value={ins.loggedDays} />
-        <StatTile label="серия дней" value={ins.streak} suffix="🔥" />
+        <StatTile label="дней с записями" value={stats.data?.logged_days ?? ins.loggedDays} />
+        <StatTile label="серия дней" value={stats.data?.streak ?? ins.streak} suffix="🔥" />
         <StatTile
           label={lost != null && lost > 0 ? "набрано" : "сброшено"}
           value={lost != null ? Math.abs(lost) : 0}

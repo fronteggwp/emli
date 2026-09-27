@@ -100,9 +100,13 @@ export function NavProvider({ tabs }: { tabs: (tab: Tab) => ReactNode }) {
 
   return (
     <NavCtx.Provider value={api}>
-      <div className={`nav-base ${screenOpen ? "covered" : ""}`}>{tabs(tab)}</div>
+      {/* Всё, что под открытым окном, недоступно для фокуса и экранного диктора */}
+      <div className={`nav-base ${screenOpen ? "covered" : ""}`} inert={open.length > 0} aria-hidden={open.length > 0 || undefined}>
+        {tabs(tab)}
+      </div>
       {layers.map((l, i) => {
         const covered = layers.slice(i + 1).some((x) => x.kind === "screen" && !x.closing);
+        const blocked = layers.slice(i + 1).some((x) => !x.closing);
         const ctx = { close: () => closeId(l.id), covered };
         const Comp = l.kind === "screen" ? ScreenLayer : SheetLayer;
         return (
@@ -111,6 +115,7 @@ export function NavProvider({ tabs }: { tabs: (tab: Tab) => ReactNode }) {
             z={10 + i * 2}
             full={!!l.opts.full}
             covered={covered}
+            blocked={blocked}
             closing={l.closing}
             onClose={ctx.close}
             onExited={() => remove(l.id)}
@@ -128,6 +133,7 @@ type LayerProps = {
   z: number;
   full: boolean;
   covered: boolean;
+  blocked?: boolean;
   closing: boolean;
   onClose: () => void;
   onExited: () => void;
@@ -158,7 +164,7 @@ function useEnterExit(closing: boolean, onExited: () => void) {
 
 type Drag = { start: number; last: number; lastT: number; v: number; size: number; pointer: number };
 
-function ScreenLayer({ children, z, covered, closing, onClose, onExited }: LayerProps) {
+function ScreenLayer({ children, z, covered, blocked, closing, onClose, onExited }: LayerProps) {
   const shown = useEnterExit(closing, onExited);
   const el = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
@@ -198,6 +204,8 @@ function ScreenLayer({ children, z, covered, closing, onClose, onExited }: Layer
       ref={el}
       className={`nav-screen ${state}`}
       style={{ zIndex: z }}
+      inert={blocked}
+      aria-hidden={blocked || undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -208,7 +216,7 @@ function ScreenLayer({ children, z, covered, closing, onClose, onExited }: Layer
   );
 }
 
-function SheetLayer({ children, z, full, closing, onClose, onExited }: LayerProps) {
+function SheetLayer({ children, z, full, blocked, closing, onClose, onExited }: LayerProps) {
   const shown = useEnterExit(closing, onExited);
   const panel = useRef<HTMLDivElement>(null);
   const backdrop = useRef<HTMLDivElement>(null);
@@ -253,11 +261,13 @@ function SheetLayer({ children, z, full, closing, onClose, onExited }: LayerProp
   };
 
   return (
-    <div className={`nav-sheet-wrap ${shown ? "open" : ""}`} style={{ zIndex: z }}>
+    <div className={`nav-sheet-wrap ${shown ? "open" : ""}`} style={{ zIndex: z }} inert={blocked} aria-hidden={blocked || undefined}>
       <div ref={backdrop} className="nav-backdrop" onClick={onClose} />
       <div
         ref={panel}
         className={`nav-sheet ${full ? "full" : ""}`}
+        role="dialog"
+        aria-modal="true"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

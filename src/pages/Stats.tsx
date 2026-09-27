@@ -88,7 +88,7 @@ export function StatsPage() {
             <Chevron size={18} className="faint" style={{ marginLeft: "auto" }} />
           </div>
           <div className="stat-delta muted">
-            {ins.tdee.confidence > 0 ? `точность ${Math.round(ins.tdee.confidence * 100)}%` : "по формуле, уточняется"}
+            {ins.tdee.confidence > 0 ? `надёжность ${Math.round(ins.tdee.confidence * 100)}%` : "по формуле, уточняется"}
           </div>
         </Tap>
       </div>

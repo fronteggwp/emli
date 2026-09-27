@@ -22,6 +22,7 @@ export function LogRecipeSheet({
   toItem,
   meal: meal0,
   onDone,
+  rawWeight,
 }: {
   title: string;
   emoji: string;
@@ -29,6 +30,8 @@ export function LogRecipeSheet({
   toItem: (portions: number) => TemplateItem;
   meal?: Meal;
   onDone?: () => void;
+  /** Граммовка посчитана по сырым продуктам (веса готового блюда нет) */
+  rawWeight?: boolean;
 }) {
   const layer = useLayer();
   const { day } = useDay();
@@ -87,6 +90,7 @@ export function LogRecipeSheet({
             <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
               {p === 1 ? "порция" : p < 5 && p % 1 === 0 ? "порции" : "порций"}
               {serving.grams ? ` · ≈ ${fmtNum(serving.grams * p)} г` : ""}
+              {rawWeight && <div style={{ fontSize: 11, marginTop: 2 }}>вес по сырым продуктам — готовое блюдо может весить иначе</div>}
             </div>
           </div>
           <Tap className="icon-btn" style={{ width: 52, height: 52 }} onClick={() => bump(0.5)} aria-label="Больше">

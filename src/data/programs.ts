@@ -582,6 +582,16 @@ export const PLACE_RU = { gym: "Зал", home: "Дом", any: "Где угодн
 
 export const programByKey = (key: string | null | undefined) => PROGRAMS.find((p) => p.key === key);
 
+const WD = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
+const DEFAULT_DAYS: Record<number, number[]> = { 1: [3], 2: [1, 4], 3: [1, 3, 5], 4: [1, 2, 4, 5], 5: [1, 2, 3, 4, 5], 6: [1, 2, 3, 4, 5, 6], 7: [1, 2, 3, 4, 5, 6, 7] };
+
+/** Дни недели тренировок (1 = пн): из расписания программы, иначе — типичные для её частоты */
+export function programWeekdays(p: Program) {
+  const text = p.schedule.toLowerCase();
+  const fromText = WD.map((w, i) => (new RegExp(`(^|[^а-яё])${w}([^а-яё]|$)`).test(text) ? i + 1 : 0)).filter(Boolean);
+  return fromText.length === p.perWeek ? fromText : (DEFAULT_DAYS[p.perWeek] ?? [1, 3, 5]);
+}
+
 /** Разбор целевых повторов: «8-12» → [8, 12], «5» → [5, 5], «30-45 с» → секунды */
 export function parseReps(reps: string): { min: number; max: number; timed: boolean; toFailure: boolean } {
   const timed = /с$/.test(reps.trim());

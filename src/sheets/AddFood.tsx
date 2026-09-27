@@ -129,13 +129,16 @@ export function AddFoodSheet({ meal: initialMeal, tab: initialTab = "recent" }: 
   const foundTemplates = searching ? (templates.data ?? []).filter((t) => t.name.toLowerCase().includes(term.toLowerCase())) : [];
   const foundRecipes = searching ? searchRecipes(recipes.data ?? [], term).slice(0, 4) : [];
 
-  const logItems = (items: TemplateItem[], templateId?: string) => {
-    haptic.success();
-    log.mutate({ items, day, meal, templateId });
-    toast(`${MEALS[meal].name}: +${fmtNum(templateTotal(items).kcal)} ккал`, <Check size={18} color="var(--good)" />);
-  };
+  const logItems = (items: TemplateItem[], templateId?: string) =>
+    log
+      .mutateAsync({ items, day, meal, templateId })
+      .then(() => {
+        haptic.success();
+        toast(`${MEALS[meal].name}: +${fmtNum(templateTotal(items).kcal)} ккал`, <Check size={18} color="var(--good)" />);
+      })
+      .catch(() => {});
   const openRecipe = (r: Recipe) =>
-    nav.sheet(<LogRecipeSheet title={r.title} emoji={r.emoji} serving={r.serving} toItem={(p) => recipeItem(r, p)} meal={meal} onDone={layer.close} />);
+    nav.sheet(<LogRecipeSheet title={r.title} emoji={r.emoji} serving={r.serving} toItem={(p) => recipeItem(r, p)} meal={meal} onDone={layer.close} rawWeight />);
 
   return (
     <>
@@ -276,7 +279,7 @@ export function AddFoodSheet({ meal: initialMeal, tab: initialTab = "recent" }: 
                         kcal={sv.kcal}
                         kcalNote="за порцию"
                         onOpen={() =>
-                          nav.sheet(<LogRecipeSheet title={r.title} emoji={r.emoji} serving={sv} toItem={(p) => userRecipeItem(r, p)} meal={meal} onDone={layer.close} />)
+                          nav.sheet(<LogRecipeSheet title={r.title} emoji={r.emoji} serving={sv} toItem={(p) => userRecipeItem(r, p)} meal={meal} onDone={layer.close} rawWeight={!r.cooked_g} />)
                         }
                         onQuickItems={() => logItems([userRecipeItem(r, 1)])}
                       />

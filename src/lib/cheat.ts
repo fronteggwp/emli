@@ -26,11 +26,41 @@ export function saveDays(plan: Pick<CheatPlan, "day" | "spread_days" | "mode">) 
   return Array.from({ length: plan.spread_days }, (_, i) => shiftKey(plan.day, dir * (i + 1)));
 }
 
-export function adjustmentsFor(plans: CheatPlan[] | undefined, day: string): DayAdjust[] {
+/** Безопасный минимум дня «экономии»: не ниже 70% обычной нормы и не ниже 1200 ккал */
+export const cutFloor = (base: number) => Math.max(1200, base * 0.7);
+
+/**
+ * Реальная раскладка плана. С каждого дня компенсации снимаем поровну, но не ниже безопасного
+ * минимума; не хватило места на одном дне — остаток переносим на другие дни компенсации.
+ * В день читмила добавляется ровно столько, сколько удалось снять: бюджет всегда сходится.
+ */
+export function planSplit(plan: Pick<CheatPlan, "day" | "spread_days" | "mode" | "extra_kcal">, baseOf: (day: string) => number) {
+  const days = saveDays(plan);
+  const room = days.map((d) => Math.max(0, baseOf(d) - cutFloor(baseOf(d))));
+  const cuts = days.map(() => 0);
+  let left = plan.extra_kcal;
+  for (let guard = 0; guard < 10 && left > 0.5; guard++) {
+    const open = cuts.map((c, i) => (room[i] - c > 0.5 ? i : -1)).filter((i) => i >= 0);
+    if (!open.length) break;
+    const share = left / open.length;
+    for (const i of open) {
+      const take = Math.min(share, room[i] - cuts[i]);
+      cuts[i] += take;
+      left -= take;
+    }
+  }
+  const rounded = cuts.map((c) => Math.round(c));
+  const bonus = rounded.reduce((a, c) => a + c, 0);
+  return { cuts: new Map(days.map((d, i) => [d, rounded[i]])), bonus, short: Math.max(0, plan.extra_kcal - bonus) };
+}
+
+export function adjustmentsFor(plans: CheatPlan[] | undefined, day: string, baseOf: (day: string) => number): DayAdjust[] {
   const out: DayAdjust[] = [];
   for (const p of plans ?? []) {
-    if (p.day === day) out.push({ delta: p.extra_kcal, kind: "cheat", plan: p });
-    else if (saveDays(p).includes(day)) out.push({ delta: -Math.round(p.extra_kcal / p.spread_days), kind: "save", plan: p });
+    if (p.day !== day && !saveDays(p).includes(day)) continue;
+    const split = planSplit(p, baseOf);
+    if (p.day === day) out.push({ delta: split.bonus, kind: "cheat", plan: p });
+    else out.push({ delta: -(split.cuts.get(day) ?? 0), kind: "save", plan: p });
   }
   return out;
 }
@@ -47,10 +77,7 @@ export function applyDelta(t: Pick<Targets, "calories" | "protein" | "fat" | "ca
     fat += (delta * 0.35) / 9;
     carbs += (delta * 0.65) / 4;
   } else {
-    // Безопасный минимум: день «экономии» не ниже 70% обычной нормы и не ниже 1200 ккал
-    const floor = Math.max(1200, t.calories * 0.7);
-    const cut = Math.min(-delta, Math.max(0, t.calories - floor));
-    delta = -cut;
+    const cut = -delta;
     let fromCarbs = (cut * 0.65) / 4;
     let fromFat = (cut * 0.35) / 9;
     const carbRoom = Math.max(carbs - 40, 0);
@@ -69,8 +96,13 @@ export function applyDelta(t: Pick<Targets, "calories" | "protein" | "fat" | "ca
   return { calories: Math.round(t.calories + delta), protein: t.protein, fat: Math.round(fat), carbs: Math.round(carbs) };
 }
 
-export function withPlans(base: Pick<Targets, "calories" | "protein" | "fat" | "carbs">, plans: CheatPlan[] | undefined, day: string): DayTarget {
-  const adjust = adjustmentsFor(plans, day);
+export function withPlans(
+  base: Pick<Targets, "calories" | "protein" | "fat" | "carbs">,
+  plans: CheatPlan[] | undefined,
+  day: string,
+  baseOf: (day: string) => number,
+): DayTarget {
+  const adjust = adjustmentsFor(plans, day, baseOf);
   const delta = adjust.reduce((s, a) => s + a.delta, 0);
   return { ...applyDelta(base, delta), base, adjust };
 }

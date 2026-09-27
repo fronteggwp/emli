@@ -50,10 +50,17 @@ export function ChatScreen({ cid, otherId }: { cid: string; otherId: string }) {
   const otherReadAt = convs.data?.find((c) => c.id === cid)?.other_read_at ?? null;
   const newestTheirs = list.find((m) => m.sender_id !== uid)?.id;
 
-  // Прочитано: при открытии и при каждом новом входящем
+  // Прочитано — только когда чат действительно на экране: не перекрыт другим экраном и приложение открыто
+  const [visible, setVisible] = useState(document.visibilityState === "visible");
   useEffect(() => {
+    const on = () => setVisible(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", on);
+    return () => document.removeEventListener("visibilitychange", on);
+  }, []);
+  useEffect(() => {
+    if (layer.covered || !visible) return;
     markRead(cid).then(() => qc.invalidateQueries({ queryKey: sk.convs }));
-  }, [cid, newestTheirs, qc]);
+  }, [cid, newestTheirs, qc, layer.covered, visible]);
 
   // «Печатает…» через broadcast-канал
   useEffect(() => {
@@ -133,18 +140,29 @@ export function ChatScreen({ cid, otherId }: { cid: string; otherId: string }) {
           const mine = m.sender_id === uid;
           const tail = !newer || newer.sender_id !== m.sender_id || new Date(newer.created_at).getTime() - new Date(m.created_at).getTime() > 300_000;
           const gap = !!older && older.sender_id !== m.sender_id;
-          const pending = send.isPending && send.variables?.id === m.id;
+          const pending = !m.failed && send.isPending && send.variables?.id === m.id;
           const read = mine && !!otherReadAt && otherReadAt >= m.created_at;
           return (
             <Fragment key={m.id}>
               <div className={`bubble-row ${mine ? "mine" : "theirs"} ${tail ? "tail" : ""} ${gap ? "gap" : ""}`}>
-                <div className={`bubble ${pending ? "pending" : ""}`}>
+                <div
+                  className={`bubble ${pending ? "pending" : ""} ${m.failed ? "failed" : ""}`}
+                  onClick={
+                    m.failed
+                      ? () => {
+                          haptic.tap();
+                          send.mutate({ id: m.id, text: m.text, image_url: m.image_url });
+                        }
+                      : undefined
+                  }
+                >
                   {m.image_url && <img src={m.image_url} alt="" loading="lazy" />}
                   {m.text}
                   <span className="bubble-time">
                     {timeHM(m.created_at)}
-                    {mine && (read ? <CheckCheck size={14} /> : <Check size={14} />)}
+                    {mine && !m.failed && (read ? <CheckCheck size={14} /> : <Check size={14} />)}
                   </span>
+                  {m.failed && <span className="bubble-failed">Не отправлено · нажми, чтобы повторить</span>}
                 </div>
               </div>
               {(!older || !sameDay(older.created_at, m.created_at)) && <div className="day-sep">{daySeparator(m.created_at)}</div>}

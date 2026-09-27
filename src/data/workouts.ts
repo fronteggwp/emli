@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useUid } from "@/lib/auth";
 import type { Exercise, Muscle } from "@/lib/exercise";
-import { PROGRAMS, programByKey, type ProgramExercise } from "./programs";
+import { PROGRAMS, programByKey, programWeekdays, type ProgramExercise } from "./programs";
 import type { Session as PlanSession } from "@/lib/progression";
 
 type Session = PlanSession & { id: string };
@@ -80,7 +80,7 @@ export function useCreateCustomExercise() {
 
 // ───────────── Шаблоны (routines) и программы
 
-export type RoutineExercise = { ex: string; sets: { reps: string; kind?: string }[]; rest: number; note?: string };
+export type RoutineExercise = { ex: string; sets: { reps: string; kind?: string }[]; rest: number; note?: string; group?: string };
 export type Routine = {
   id: string;
   name: string;
@@ -137,22 +137,22 @@ export function useStartProgram() {
     mutationFn: async (key: string) => {
       const p = programByKey(key);
       if (!p) throw new Error("program");
-      // Прошлые шаблоны этой же программы заменяем свежими
-      await supabase.from("routines").delete().eq("program", key);
+      void uid;
+      // Шаблоны, настройки и дни напоминаний — одной операцией на сервере
       unwrap(
-        await supabase.from("routines").insert(
-          p.days.map((d, i) => ({ name: d.title, program: key, program_day: i, position: i, exercises: d.exercises.map(toRoutineEx) })),
-        ),
-      );
-      unwrap(
-        await supabase
-          .from("user_settings")
-          .upsert({ user_id: uid, active_program: key, program_started: new Date().toISOString().slice(0, 10) }),
+        await supabase.rpc("start_program", {
+          key,
+          days: p.days.map((d, i) => ({ name: d.title, program_day: i, position: i, exercises: d.exercises.map(toRoutineEx) })),
+          workout_days: programWeekdays(p),
+          label: `${p.title} · ${p.days[0].title}`,
+        }),
       );
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: wk.routines });
       qc.invalidateQueries({ queryKey: ["settings"] });
+      qc.invalidateQueries({ queryKey: ["reminders"] });
+      qc.invalidateQueries({ queryKey: ["program-state"] });
     },
   });
 }
@@ -161,8 +161,14 @@ export function useStopProgram() {
   const qc = useQueryClient();
   const uid = useUid();
   return useMutation({
-    mutationFn: async () => unwrap(await supabase.from("user_settings").upsert({ user_id: uid, active_program: null })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["settings"] }),
+    mutationFn: async () => {
+      void uid;
+      unwrap(await supabase.rpc("stop_program"));
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["settings"] });
+      qc.invalidateQueries({ queryKey: ["reminders"] });
+    },
   });
 }
 
@@ -197,6 +203,8 @@ export type SetRow = {
   seconds: number | null;
   rpe: number | null;
   done_at: string;
+  target?: string | null;
+  planned?: number | null;
 };
 
 export type PR = { ex: string; kind: "weight" | "e1rm" | "reps" | "volume"; value: number; prev: number | null };
@@ -207,7 +215,13 @@ const numify = <T extends object>(r: T, keys: (keyof T)[]) => {
   return o;
 };
 
-export function useWorkouts(limit = 200) {
+/** Местная дата тренировки (а не UTC) — одинаково во всех разделах */
+export const localDay = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+export function useWorkouts(limit = 1000) {
   return useQuery({
     queryKey: wk.workouts,
     queryFn: async () =>
@@ -241,6 +255,8 @@ export function useDeleteWorkout() {
       qc.invalidateQueries({ queryKey: wk.workouts });
       qc.invalidateQueries({ queryKey: wk.bests });
       qc.invalidateQueries({ queryKey: ["ex-history"] });
+      qc.invalidateQueries({ queryKey: ["ex-sessions"] });
+      qc.invalidateQueries({ queryKey: ["last-sets"] });
     },
   });
 }
@@ -284,12 +300,14 @@ export function useSessions(ids: string[]) {
     queryKey: ["ex-sessions", key],
     enabled: !!key,
     queryFn: async () => {
-      type Row = Pick<SetRow, "exercise" | "weight" | "reps" | "kind" | "set_order" | "workout_id" | "done_at"> & {
-        workouts: { started_at: string; program_day: number | null } | null;
+      type Row = Pick<SetRow, "exercise" | "weight" | "reps" | "kind" | "set_order" | "ex_order" | "workout_id" | "done_at"> & {
+        target: string | null;
+        planned: number | null;
+        workouts: { started_at: string; program_day: number | null; program: string | null } | null;
       };
       const res = await supabase
         .from("workout_sets")
-        .select("exercise,weight,reps,kind,set_order,workout_id,done_at,workouts(started_at,program_day)")
+        .select("exercise,weight,reps,kind,set_order,ex_order,workout_id,done_at,target,planned,workouts(started_at,program_day,program)")
         .in("exercise", key.split(","))
         .order("done_at", { ascending: false })
         .limit(600);
@@ -300,12 +318,27 @@ export function useSessions(ids: string[]) {
         let s = list.find((x) => x.id === r.workout_id);
         if (!s) {
           if (list.length >= 6) continue;
-          s = { id: r.workout_id, at: r.workouts?.started_at ?? r.done_at, programDay: r.workouts?.program_day ?? null, sets: [] };
+          s = {
+            id: r.workout_id,
+            at: r.workouts?.started_at ?? r.done_at,
+            programDay: r.workouts?.program_day ?? null,
+            program: r.workouts?.program ?? null,
+            sets: [],
+          };
           list.push(s);
           map.set(r.exercise, list);
         }
-        s.sets.push({ weight: Number(r.weight ?? 0), reps: Number(r.reps ?? 0), kind: r.kind });
+        s.sets.push({
+          weight: Number(r.weight ?? 0),
+          reps: Number(r.reps ?? 0),
+          kind: r.kind,
+          target: r.target,
+          planned: r.planned,
+          order: r.ex_order * 100 + r.set_order,
+        });
       }
+      // Внутри тренировки — в порядке выполнения
+      for (const list of map.values()) for (const s of list) s.sets.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       return map;
     },
     staleTime: 60_000,
@@ -339,33 +372,59 @@ export type FinishPayload = {
 export function useSaveWorkout() {
   const qc = useQueryClient();
   return useMutation({
+    // Тренировка и подходы — одной операцией; повтор после обрыва связи не создаст дубль
     mutationFn: async ({ workout, sets }: FinishPayload) => {
-      unwrap(await supabase.from("workouts").insert(workout));
-      if (sets.length) {
-        const res = await supabase.from("workout_sets").insert(sets.map((s) => ({ ...s, workout_id: workout.id })));
-        if (res.error) {
-          await supabase.from("workouts").delete().eq("id", workout.id);
-          throw new Error(res.error.message);
-        }
-      }
+      unwrap(await supabase.rpc("save_workout", { w: workout, s: sets }));
       return workout.id;
     },
+    retry: 3,
+    retryDelay: (n) => Math.min(1000 * 2 ** n, 8000),
+    meta: { achievements: true },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: wk.workouts });
       qc.invalidateQueries({ queryKey: wk.bests });
       qc.invalidateQueries({ queryKey: ["last-sets"] });
       qc.invalidateQueries({ queryKey: ["ex-history"] });
+      qc.invalidateQueries({ queryKey: ["ex-sessions"] });
     },
   });
 }
 
-/** Следующий день активной программы — по последней тренировке из неё */
-export function nextProgramDay(programKey: string | null | undefined, workouts: WorkoutRow[] | undefined) {
+/** Следующий день активной программы — по последней тренировке из неё с момента текущего запуска */
+export function nextProgramDay(programKey: string | null | undefined, workouts: WorkoutRow[] | undefined, startedAt?: string | null) {
   const p = programByKey(programKey);
   if (!p) return null;
-  const last = workouts?.find((w) => w.program === p.key && w.program_day != null);
+  const last = workouts?.find(
+    (w) => w.program === p.key && w.program_day != null && (!startedAt || localDay(w.started_at) >= startedAt),
+  );
   const idx = last ? ((last.program_day ?? -1) + 1) % p.days.length : 0;
   return { program: p, index: idx, day: p.days[idx] };
 }
 
 export { PROGRAMS };
+
+// ───────────── Состояние программ (тренировочный максимум 5/3/1)
+
+export function useProgramState(program: string | null) {
+  return useQuery({
+    queryKey: ["program-state", program ?? ""],
+    enabled: !!program,
+    queryFn: async () => {
+      const rows = unwrap<{ exercise: string; tm: number; cycle: number }[]>(
+        await supabase.from("program_state").select("exercise,tm,cycle").eq("program", program!),
+      );
+      return new Map(rows.map((r) => [r.exercise, { tm: Number(r.tm), cycle: r.cycle }]));
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useSaveProgramState() {
+  const qc = useQueryClient();
+  const uid = useUid();
+  return useMutation({
+    mutationFn: async (r: { program: string; exercise: string; tm: number; cycle: number }) =>
+      unwrap(await supabase.from("program_state").upsert({ user_id: uid, ...r, updated_at: new Date().toISOString() })),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["program-state"] }),
+  });
+}

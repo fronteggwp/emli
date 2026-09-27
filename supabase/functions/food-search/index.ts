@@ -37,7 +37,10 @@ function toFood(h: Hit) {
   const f = num(n["fat_100g"]);
   const c = num(n["carbohydrates_100g"]);
   const brand = Array.isArray(h.brands) ? h.brands[0] : h.brands?.split(",")[0];
-  const serving = num(h.serving_quantity);
+  const unit = String((h as { serving_quantity_unit?: string }).serving_quantity_unit ?? "").toLowerCase();
+  const rawServing = num(h.serving_quantity);
+  const serving = unit === "g" && rawServing > 0 && rawServing < 2000 ? rawServing : NaN;
+  const missing = [["protein", p], ["fat", f], ["carbs", c]].filter(([, v]) => !Number.isFinite(v as number)).map(([k]) => k);
   return {
     name: name.slice(0, 120),
     brand: brand?.trim() || null,
@@ -50,6 +53,7 @@ function toFood(h: Hit) {
     serving_g: Number.isFinite(serving) && serving > 0 && serving < 2000 ? r1(serving) : null,
     serving_name: Number.isFinite(serving) && serving > 0 && serving < 2000 ? "порция" : null,
     source: "off",
+    missing: missing.length ? missing : undefined,
   };
 }
 
@@ -65,7 +69,7 @@ Deno.serve(async (req) => {
 
   const url =
     `https://search.openfoodfacts.org/search?q=${encodeURIComponent(q)}&langs=ru,en&page_size=40` +
-    `&fields=code,product_name,product_name_ru,brands,nutriments,serving_quantity`;
+    `&fields=code,product_name,product_name_ru,brands,nutriments,serving_quantity,serving_quantity_unit`;
   try {
     const res = await fetch(url, { headers: { "User-Agent": "Emli/0.1 (Telegram nutrition diary)" }, signal: AbortSignal.timeout(6000) });
     if (!res.ok) throw new Error(`off ${res.status}`);

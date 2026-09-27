@@ -37,11 +37,15 @@ export function LogWeightSheet({ day: day0 }: { day?: string }) {
 
   const diff = last && last.day !== day ? kg - last.weight_kg : null;
 
-  const submit = () => {
-    haptic.success();
-    save.mutate({ day, weight_kg: kg, body_fat: bf ? parseNum(bf) : null });
-    toast(`Вес ${fmtKg(kg)} кг записан`, <Check size={18} color="var(--good)" />);
-    layer.close();
+  const submit = async () => {
+    try {
+      await save.mutateAsync({ day, weight_kg: kg, body_fat: bf ? parseNum(bf) : null });
+      haptic.success();
+      toast(`Вес ${fmtKg(kg)} кг записан`, <Check size={18} color="var(--good)" />);
+      layer.close();
+    } catch {
+      /* ошибку покажет общий обработчик; окно остаётся — можно повторить */
+    }
   };
 
   const days = [todayKey(), shiftKey(todayKey(), -1), shiftKey(todayKey(), -2)];

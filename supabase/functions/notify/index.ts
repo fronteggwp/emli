@@ -24,8 +24,15 @@ const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…"
 /** Если человек прямо сейчас в приложении — пуш не нужен */
 const isOnline = (p: Profile) => !!p.last_seen && Date.now() - new Date(p.last_seen).getTime() < 40_000;
 
+/** Пользователь выключил сообщения от бота в настройках — не пишем и про лайки/сообщения */
+async function botAllowed(userId: string) {
+  const { data } = await admin.from("reminders").select("enabled").eq("user_id", userId).maybeSingle();
+  return data?.enabled !== false;
+}
+
 async function send(to: Profile, text: string, link: string) {
   if (!to.tg_id || to.tg_id < 0 || isOnline(to)) return { skipped: true };
+  if (!(await botAllowed(to.id))) return { skipped: "disabled" };
   const res = await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

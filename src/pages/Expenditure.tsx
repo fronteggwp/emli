@@ -1,7 +1,5 @@
-import { useMemo } from "react";
 import { useInsights } from "@/data/insights";
-import { shiftKey, todayKey } from "@/lib/dates";
-import { estimateTdee, fmtNum } from "@/lib/nutrition";
+import { fmtNum } from "@/lib/nutrition";
 import { Screen } from "@/ui/Screen";
 import { LineChart, useMounted } from "@/ui/Charts";
 import { NumberTicker } from "@/ui/NumberTicker";
@@ -12,13 +10,8 @@ export function ExpenditureScreen() {
   const ins = useInsights();
   const mounted = useMounted(320);
 
-  const points = useMemo(() => {
-    const y = shiftKey(todayKey(), -1);
-    return Array.from({ length: 30 }, (_, i) => {
-      const d = shiftKey(y, i - 29);
-      return { day: d, value: estimateTdee(ins.totals, ins.trend, ins.formula, d).value };
-    });
-  }, [ins.totals, ins.trend, ins.formula]);
+  // Те же данные и то же сглаживание, что у главной цифры
+  const points = ins.tdeeSeries30;
 
   const conf = Math.round(ins.tdee.confidence * 100);
 
@@ -38,7 +31,7 @@ export function ExpenditureScreen() {
         </div>
         <div style={{ marginTop: 14 }}>
           <div className="row muted" style={{ fontSize: 13, justifyContent: "space-between", marginBottom: 6 }}>
-            <span>Точность оценки</span>
+            <span>Надёжность оценки</span>
             <span className="num">{conf}%</span>
           </div>
           <Bar value={conf} max={100} color="var(--protein)" height={6} />
@@ -67,7 +60,7 @@ export function ExpenditureScreen() {
           Сначала расход считается по формуле Миффлина — Сан-Жеора из твоего роста, веса, возраста и активности. Дальше Emli сравнивает, <b>сколько ты съел</b> и <b>как изменился тренд веса</b> за последние 3 недели, и уточняет оценку под твой организм.
         </p>
         <p className="explain" style={{ margin: "10px 0 0" }}>
-          Чем честнее и регулярнее записи еды и взвешивания, тем точнее цифра. Хватит 2–3 недель, чтобы оценка стала надёжной.
+          «Надёжность» — это не точность в процентах, а сколько данных уже есть: полных дней с записями, взвешиваний за последние 3 недели и насколько они свежие. Дни, где записано не всё, в расчёт не идут. Пока данных мало, цифра ближе к формуле.
         </p>
       </div>
     </Screen>

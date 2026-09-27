@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { useDayFlags, useGoal, useSettings, useTargets, useTotals, useWeights } from "./api";
+import { useDayFlags, useDayTargets, useGoal, useSettings, useTargets, useTotals, useWeights } from "./api";
 import { ageFrom, daysBetween, rangeKeys, shiftKey, todayKey } from "@/lib/dates";
-import { checkinPlan, estimateTdee, etaDays, targetFor, tdeeFrom, trendSeries } from "@/lib/nutrition";
+import { checkinPlan, estimateTdee, etaDays, targetFor, tdeeFrom, trendSeries, typicalKcal } from "@/lib/nutrition";
 
 /** Всё, что считается из данных пользователя: тренд веса, расход, серии, прогресс цели, корректировка */
 export function useInsights() {
@@ -11,6 +11,7 @@ export function useInsights() {
   const targets = useTargets();
   const goal = useGoal();
   const flags = useDayFlags();
+  const dayTargets = useDayTargets();
 
   const value = useMemo(() => {
     const today = todayKey();
@@ -27,17 +28,23 @@ export function useInsights() {
         ? tdeeFrom(s.sex, current, s.height_cm, ageFrom(s.birth_date), s.activity, bf)
         : (target?.tdee ?? 2200);
 
-    // Оценки расхода на каждый из последних 14 дней; показываем среднее за неделю — без скачков
+    // Оценки расхода на каждый из последних 36 дней с одними и теми же входными данными
+    // (отметки дней, нормы дней с читмилами). Показываем скользящее среднее за 7 дней —
+    // и главная цифра, и график считаются одинаково.
     const yesterday = shiftKey(today, -1);
-    const series = Array.from({ length: 14 }, (_, i) => estimateTdee(totals.data, trend, formula, shiftKey(yesterday, i - 13), 21, flags.data));
-    const last7 = series.slice(-7);
+    const targetOf = (d: string) => dayTargets.forDay(d).calories;
+    const typical = typicalKcal((totals.data ?? []).filter((t) => t.day >= shiftKey(today, -60)));
+    const series = Array.from({ length: 36 }, (_, i) =>
+      estimateTdee(totals.data, trend, formula, shiftKey(yesterday, i - 35), 21, flags.data, targetOf, typical),
+    );
+    const smooth = series.map((_, i) => {
+      const w = series.slice(Math.max(0, i - 6), i + 1);
+      return Math.round(w.reduce((a, e) => a + e.value, 0) / w.length);
+    });
     const raw = series[series.length - 1];
-    const tdee = {
-      value: Math.round(last7.reduce((a, e) => a + e.value, 0) / last7.length),
-      confidence: raw.confidence,
-      observed: raw.observed,
-    };
-    const tdeeSeries = series.map((e) => e.value);
+    const tdee = { value: smooth[smooth.length - 1], confidence: raw.confidence, observed: raw.observed };
+    const tdeeSeries = smooth.slice(-14);
+    const tdeeSeries30 = smooth.slice(-30).map((value, i) => ({ day: shiftKey(yesterday, i - 29), value }));
 
     const byDay = new Map((totals.data ?? []).map((t) => [t.day, t]));
     const weighed = new Set((weights.data ?? []).map((w) => w.day));
@@ -91,6 +98,8 @@ export function useInsights() {
       formula,
       tdee,
       tdeeSeries,
+      tdeeSeries30,
+      typical,
       logged30,
       weighed30,
       streak,
@@ -103,7 +112,7 @@ export function useInsights() {
       target,
       checkin,
     };
-  }, [settings.data, weights.data, totals.data, targets.data, goal.data, flags.data]);
+  }, [settings.data, weights.data, totals.data, targets.data, goal.data, flags.data, dayTargets]);
 
   return {
     ...value,

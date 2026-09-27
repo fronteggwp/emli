@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useDraft } from "@/lib/draft";
 import { Minus, Plus, Trash, X } from "lucide-react";
 import { useLayer, useNav } from "@/nav/Nav";
 import { templateTotal, useDeleteUserRecipe, useSaveUserRecipe, type TemplateItem, type UserRecipe } from "@/data/engage";
@@ -22,12 +23,27 @@ export function RecipeEditorScreen({ recipe }: { recipe?: UserRecipe }) {
   const toast = useToast();
   const save = useSaveUserRecipe();
   const del = useDeleteUserRecipe();
-  const [title, setTitle] = useState(recipe?.title ?? "");
-  const [emoji, setEmoji] = useState(recipe?.emoji ?? "🍲");
-  const [servings, setServings] = useState(recipe?.servings ?? 2);
-  const [time, setTime] = useState(recipe?.time ? String(recipe.time) : "");
-  const [items, setItems] = useState<TemplateItem[]>(recipe?.ingredients ?? []);
-  const [steps, setSteps] = useState(recipe?.steps ?? "");
+  // Новый рецепт — черновик на устройстве: закрыл экран случайно, ничего не потерял
+  const [d, setD, clearDraft] = useDraft(recipe ? null : "recipe-new", {
+    title: "",
+    emoji: "🍲",
+    servings: 2,
+    time: "",
+    items: [] as TemplateItem[],
+    steps: "",
+    cooked: "",
+  });
+  const [title, setTitle] = useState(recipe?.title ?? d.title);
+  const [emoji, setEmoji] = useState(recipe?.emoji ?? d.emoji);
+  const [servings, setServings] = useState(recipe?.servings ?? d.servings);
+  const [time, setTime] = useState(recipe ? (recipe.time ? String(recipe.time) : "") : d.time);
+  const [items, setItems] = useState<TemplateItem[]>(recipe?.ingredients ?? d.items);
+  const [steps, setSteps] = useState(recipe?.steps ?? d.steps);
+  const [cooked, setCooked] = useState(recipe ? (recipe.cooked_g ? String(recipe.cooked_g) : "") : d.cooked);
+  useEffect(() => {
+    if (!recipe) setD({ title, emoji, servings, time, items, steps, cooked });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, emoji, servings, time, items, steps, cooked]);
 
   const total = templateTotal(items);
   const weight = items.reduce((a, i) => a + (i.grams ?? 0), 0);
@@ -53,7 +69,9 @@ export function RecipeEditorScreen({ recipe }: { recipe?: UserRecipe }) {
       time: parseNum(time) > 0 ? Math.round(parseNum(time)) : null,
       ingredients: items,
       steps: steps.trim() || null,
+      cooked_g: parseNum(cooked) > 0 ? parseNum(cooked) : null,
     });
+    if (!recipe) clearDraft();
     toast(recipe ? "Рецепт сохранён" : "Рецепт добавлен 👩‍🍳");
     layer.close();
   };
@@ -177,6 +195,18 @@ export function RecipeEditorScreen({ recipe }: { recipe?: UserRecipe }) {
             <span>углеводы</span>
           </div>
         </div>
+      )}
+
+      {items.length > 0 && (
+        <label className="re-servings" style={{ marginTop: 10 }}>
+          <span style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>Вес готового блюда, г</div>
+            <div className="muted" style={{ fontSize: 12 }}>
+              После варки или запекания вес меняется. Взвесь кастрюлю/форму без посуды — порция в граммах будет точной
+            </div>
+          </span>
+          <input className="re-time num" inputMode="decimal" value={cooked} onChange={(e) => setCooked(e.target.value.replace(/[^\d.,]/g, "").slice(0, 7))} placeholder={String(Math.round(weight))} />
+        </label>
       )}
 
       <div className="section-title">Как готовить</div>

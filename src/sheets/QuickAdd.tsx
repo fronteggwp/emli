@@ -33,7 +33,7 @@ export function QuickAddSheet({ meal: meal0, entry, preset }: { meal?: Meal; ent
   const fromMacros = kcalOfMacros(parseNum(p), parseNum(f), parseNum(c));
   const kcalValue = kcal ? parseNum(kcal) : fromMacros;
 
-  const submit = () => {
+  const submit = async () => {
     if (kcalValue <= 0) return;
     haptic.success();
     const payload = {
@@ -47,10 +47,14 @@ export function QuickAddSheet({ meal: meal0, entry, preset }: { meal?: Meal; ent
       carbs: parseNum(c),
       meal,
     };
-    if (entry) update.mutate({ id: entry.id, day: entry.day, patch: payload });
-    else add.mutate({ ...payload, day });
-    toast(entry ? "Сохранено" : `${MEALS[meal].name}: +${fmtNum(payload.kcal)} ккал`, <Check size={18} color="var(--good)" />);
-    layer.close();
+    try {
+      if (entry) await update.mutateAsync({ id: entry.id, day: entry.day, patch: payload });
+      else await add.mutateAsync({ ...payload, day });
+      toast(entry ? "Сохранено" : `${MEALS[meal].name}: +${fmtNum(payload.kcal)} ккал`, <Check size={18} color="var(--good)" />);
+      layer.close();
+    } catch {
+      /* уведомление об ошибке покажет общий обработчик; окно остаётся — можно повторить */
+    }
   };
 
   const field = (label: string, value: string, set: (s: string) => void, color: string, placeholder = "0") => (

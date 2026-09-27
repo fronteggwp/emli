@@ -82,7 +82,7 @@ function exchange(body: Record<string, unknown>): Promise<Token> {
 }
 
 async function doExchange(body: Record<string, unknown>): Promise<Token> {
-  setAccessToken(null);
+  // Действующий токен не сбрасываем: если обмен не удастся, приложение продолжит работать с ним
   const { data, error } = await supabase.functions.invoke("tg-auth", { body });
   if (error || !data?.access_token) {
     let detail = error?.message ?? "auth failed";
@@ -123,15 +123,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Обновляем токен заранее, за 5 минут до истечения
       window.clearTimeout(timer);
       const ms = Math.max((t.exp - Date.now() / 1000 - 300) * 1000, 30_000);
-      timer = window.setTimeout(async () => {
-        try {
-          const next = await login();
-          if (next && alive) apply(next);
-        } catch {
-          /* повторим при следующем открытии */
-        }
-      }, ms);
+      timer = window.setTimeout(() => refresh(0), ms);
     };
+
+    // Обновление с повторами: 15 с, 30 с, 1 мин … до 5 минут между попытками
+    const refresh = async (attempt: number) => {
+      try {
+        const next = await login();
+        if (next && alive) apply(next);
+      } catch {
+        if (!alive) return;
+        window.clearTimeout(timer);
+        timer = window.setTimeout(() => refresh(attempt + 1), Math.min(15_000 * 2 ** attempt, 300_000));
+      }
+    };
+    const onOnline = () => {
+      if (tgId !== undefined && !loadCached(tgId)) refresh(0);
+    };
+    window.addEventListener("online", onOnline);
 
     (async () => {
       try {
@@ -163,12 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const onVisible = async () => {
       if (document.visibilityState !== "visible" || tgId === undefined) return;
       if (loadCached(tgId)) return;
-      try {
-        const t = await login();
-        if (t && alive) apply(t);
-      } catch {
-        /* покажем ошибку при следующем запросе */
-      }
+      refresh(0);
     };
     document.addEventListener("visibilitychange", onVisible);
 
@@ -176,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       alive = false;
       window.clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onOnline);
     };
   }, []);
 

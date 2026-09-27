@@ -94,7 +94,8 @@ export function DeepLinks() {
         return;
       }
       if (hash.has("week")) {
-        setTimeout(() => nav.push(<WeekReportScreen />), 250);
+        const start = hash.get("week");
+        setTimeout(() => nav.push(<WeekReportScreen start={start && /^d{4}-d{2}-d{2}$/.test(start) ? start : undefined} />), 250);
         return;
       }
       const challenge = hash.get("challenge");

@@ -572,3 +572,9 @@
   30% { transform: scale(1.12, 0.94) rotate(-4deg); }
   60% { transform: scale(0.95, 1.08) rotate(3deg); }
 }
+
+.diary-stale {
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}

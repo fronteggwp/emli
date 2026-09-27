@@ -106,6 +106,7 @@ export function AchievementWatcher() {
 
   useEffect(() => {
     const run = async () => {
+      lastRun = Date.now();
       const fresh = await syncAchievements().catch(() => []);
       if (!fresh.length) return;
       qc.invalidateQueries({ queryKey: ek.achievements(uid) });
@@ -129,8 +130,12 @@ export function AchievementWatcher() {
       timer.current = window.setTimeout(run, ms);
     };
     schedule(4000);
+    // Проверяем только после действий, которые влияют на достижения, и не чаще раза в 30 секунд
+    let lastRun = 0;
     const unsub = qc.getMutationCache().subscribe((e) => {
-      if (e.type === "updated" && e.action.type === "success") schedule(3500);
+      if (e.type !== "updated" || e.action.type !== "success" || !e.mutation.meta?.achievements) return;
+      const wait = Math.max(3500, 30_000 - (Date.now() - lastRun));
+      schedule(wait);
     });
     return () => {
       unsub();

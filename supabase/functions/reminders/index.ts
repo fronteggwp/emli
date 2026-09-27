@@ -121,7 +121,9 @@ function compose(r: Due): [string, string, string] | null {
   if (r.kind === "weekly") {
     const s = r.payload as unknown as Summary;
     if (!s.days_logged && !s.workouts && !s.weigh_ins) return null;
-    return [weeklyText(s), "Открыть итоги", "week"];
+    // Ссылка — на ту неделю, за которую отчёт (даже если откроют в понедельник)
+    const start = (r.payload as { week_start?: string }).week_start ?? s.from;
+    return [weeklyText(s), "Открыть итоги", `week=${start}`];
   }
   return null;
 }
@@ -145,7 +147,7 @@ Deno.serve(async (req) => {
   if (error) return json({ error: error.message }, 500);
   let sent = 0;
   for (const r of (data ?? []) as Due[]) {
-    // Сначала отмечаем — повторный запуск не пришлёт дубль
+    // Сначала «занимаем» отметку — параллельный запуск не пришлёт дубль
     const { data: ins } = await admin
       .from("reminder_log")
       .upsert({ user_id: r.user_id, kind: r.kind, day: r.day }, { onConflict: "user_id,kind,day", ignoreDuplicates: true })
@@ -153,7 +155,15 @@ Deno.serve(async (req) => {
     if (!ins?.length) continue;
     const msg = compose(r);
     if (!msg) continue;
-    if (await send(r.tg_id, ...msg)) sent++;
+    let ok = false;
+    try {
+      ok = await send(r.tg_id, ...msg);
+    } catch {
+      ok = false;
+    }
+    if (ok) sent++;
+    // Не отправилось — снимаем отметку: следующий запуск (раз в 15 минут, пока открыто окно) повторит
+    else await admin.from("reminder_log").delete().eq("user_id", r.user_id).eq("kind", r.kind).eq("day", r.day);
   }
   return json({ due: data?.length ?? 0, sent });
 });

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useDraft } from "@/lib/draft";
 import { Flame, ImagePlus, Scale, Sun, X } from "lucide-react";
 import { useLayer } from "@/nav/Nav";
 import { useUid } from "@/lib/auth";
@@ -25,7 +26,10 @@ export function NewPostSheet({ preset, attach }: { preset?: Kind; attach?: PostA
   const create = useCreatePost();
   const ins = useInsights();
   const today = useEntries(todayKey());
-  const [text, setText] = useState("");
+  // Черновик текста хранится на устройстве, пока пост не опубликован
+  const [draft, setDraft, clearDraft] = useDraft(attach ? null : "post", { text: "" });
+  const text = draft.text;
+  const setText = (t: string) => setDraft({ text: t });
   const [file, setFile] = useState<File | null>(null);
   const [kind, setKind] = useState<Kind>(preset ?? null);
   const [visibility, setVisibility] = useState<"public" | "friends">("public");
@@ -66,6 +70,7 @@ export function NewPostSheet({ preset, attach }: { preset?: Kind; attach?: PostA
     try {
       const image_url = file ? await uploadImage(uid, file) : null;
       await create.mutateAsync({ text: text.trim() || null, image_url, attachment, visibility });
+      clearDraft();
       haptic.success();
       toast("Опубликовано");
       layer.close();

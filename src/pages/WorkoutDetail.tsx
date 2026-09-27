@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BookmarkPlus, Share2, Trash } from "lucide-react";
 import { useLayer, useNav } from "@/nav/Nav";
 import { useCatalog, useDeleteWorkout, useSaveRoutine, useWorkoutDetail } from "@/data/workouts";
+import { localDay } from "@/data/workouts";
 import { fmtDuration } from "@/state/workout";
 import { MUSCLE_RU, type Muscle } from "@/lib/exercise";
 import { fmt } from "@/lib/dates";
@@ -135,7 +136,7 @@ export function WorkoutDetailScreen({ id, celebrate = false }: { id: string; cel
   };
 
   return (
-    <Screen title={celebrate ? "" : fmt(w.started_at.slice(0, 10), "d MMMM")}>
+    <Screen title={celebrate ? "" : fmt(localDay(w.started_at), "d MMMM")}>
       {celebrate && <Confetti />}
       {celebrate ? (
         <div className="done-hero">

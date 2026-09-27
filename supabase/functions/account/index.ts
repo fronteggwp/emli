@@ -34,17 +34,52 @@ const TABLES: [string, string][] = [
   ["posts", "author_id"],
   ["achievements", "user_id"],
   ["reminders", "user_id"],
+  ["day_flags", "user_id"],
+  ["program_state", "user_id"],
+  ["comments", "author_id"],
+  ["post_likes", "user_id"],
+  ["friendships", "requester"],
+  ["challenge_members", "user_id"],
+  ["challenges", "owner_id"],
 ];
 
-async function all(table: string, col: string, uid: string) {
+/** Все строки таблицы по пользователю; ошибка чтения — исключение, а не молча неполный архив */
+async function all(table: string, col: string, uid: string, extra?: (q: any) => any) {
   const out: Record<string, unknown>[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await admin.from(table).select("*").eq(col, uid).range(from, from + 999);
-    if (error || !data?.length) break;
+    let q = admin.from(table).select("*").eq(col, uid);
+    if (extra) q = extra(q);
+    const { data, error } = await q.range(from, from + 999);
+    if (error) throw new Error(`${table}: ${error.message}`);
+    if (!data?.length) break;
     out.push(...data);
     if (data.length < 1000) break;
   }
   return out;
+}
+
+/** Переписка: все мои диалоги и сообщения в них */
+async function conversations(uid: string) {
+  const convs = [
+    ...(await all("conversations", "user_a", uid)),
+    ...(await all("conversations", "user_b", uid)),
+  ];
+  const messages: Record<string, unknown>[] = [];
+  for (const c of convs) messages.push(...(await all("messages", "conversation_id", String(c.id))));
+  return { conversations: convs, messages };
+}
+
+/** Все файлы пользователя в хранилище (постранично) */
+async function listFiles(uid: string) {
+  const names: string[] = [];
+  for (let offset = 0; ; offset += 100) {
+    const { data, error } = await admin.storage.from("media").list(uid, { limit: 100, offset });
+    if (error) throw new Error(`storage: ${error.message}`);
+    if (!data?.length) break;
+    names.push(...data.map((f) => `${uid}/${f.name}`));
+    if (data.length < 100) break;
+  }
+  return names;
 }
 
 const csvCell = (v: unknown) => {
@@ -78,13 +113,22 @@ Deno.serve(async (req) => {
   if (action === "export") {
     if (!me?.tg_id || me.tg_id < 0) return json({ error: "no_telegram" }, 400);
     const data: Record<string, unknown> = { exported_at: new Date().toISOString() };
-    for (const [t, c] of TABLES) data[t] = await all(t, c, uid);
+    try {
+      for (const [t, c] of TABLES) data[t] = await all(t, c, uid);
+      data.friendships_incoming = await all("friendships", "addressee", uid);
+      Object.assign(data, await conversations(uid));
+      data.files = await listFiles(uid);
+    } catch (e) {
+      // Не отдаём заведомо неполный архив
+      return json({ error: "read_failed", detail: e instanceof Error ? e.message : String(e) }, 500);
+    }
     const day = new Date().toISOString().slice(0, 10);
     const entries = (data.food_entries as Record<string, unknown>[]).sort((a, b) =>
       String(a.day).localeCompare(String(b.day)) || Number(a.meal) - Number(b.meal),
     );
     const MEALS = ["Завтрак", "Обед", "Ужин", "Перекус"];
-    const ok1 = await sendDoc(
+    const results: boolean[] = [];
+    results[0] = await sendDoc(
       me.tg_id,
       `emli-дневник-${day}.csv`,
       csv(
@@ -95,15 +139,23 @@ Deno.serve(async (req) => {
       "📦 Твои данные из Emli: дневник питания, вес и полный архив",
     );
     const weights = (data.weights as Record<string, unknown>[]).sort((a, b) => String(a.day).localeCompare(String(b.day)));
-    await sendDoc(me.tg_id, `emli-вес-${day}.csv`, csv(weights, [["day", "Дата"], ["weight_kg", "Вес, кг"], ["body_fat", "Жир, %"]]), "text/csv");
-    await sendDoc(me.tg_id, `emli-архив-${day}.json`, JSON.stringify(data, null, 2), "application/json");
-    return json({ ok: ok1 });
+    results.push(await sendDoc(me.tg_id, `emli-вес-${day}.csv`, csv(weights, [["day", "Дата"], ["weight_kg", "Вес, кг"], ["body_fat", "Жир, %"]]), "text/csv"));
+    results.push(await sendDoc(me.tg_id, `emli-архив-${day}.json`, JSON.stringify(data, null, 2), "application/json"));
+    // Успех — только если дошли все файлы
+    return json({ ok: results.every(Boolean), sent: results.filter(Boolean).length, total: results.length });
   }
 
   if (action === "delete") {
-    // Фото и аватар в хранилище
-    const { data: files } = await admin.storage.from("media").list(uid, { limit: 1000 });
-    if (files?.length) await admin.storage.from("media").remove(files.map((f) => `${uid}/${f.name}`));
+    // Фото и аватар в хранилище — все, постранично, с проверкой ошибок
+    try {
+      const names = await listFiles(uid);
+      for (let i = 0; i < names.length; i += 100) {
+        const { error } = await admin.storage.from("media").remove(names.slice(i, i + 100));
+        if (error) throw new Error(error.message);
+      }
+    } catch (e) {
+      return json({ error: "files_delete_failed", detail: e instanceof Error ? e.message : String(e) }, 500);
+    }
     const { error } = await admin.auth.admin.deleteUser(uid);
     if (error) return json({ error: error.message }, 500);
     return json({ ok: true });

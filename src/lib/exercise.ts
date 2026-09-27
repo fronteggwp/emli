@@ -128,28 +128,24 @@ const MET: Record<Category, number> = {
 export const metOf = (ex: Pick<Exercise, "c">) => MET[ex.c] ?? 5;
 
 /**
- * Сожжённые на тренировке калории — «чистые»: (MET − 1) × вес тела × время.
- * Единицу вычитаем, потому что базовый обмен за это время уже входит в дневной расход —
- * иначе калории посчитались бы дважды. Для силовых интенсивность зависит от плотности:
- * чем меньше отдых между подходами, тем выше MET (Compendium of Physical Activities 2024:
- * лёгкая силовая ≈ 3,5, умеренная ≈ 5, интенсивная ≈ 6).
+ * Сожжённые на тренировке калории — «чистые»: Σ (MET − 1) × вес тела × время работы.
+ * • Время — по выполненной работе: подход (≈40 с или вписанные секунды) + отдых после него,
+ *   а не время, пока тренировка была открыта. Сумма не больше реальной длительности.
+ * • Единицу вычитаем: базовый обмен за это время уже входит в дневной расход.
+ * Это приблизительная оценка (Compendium of Physical Activities даёт средние значения).
  */
-export function burnedKcal(parts: { met: number; sets: number }[], bodyKg: number, durationMin: number) {
-  const total = parts.reduce((s, p) => s + p.sets, 0);
-  if (!total || !bodyKg || durationMin <= 0) return 0;
-  const minutes = Math.min(durationMin, 180);
-  const density = total / minutes; // подходов в минуту
-  const intensity = density < 0.12 ? 0.75 : density < 0.25 ? 1 : 1.15;
-  const avgMet = parts.reduce((s, p) => s + p.met * p.sets, 0) / total;
-  const met = Math.max(1.5, avgMet * (avgMet <= 6 ? intensity : 1));
-  return Math.round(((met - 1) * bodyKg * minutes) / 60);
+export function burnedKcal(parts: { met: number; minutes: number }[], bodyKg: number, durationMin: number) {
+  const work = parts.reduce((s, p) => s + p.minutes, 0);
+  if (!work || !bodyKg || durationMin <= 0) return 0;
+  const k = Math.min(1, Math.min(durationMin, 180) / work);
+  return Math.round(parts.reduce((s, p) => s + (Math.max(1.5, p.met) - 1) * bodyKg * (p.minutes * k) / 60, 0));
 }
 
-/** Расчётный разовый максимум (формула Эпли), имеет смысл до ~12 повторов */
+/** Расчётный разовый максимум (формула Эпли). Больше 12 повторов — не считаем (как и сервер) */
 export function e1rm(weight: number, reps: number) {
-  if (!weight || !reps) return 0;
+  if (!weight || !reps || reps > 12) return 0;
   if (reps === 1) return weight;
-  return Math.round(weight * (1 + Math.min(reps, 12) / 30) * 10) / 10;
+  return Math.round(weight * (1 + reps / 30) * 10) / 10;
 }
 
 /** Шаг прибавки веса: штанга — 2,5 кг, гантели/гири — 1–2 кг, блоки — 2,5 */

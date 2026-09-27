@@ -117,6 +117,7 @@ export type NewEntry = Omit<Entry, "id" | "user_id" | "created_at">;
 export function useAddEntry() {
   const qc = useQueryClient();
   return useMutation({
+    meta: { achievements: true },
     mutationFn: async (e: NewEntry) => unwrap<Entry>(await supabase.from("food_entries").insert(e).select().single()),
     onMutate: async (e) => {
       await qc.cancelQueries({ queryKey: qk.entries(e.day) });
@@ -225,7 +226,8 @@ export function useSaveFood() {
   const uid = useUid();
   return useMutation({
     mutationFn: async (f: FoodDraft) => {
-      const { id, ...rest } = f;
+      const { id, missing: _missing, ...rest } = f;
+      void _missing;
       const row = { ...rest, owner_id: uid, source: rest.source === "system" ? "user" : rest.source };
       const res = id
         ? await supabase.from("foods").update(row).eq("id", id).select().single()
@@ -266,6 +268,7 @@ export function useSaveWeight() {
   const qc = useQueryClient();
   const uid = useUid();
   return useMutation({
+    meta: { achievements: true },
     mutationFn: async (w: Weight) => unwrap(await supabase.from("weights").upsert({ user_id: uid, ...w })),
     onMutate: async (w) => {
       await qc.cancelQueries({ queryKey: qk.weights });
@@ -336,11 +339,18 @@ export function useTargets() {
 export function useSaveTargets() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (t: Omit<Targets, "id" | "created_at">) => {
-      // Одна программа на дату: при повторном сохранении в тот же день — заменяем
-      await supabase.from("targets").delete().eq("start_date", t.start_date);
-      return unwrap(await supabase.from("targets").insert(t).select().single());
-    },
+    mutationFn: async (t: Omit<Targets, "id" | "created_at">) =>
+      // Одна норма на дату: замена одной операцией на сервере
+      unwrap(
+        await supabase.rpc("set_targets", {
+          d: t.start_date,
+          kcal: Math.round(t.calories),
+          p: Math.round(t.protein),
+          f: Math.round(t.fat),
+          c: Math.round(t.carbs),
+          t: t.tdee != null ? Math.round(t.tdee) : null,
+        }),
+      ),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.targets }),
   });
 }
@@ -392,11 +402,18 @@ export function useSavePlan() {
   const uid = useUid();
   return useMutation({
     mutationFn: async (p: Omit<CheatPlan, "id" | "created_at"> & { id?: string }) => {
-      // Меняем день плана — старую запись убираем
-      if (p.id) await supabase.from("cheat_plans").delete().eq("id", p.id);
-      const { id: _id, ...row } = p;
-      void _id;
-      return unwrap(await supabase.from("cheat_plans").upsert({ ...row, user_id: uid }, { onConflict: "user_id,day" }).select().single());
+      void uid;
+      // Замена плана (в т.ч. перенос дня) — одной операцией: старый не пропадёт при обрыве связи
+      return unwrap(
+        await supabase.rpc("save_cheat_plan", {
+          old_id: p.id ?? null,
+          d: p.day,
+          extra: p.extra_kcal,
+          spread: p.spread_days,
+          m: p.mode,
+          t: p.title,
+        }),
+      );
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ["cheat-plans"] }),
   });
@@ -418,7 +435,8 @@ export function useDayTargets() {
   const targets = useTargets();
   const plans = usePlans();
   return useMemo(() => {
-    const fn = (day: string): DayTarget => withPlans(targetFor(targets.data, day) ?? FALLBACK_TARGET, plans.data, day);
-    return { forDay: fn, plans: plans.data ?? [], loading: targets.isLoading || plans.isLoading, hasTargets: !!targets.data?.length };
+    const baseOf = (day: string) => (targetFor(targets.data, day) ?? FALLBACK_TARGET).calories;
+    const fn = (day: string): DayTarget => withPlans(targetFor(targets.data, day) ?? FALLBACK_TARGET, plans.data, day, baseOf);
+    return { forDay: fn, baseOf, plans: plans.data ?? [], loading: targets.isLoading || plans.isLoading, hasTargets: !!targets.data?.length };
   }, [targets.data, plans.data, targets.isLoading, plans.isLoading]);
 }

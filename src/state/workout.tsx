@@ -6,7 +6,7 @@ import type { RoutineExercise, SetRow } from "@/data/workouts";
 // В базу уходит целиком при завершении.
 
 export type SetKind = "normal" | "warmup" | "drop" | "failure";
-export type SetDraft = { id: string; kind: SetKind; weight: string; reps: string; seconds: string; done: boolean; target?: string };
+export type SetDraft = { id: string; kind: SetKind; weight: string; reps: string; seconds: string; done: boolean; target?: string; doneAt?: string };
 export type ExDraft = { key: string; ex: string; rest: number; note?: string; sets: SetDraft[]; group?: string };
 export type Draft = {
   id: string;
@@ -55,7 +55,7 @@ export function exDraftFrom(ex: string, tpl: RoutineExercise | null, last?: SetR
   // Поля пустые: серые подсказки (прошлый раз / предыдущий подход) видны прямо в полях,
   // а галочка по пустому подходу берёт значения из подсказки
   const sets = Array.from({ length: count }, (_, i) => newSet(undefined, tpl?.sets[i]?.reps));
-  return { key: uuid(), ex, rest: tpl?.rest ?? 90, note: tpl?.note, sets };
+  return { key: uuid(), ex, rest: tpl?.rest ?? 90, note: tpl?.note, sets, group: tpl?.group };
 }
 
 function load(): { draft: Draft | null; rest: Rest } {

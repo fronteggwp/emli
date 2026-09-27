@@ -5,8 +5,10 @@ import { useLayer, useNav } from "@/nav/Nav";
 import { supabase } from "@/lib/supabase";
 import { useInsights } from "@/data/insights";
 import { useBests, useCatalog, useLastSets, useSaveWorkout, useSessions, useWorkouts, type Best, type PR, type SetRow } from "@/data/workouts";
+import { localDay } from "@/data/workouts";
 import { useSettings } from "@/data/api";
-import { planFor, bestE1rmFrom, type Plan, type Session } from "@/lib/progression";
+import { planFor, historyFor, roleOf, type Plan, type Session } from "@/lib/progression";
+import { useProgramState, useSaveProgramState } from "@/data/workouts";
 import { parseReps, programByKey } from "@/data/programs";
 import { exDraftFrom, fmtDuration, newSet, useNow, useWorkoutDraft, type Draft, type ExDraft, type SetDraft, type SetKind } from "@/state/workout";
 import { burnedKcal, e1rm, isTimed, metOf, usesWeight, weightStep, type Exercise, type Muscle } from "@/lib/exercise";
@@ -60,7 +62,7 @@ export function warmupPlan(work: number, barbell: boolean, step: number) {
     [0.8, 3],
   ];
   for (const [p, reps] of steps) {
-    const w = r(work * p);
+    const w = Math.max(20, r(work * p));
     if (w > (out[out.length - 1]?.w ?? 0) + step / 2 && w < work) out.push({ w, reps });
   }
   return out;
@@ -88,7 +90,7 @@ export function ActiveWorkoutScreen() {
   const settings = useSettings();
   const allWorkouts = useWorkouts();
   const programSessions = d?.program
-    ? (allWorkouts.data ?? []).filter((w) => w.program === d.program && (!settings.data?.program_started || w.started_at.slice(0, 10) >= settings.data.program_started)).length
+    ? (allWorkouts.data ?? []).filter((w) => w.program === d.program && (!settings.data?.program_started || localDay(w.started_at) >= settings.data.program_started)).length
     : 0;
   const programDayTitle = d?.program != null && d.programDay != null ? programByKey(d.program)?.days[d.programDay]?.title : undefined;
   const now = useNow(!!d);
@@ -256,20 +258,33 @@ const ExerciseBlock = memo(function ExerciseBlock({
   // Подсказка прогрессии: в прошлый раз все рабочие подходы до верха диапазона — пора добавить вес
   // План на сегодня по схеме программы (или двойная прогрессия для своих тренировок)
   const workingTotal = x.sets.filter((z) => z.kind !== "warmup").length;
+  const role = roleOf(x.note, program);
+  const programState = useProgramState(program ?? null);
+  const saveState = useSaveProgramState();
+  const tm = programState.data?.get(ex.id) ?? null;
   const plan: Plan = useMemo(() => {
     if (timed) return { sets: null, weight: null, note: null, tone: "info" };
     return planFor({
       program: program ?? null,
       programDayTitle,
+      role,
       ex,
       targetReps: target,
       workingSets: workingTotal,
-      history: sessions ?? [],
-      bestE1rm: best?.best_e1rm ?? bestE1rmFrom(sessions ?? []),
+      history: historyFor(sessions, program ?? null, target, role),
+      bestE1rm: best?.best_e1rm ?? null,
       programSessions,
+      tm,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessions, target, program, programSessions, workingTotal, best?.best_e1rm]);
+  }, [sessions, target, program, programSessions, workingTotal, best?.best_e1rm, tm, role]);
+
+  // 5/3/1: тренировочный максимум фиксируем при первом расчёте — дальше он растёт по циклам, а не прыгает за рекордами
+  useEffect(() => {
+    if (program !== "531-bbb" || role !== "main" || tm || !best?.best_e1rm || programState.isLoading) return;
+    saveState.mutate({ program, exercise: ex.id, tm: Math.round(best.best_e1rm * 0.9 * 4) / 4, cycle: Math.floor(programSessions / 16) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [program, role, tm, best?.best_e1rm, programState.isLoading]);
 
   const upd = (fn: (e: ExDraft) => ExDraft) => wd.update((d) => ({ ...d, exercises: d.exercises.map((e) => (e.key === x.key ? fn(e) : e)) }));
   const updSet = (id: string, patch: Partial<SetDraft>) => upd((e) => ({ ...e, sets: e.sets.map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
@@ -330,6 +345,7 @@ const ExerciseBlock = memo(function ExerciseBlock({
     }
     vibrate("success");
     sfx.set();
+    patch.doneAt = new Date().toISOString();
     updSet(s.id, patch);
     // Новый рекорд прямо во время подхода
     const w = parseNum(patch.weight ?? s.weight);
@@ -382,7 +398,10 @@ const ExerciseBlock = memo(function ExerciseBlock({
       let work = e.sets.filter((z) => z.kind !== "warmup");
       // Схема сменилась (например, 6×2 вместо 5×3) — подгоняем число подходов
       if (plan.sets && plan.sets.length !== work.length) {
-        work = Array.from({ length: plan.sets.length }, (_, i) => work[i] ?? newSet(undefined, work[0]?.target));
+        // Подходы, где уже что-то вписано или отмечено, сохраняем всегда
+        const keep = work.reduce((n, z, i) => (z.done || z.weight || z.reps ? i + 1 : n), 0);
+        const len = Math.max(plan.sets.length, keep);
+        work = Array.from({ length: len }, (_, i) => work[i] ?? newSet(undefined, work[0]?.target));
       }
       work = work.map((z, i) => {
         if (z.done) return z;
@@ -585,15 +604,21 @@ function RestTimer() {
     sfx.tick();
   }, [whole, rest]);
 
+  const finished = !!rest && left <= 0;
   useEffect(() => {
-    if (!rest || left > 0 || fired.current === rest.endAt) return;
+    if (!rest || !finished || fired.current === rest.endAt) return;
     fired.current = rest.endAt;
     vibrate("success");
     sfx.bell();
     setTimeout(() => vibrate("heavy"), 250);
+  }, [finished, rest]);
+  // Отдельный эффект: закрыть плашку через 4 секунды после окончания (не сбрасывается каждый тик)
+  useEffect(() => {
+    if (!finished) return;
     const t = setTimeout(() => wd.stopRest(), 4000);
     return () => clearTimeout(t);
-  }, [left, rest, wd]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finished, rest?.endAt]);
 
   if (!rest) return null;
   const over = left <= 0;
@@ -874,7 +899,9 @@ export function buildWorkout(d: Draft, byId: Map<string, Exercise>, bests: Map<s
   const duration = Math.max(60, Math.round((finishedAt.getTime() - new Date(d.startedAt).getTime()) / 1000));
   const sets: Omit<SetRow, "id" | "workout_id">[] = [];
   const muscles: Partial<Record<Muscle, number>> = {};
-  const metParts: { met: number; sets: number }[] = [];
+  const metParts: { met: number; minutes: number }[] = [];
+  const total = d.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0);
+  let idx = 0;
   const prs: PR[] = [];
   let volume = 0;
 
@@ -886,11 +913,29 @@ export function buildWorkout(d: Draft, byId: Map<string, Exercise>, bests: Map<s
     let bestE = 0;
     let bestR = 0;
     let bestSet = 0;
+    const planned = x.sets.filter((s) => s.kind !== "warmup").length;
+    let workMin = 0;
     done.forEach((s, i) => {
       const weight = parseNum(s.weight) || null;
       const reps = parseNum(s.reps) || null;
       const seconds = parseNum(s.seconds) || null;
-      sets.push({ exercise: x.ex, ex_order: exOrder, set_order: i, kind: s.kind, weight, reps, seconds, rpe: null, done_at: finishedAt.toISOString() });
+      // Время выполнения — настоящее; для старых черновиков — по порядку, чтобы история не путалась
+      const doneAt = s.doneAt ?? new Date(finishedAt.getTime() - (total - idx++) * 1000).toISOString();
+      sets.push({
+        exercise: x.ex,
+        ex_order: exOrder,
+        set_order: i,
+        kind: s.kind,
+        weight,
+        reps,
+        seconds,
+        rpe: null,
+        done_at: doneAt,
+        target: s.target ?? null,
+        planned: s.kind === "warmup" ? null : planned,
+      });
+      // Работа: время подхода + отдых после него (не больше 3 минут)
+      workMin += (seconds ? seconds / 60 : 0.67) + (i < done.length - 1 ? Math.min(x.rest, 180) / 60 : 0);
       if (s.kind === "warmup") return;
       volume += (weight ?? 0) * (reps ?? 0);
       if (weight) bestW = Math.max(bestW, weight);
@@ -900,7 +945,7 @@ export function buildWorkout(d: Draft, byId: Map<string, Exercise>, bests: Map<s
       for (const m of ex?.pm ?? []) muscles[m] = (muscles[m] ?? 0) + 1;
       for (const m of ex?.sm ?? []) muscles[m] = (muscles[m] ?? 0) + 0.5;
     });
-    metParts.push({ met: ex ? metOf(ex) : 5, sets: done.length });
+    metParts.push({ met: ex ? metOf(ex) : 5, minutes: workMin });
     // Рекорды считаем, только если упражнение уже делали раньше
     const b = bests?.get(x.ex);
     if (b) {

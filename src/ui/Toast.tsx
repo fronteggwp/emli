@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 
 type ToastItem = { id: number; text: string; icon?: ReactNode };
@@ -14,6 +14,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setItems((l) => [...l.slice(-1), { id, text, icon }]);
     setTimeout(() => setItems((l) => l.filter((x) => x.id !== id)), 2200);
   }, []);
+  // Ошибки сохранения со всего приложения
+  useEffect(() => {
+    const on = (e: Event) =>
+      show((e as CustomEvent).detail === "network" ? "⚠️ Нет связи — изменение не сохранилось" : "⚠️ Не сохранилось, попробуй ещё раз");
+    window.addEventListener("emli-error", on);
+    return () => window.removeEventListener("emli-error", on);
+  }, [show]);
   return (
     <Ctx.Provider value={show}>
       {children}

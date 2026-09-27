@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronLeft } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -32,7 +32,13 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
   const [height, setHeight] = useState(175);
   const [weight, setWeight] = useState(80);
   const [activity, setActivity] = useState(1.375);
-  const [kind, setKind] = useState<GoalKind>("lose");
+  const [kind, setKindRaw] = useState<GoalKind>("lose");
+  const minor = age < 18;
+  // До 18 лет — только поддержание веса
+  const setKind = (k: GoalKind) => setKindRaw(minor ? "maintain" : k);
+  useEffect(() => {
+    if (minor && kind !== "maintain") setKindRaw("maintain");
+  }, [minor, kind]);
   const [target, setTarget] = useState(72);
   const [pct, setPct] = useState(0.5);
   const [saving, setSaving] = useState(false);
@@ -144,7 +150,22 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
     },
     goal: {
       title: "Какая цель?",
-      body: <KindPicker value={kind} onChange={setKind} />,
+      body: (
+        <>
+          {minor ? (
+            <div className="ob-note">
+              До 18 лет организм растёт, и урезать или добавлять калории по формулам взрослых нельзя. Emli поможет следить за питанием и держать
+              вес стабильным, а менять его — только вместе с врачом.
+            </div>
+          ) : (
+            <KindPicker value={kind} onChange={setKind} />
+          )}
+          <div className="ob-note faint" style={{ marginTop: 14, fontSize: 12.5 }}>
+            Расчёты Emli рассчитаны на здоровых взрослых. При беременности, кормлении грудью, болезнях почек, диабете и других состояниях,
+            где нужен особый рацион, сначала посоветуйся с врачом.
+          </div>
+        </>
+      ),
     },
     target: {
       title: "Желаемый вес",

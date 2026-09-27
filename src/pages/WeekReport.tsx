@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useDayTargets, useDayFlags, useTotals } from "@/data/api";
+import { useInsights } from "@/data/insights";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { motion } from "motion/react";
 import { useSummary, weeklyAdvice, type Summary } from "@/data/engage";
 import { fmt, shiftKey, todayKey, weekStart } from "@/lib/dates";
-import { fmtNum } from "@/lib/nutrition";
+import { fmtNum, isCompleteDay } from "@/lib/nutrition";
 import { haptic } from "@/lib/telegram";
 import { Screen } from "@/ui/Screen";
 import { Tap } from "@/ui/Tap";
@@ -12,20 +14,51 @@ import "./engage.css";
 import "./week.css";
 import "./recipes.css";
 
+/**
+ * Оценка недели относительно ТВОЕГО плана: тренировки — к числу дней в расписании (или 3),
+ * взвешивания — к 3 в неделю. Если тренировки или взвешивания ты не ведёшь вовсе, они не
+ * занижают оценку: их вес распределяется на остальное. Это ориентир, а не точная метрика.
+ */
 export function weekScore(s: Summary) {
-  const log = Math.min(s.days_logged / 7, 1);
-  const target = s.target_kcal ? (s.days_logged ? s.days_on_target / s.days_logged : 0) : 0.5;
-  const gym = Math.min(s.workouts / 3, 1);
-  const weigh = Math.min(s.weigh_ins / 4, 1);
-  return Math.round(100 * (0.35 * log + 0.3 * target + 0.25 * gym + 0.1 * weigh));
+  const parts: [number, number][] = [];
+  parts.push([0.35, Math.min(s.days_logged / 7, 1)]);
+  const complete = s.days_complete ?? s.days_logged;
+  if (s.target_kcal && complete) parts.push([0.3, s.days_on_target / complete]);
+  const gymGoal = s.workouts_plan && s.workouts_plan > 0 ? s.workouts_plan : 3;
+  if (s.workouts || s.workouts_prev || s.workouts_plan) parts.push([0.25, Math.min(s.workouts / gymGoal, 1)]);
+  if (s.weigh_ins || s.weight_prev_avg != null) parts.push([0.1, Math.min(s.weigh_ins / 3, 1)]);
+  const total = parts.reduce((a, [w]) => a + w, 0);
+  return Math.round((100 * parts.reduce((a, [w, v]) => a + w * v, 0)) / total);
 }
 const grade = (n: number) => (n >= 85 ? "Огонь 🔥" : n >= 70 ? "Отлично" : n >= 50 ? "Хорошо" : n >= 25 ? "Можно лучше" : "Начало положено");
 
-export function WeekReportScreen() {
-  const [start, setStart] = useState(() => weekStart(todayKey()));
+export function WeekReportScreen({ start: start0 }: { start?: string } = {}) {
+  const [start, setStart] = useState(() => (start0 ? weekStart(start0) : weekStart(todayKey())));
   const end = shiftKey(start, 6);
   const q = useSummary(start, end);
-  const s = q.data;
+  // Питание — теми же правилами, что и дневник: норма каждого дня (с читмилами), неполные дни отдельно
+  const totals = useTotals();
+  const targets = useDayTargets();
+  const flags = useDayFlags();
+  const ins = useInsights();
+  const s = useMemo(() => {
+    if (!q.data) return undefined;
+    const days = (totals.data ?? []).filter((t) => t.day >= start && t.day <= end && t.entries > 0);
+    if (!days.length) return q.data;
+    const full = days.filter((t) => isCompleteDay(Number(t.kcal), ins.typical, flags.data?.get(t.day), targets.forDay(t.day).calories, t.entries));
+    const avg = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, x) => a + x, 0) / xs.length) : null);
+    const tgt = full.map((t) => targets.forDay(t.day));
+    return {
+      ...q.data,
+      days_logged: days.length,
+      days_complete: full.length,
+      avg_kcal: avg(full.map((t) => Number(t.kcal))),
+      avg_protein: avg(full.map((t) => Number(t.protein))),
+      target_kcal: targets.hasTargets ? avg(tgt.map((t) => t.calories)) : null,
+      target_protein: targets.hasTargets ? avg(tgt.map((t) => t.protein)) : null,
+      days_on_target: full.filter((t, i) => Math.abs(Number(t.kcal) - tgt[i].calories) <= tgt[i].calories * 0.1).length,
+    } as Summary;
+  }, [q.data, totals.data, targets, flags.data, ins.typical, start, end]);
   const isCurrent = start === weekStart(todayKey());
   const move = (d: number) => {
     haptic.select();
@@ -73,7 +106,11 @@ export function WeekReportScreen() {
                   ≈ {fmtNum(s.avg_kcal)} ккал/день{s.target_kcal ? ` · цель ${fmtNum(s.target_kcal)}` : ""}
                 </div>
               )}
-              {s.target_kcal != null && s.days_logged > 0 && <div className="wr-sub">в норме ±10%: {s.days_on_target} дн.</div>}
+              {s.target_kcal != null && s.days_logged > 0 && (
+                <div className="wr-sub">
+                  в норме ±10%: {s.days_on_target} из {s.days_complete ?? s.days_logged} полных дн.
+                </div>
+              )}
             </div>
             <div className="wr-card">
               <div className="wr-label">🥩 Белок</div>

@@ -5,6 +5,7 @@ import { useSettings } from "@/data/api";
 import { PROGRAMS, programByKey } from "@/data/programs";
 import { ProgramTile, ProgramsScreen } from "./Programs";
 import { nextProgramDay, useCatalog, useLastSets, useRoutines, useWorkouts, type Routine, type WorkoutRow } from "@/data/workouts";
+import { localDay } from "@/data/workouts";
 import { fmtDuration, useNow, useWorkoutDraft } from "@/state/workout";
 import type { Muscle } from "@/lib/exercise";
 import { fmt, fromKey, shiftKey, todayKey, weekStart } from "@/lib/dates";
@@ -28,7 +29,7 @@ import "./workouts.css";
 export function muscleSets(workouts: WorkoutRow[] | undefined, from: string) {
   const out: Partial<Record<Muscle, number>> = {};
   for (const w of workouts ?? []) {
-    if (w.started_at.slice(0, 10) < from) continue;
+    if (localDay(w.started_at) < from) continue;
     for (const [m, v] of Object.entries(w.muscles ?? {})) out[m as Muscle] = (out[m as Muscle] ?? 0) + Number(v);
   }
   return out;
@@ -43,7 +44,7 @@ export function WorkoutsPage() {
   const wd = useWorkoutDraft();
 
   const active = programByKey(settings.data?.active_program);
-  const next = nextProgramDay(settings.data?.active_program, workouts.data);
+  const next = nextProgramDay(settings.data?.active_program, workouts.data, settings.data?.program_started);
   const nextRoutine = routines.data?.find((r) => r.program === next?.program.key && r.program_day === next?.index);
   const nextExercises = nextRoutine?.exercises ?? next?.day.exercises.map((x) => ({ ex: x.ex, sets: [], rest: x.rest })) ?? [];
   const last = useLastSets(nextExercises.map((x) => x.ex));
@@ -53,7 +54,7 @@ export function WorkoutsPage() {
   const featured = [...(active ? [active] : []), ...PROGRAMS.filter((p) => p.key !== active?.key && ["starting-strength", "531-bbb", "reddit-ppl", "phul", "golden-six", "start-fullbody"].includes(p.key))].slice(0, 2);
 
   const week = weekStart(todayKey());
-  const thisWeek = (workouts.data ?? []).filter((w) => w.started_at.slice(0, 10) >= week);
+  const thisWeek = (workouts.data ?? []).filter((w) => localDay(w.started_at) >= week);
   const load = useMemo(() => {
     const sets = muscleSets(workouts.data, shiftKey(todayKey(), -6));
     const max = Math.max(1, ...Object.values(sets).map(Number));
@@ -273,7 +274,7 @@ export function ElapsedText({ from }: { from: string }) {
 
 function WeekDots({ workouts }: { workouts?: WorkoutRow[] }) {
   const start = weekStart(todayKey());
-  const days = new Set((workouts ?? []).map((w) => w.started_at.slice(0, 10)));
+  const days = new Set((workouts ?? []).map((w) => localDay(w.started_at)));
   return (
     <div className="row" style={{ gap: 5, marginTop: 10 }}>
       {Array.from({ length: 7 }, (_, i) => {
@@ -303,7 +304,7 @@ function WeekDots({ workouts }: { workouts?: WorkoutRow[] }) {
 }
 
 export function WorkoutRowItem({ w, onClick }: { w: WorkoutRow; onClick: () => void }) {
-  const d = w.started_at.slice(0, 10);
+  const d = localDay(w.started_at);
   return (
     <button className="wk-row press" onClick={onClick}>
       <span className="wk-date">

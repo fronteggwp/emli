@@ -1,6 +1,8 @@
-import { useMemo } from "react";
+import { useState } from "react";
 import { motion } from "motion/react";
-import { useSaveGoal, useSaveSettings, useSaveTargets, useSetDayFlag, useTotals } from "@/data/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSetDayFlag } from "@/data/api";
+import { supabase } from "@/lib/supabase";
 import { useInsights } from "@/data/insights";
 import { todayKey } from "@/lib/dates";
 import { fmtKg, fmtNum, isCompleteDay } from "@/lib/nutrition";
@@ -11,10 +13,9 @@ import { useToast } from "./Toast";
 /** Раз в неделю: пересчёт нормы по реальному расходу — применить одним нажатием */
 export function CheckinCard() {
   const ins = useInsights();
-  const saveTargets = useSaveTargets();
-  const saveSettings = useSaveSettings();
-  const saveGoal = useSaveGoal();
+  const qc = useQueryClient();
   const toast = useToast();
+  const [busy, setBusy] = useState(false);
   const c = ins.checkin;
   if (!c || ins.current == null) return null;
   const prev = c.prevCalories ?? c.calories;
@@ -22,15 +23,34 @@ export function CheckinCard() {
   const same = Math.abs(diff) < 30 && !c.reached;
   const today = todayKey();
 
-  const done = () => saveSettings.mutate({ last_checkin: today });
-  const apply = () => {
-    haptic.success();
-    saveTargets.mutate({ start_date: today, calories: c.calories, protein: c.protein, fat: c.fat, carbs: c.carbs, tdee: ins.tdee.value });
-    if (c.reached)
-      saveGoal.mutate({ kind: "maintain", start_date: today, start_weight: ins.current!, target_weight: null, rate_kg_week: 0 });
-    done();
-    toast(c.reached ? "Переходим на поддержание 🎉" : "Норма обновлена");
+  // Норма, переход на поддержание и отметка «корректировка сделана» — одной операцией на сервере
+  const run = async (apply: boolean) => {
+    setBusy(true);
+    const { error } = await supabase.rpc("apply_checkin", {
+      d: today,
+      kcal: c.calories,
+      p: c.protein,
+      f: c.fat,
+      c: c.carbs,
+      t: ins.tdee.value,
+      apply,
+      maintain: apply && c.reached,
+      weight: ins.current,
+    });
+    setBusy(false);
+    if (error) {
+      haptic.error();
+      toast("Не сохранилось — проверь связь и попробуй ещё раз");
+      return;
+    }
+    for (const k of [["targets"], ["goal"], ["settings"]]) qc.invalidateQueries({ queryKey: k });
+    if (apply) {
+      haptic.success();
+      toast(c.reached ? "Переходим на поддержание 🎉" : "Норма обновлена");
+    } else haptic.tap();
   };
+  const done = () => run(false);
+  const apply = () => run(true);
 
   return (
     <motion.div className="checkin" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
@@ -50,7 +70,7 @@ export function CheckinCard() {
         </div>
       ) : (
         <div className="checkin-body">
-          {c.reached ? "Новая норма для поддержания веса: " : "Новая норма: "}
+          {c.reached ? "Норма поддержания — равна твоему расходу: " : "Новая норма: "}
           <span className="num">
             {fmtNum(prev)} → <b>{fmtNum(c.calories)}</b> ккал
           </span>
@@ -61,15 +81,15 @@ export function CheckinCard() {
       )}
       <div className="row" style={{ gap: 8, marginTop: 12 }}>
         {same ? (
-          <Tap className="btn btn-sm btn-block" onClick={() => (haptic.success(), done())}>
+          <Tap className="btn btn-sm btn-block" disabled={busy} onClick={done}>
             Отлично 👍
           </Tap>
         ) : (
           <>
-            <Tap className="btn btn-sm btn-accent" style={{ flex: 1 }} onClick={apply}>
+            <Tap className="btn btn-sm btn-accent" style={{ flex: 1 }} disabled={busy} onClick={apply}>
               Применить
             </Tap>
-            <Tap className="btn btn-sm" style={{ flex: 1 }} onClick={() => (haptic.tap(), done())}>
+            <Tap className="btn btn-sm" style={{ flex: 1 }} disabled={busy} onClick={done}>
               Оставить как есть
             </Tap>
           </>
@@ -80,18 +100,13 @@ export function CheckinCard() {
 }
 
 /** Отметка «записал не всё»: такие дни не портят расчёт реального расхода */
-export function DayCompleteness({ day, kcal, hasEntries }: { day: string; kcal: number; hasEntries: boolean }) {
+export function DayCompleteness({ day, kcal, entries, target }: { day: string; kcal: number; entries: number; target: number }) {
   const ins = useInsights();
-  const totals = useTotals();
   const set = useSetDayFlag();
   const flag = ins.flags?.get(day);
-  const typical = useMemo(() => {
-    const k = (totals.data ?? []).filter((t) => t.entries > 0).map((t) => Number(t.kcal)).sort((a, b) => a - b);
-    return k.length ? k[Math.floor(k.length / 2)] : 0;
-  }, [totals.data]);
-  if (!hasEntries) return null;
+  if (!entries) return null;
   const past = day < todayKey();
-  const autoIncomplete = !flag && past && !isCompleteDay(kcal, typical);
+  const autoIncomplete = !flag && past && !isCompleteDay(kcal, ins.typical, undefined, target, entries);
 
   if (flag === "incomplete")
     return (

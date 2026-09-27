@@ -87,7 +87,7 @@ function RemindersBlock() {
   return (
     <>
       <div className="section-title">Напоминания</div>
-      <Switch on={on} onChange={(v) => set({ enabled: v })} label="Сообщения от бота" hint="Emli напишет в Telegram, только когда это правда полезно" />
+      <Switch on={on} onChange={(v) => set({ enabled: v })} label="Сообщения от бота" hint="Напоминания, итоги недели, а также лайки, комментарии и сообщения. Выключишь — бот писать не будет" />
       <div className={`rem-list ${on ? "" : "off"}`}>
         <RemRow
           emoji="🍽"
@@ -307,8 +307,9 @@ function DataBlock() {
       const r = await exportData();
       if (r.ok) {
         haptic.success();
-        toast("Файлы отправлены в чат с ботом 📦");
-      } else toast("Не получилось — открой бота и нажми «Запустить»");
+        toast("Все файлы отправлены в чат с ботом 📦");
+      } else if (r.sent) toast(`Дошли не все файлы (${r.sent} из ${r.total}) — попробуй ещё раз`);
+      else toast("Не получилось — открой бота и нажми «Запустить»");
     } catch {
       toast("Не получилось, попробуй позже");
     } finally {

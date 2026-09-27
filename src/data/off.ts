@@ -1,7 +1,7 @@
 // Open Food Facts — открытая мировая база упакованных продуктов (штрихкоды, бренды).
 import type { FoodDraft } from "@/lib/types";
 
-const FIELDS = "code,product_name,product_name_ru,generic_name_ru,brands,nutriments,serving_quantity,serving_size";
+const FIELDS = "code,product_name,product_name_ru,generic_name_ru,brands,nutriments,serving_quantity,serving_quantity_unit,serving_size";
 
 type OffProduct = {
   code?: string;
@@ -10,6 +10,7 @@ type OffProduct = {
   generic_name_ru?: string;
   brands?: string;
   serving_quantity?: number | string;
+  serving_quantity_unit?: string;
   serving_size?: string;
   nutriments?: Record<string, number | string | undefined>;
 };
@@ -32,7 +33,19 @@ function toDraft(p: OffProduct): FoodDraft | null {
   const carbs = num(n["carbohydrates_100g"]);
   const name = (p.product_name_ru || p.product_name || p.generic_name_ru || "").trim();
   if (!name || !Number.isFinite(kcal)) return null;
-  const serving = num(p.serving_quantity);
+  // Порция — только если она в граммах (мл без плотности в граммы не переводим)
+  const unit = (p.serving_quantity_unit ?? (/\d\s*(г|g)\b/i.test(p.serving_size ?? "") ? "g" : "")).toLowerCase();
+  const rawServing = num(p.serving_quantity);
+  const serving = unit === "g" && rawServing > 0 && rawServing < 2000 ? rawServing : NaN;
+  const missing = (
+    [
+      ["protein", protein],
+      ["fat", fat],
+      ["carbs", carbs],
+    ] as const
+  )
+    .filter(([, v]) => !Number.isFinite(v))
+    .map(([k]) => k);
   return {
     name: name.slice(0, 120),
     brand: p.brands?.split(",")[0]?.trim() || null,
@@ -45,12 +58,15 @@ function toDraft(p: OffProduct): FoodDraft | null {
     serving_g: Number.isFinite(serving) && serving > 0 ? r1(serving) : null,
     serving_name: Number.isFinite(serving) && serving > 0 ? "порция" : null,
     source: "off",
+    missing: missing.length ? missing : undefined,
   };
 }
 
-export async function offByBarcode(code: string): Promise<FoodDraft | null> {
-  const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=${FIELDS}`);
-  if (!res.ok) return null;
+/** null — продукта нет в базе; исключение — нет связи или сервис недоступен */
+export async function offByBarcode(code: string, signal?: AbortSignal): Promise<FoodDraft | null> {
+  const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=${FIELDS}`, { signal });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`off ${res.status}`);
   const data = await res.json();
   if (data.status !== 1 || !data.product) return null;
   return toDraft({ ...data.product, code });

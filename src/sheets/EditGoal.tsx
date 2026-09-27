@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useLayer } from "@/nav/Nav";
 import { useInsights } from "@/data/insights";
 import { useSaveGoal, useSaveTargets, useSettings } from "@/data/api";
-import { todayKey } from "@/lib/dates";
+import { todayKey, ageFrom } from "@/lib/dates";
 import { RATES, caloriesFor, fmtKg, fmtNum, macrosFor } from "@/lib/nutrition";
 import { haptic } from "@/lib/telegram";
 import type { GoalKind } from "@/lib/types";
@@ -32,7 +32,9 @@ export function EditGoalSheet() {
     return Math.round((Math.abs(g.rate_kg_week) / weight) * 100 * 100) / 100;
   });
 
-  const effKind = kind;
+  // До 18 лет — только поддержание (формулы дефицита/профицита рассчитаны на взрослых)
+  const minor = !!settings.data?.birth_date && ageFrom(settings.data.birth_date) < 18;
+  const effKind: GoalKind = minor ? "maintain" : kind;
   const rates = effKind === "maintain" ? [] : RATES[effKind];
   const pctValid = rates.some((r) => Math.abs(r.pct - pct) < 0.001) ? pct : (rates[1]?.pct ?? 0);
   const rate = effKind === "maintain" ? 0 : ((effKind === "lose" ? -1 : 1) * weight * pctValid) / 100;
@@ -59,9 +61,15 @@ export function EditGoalSheet() {
     <>
       <SheetHeader title="Цель" />
       <div className="sheet-body">
-        <KindPicker value={kind} onChange={setKind} />
+        {minor ? (
+          <div className="muted" style={{ fontSize: 14, padding: "4px 2px" }}>
+            До 18 лет Emli помогает только держать вес стабильным. Менять вес — вместе с врачом.
+          </div>
+        ) : (
+          <KindPicker value={kind} onChange={setKind} />
+        )}
         <AnimatePresence initial={false}>
-          {kind !== "maintain" && (
+          {effKind !== "maintain" && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} style={{ overflow: "hidden" }}>
               <div className="group-label">Желаемый вес</div>
               <div className="big-value" style={{ fontSize: 44 }}>
@@ -77,7 +85,7 @@ export function EditGoalSheet() {
                 </div>
               )}
               <div className="group-label">Темп</div>
-              <RatePicker kind={kind} weight={weight} pct={pctValid} onChange={setPct} />
+              <RatePicker kind={effKind as "lose" | "gain"} weight={weight} pct={pctValid} onChange={setPct} />
             </motion.div>
           )}
         </AnimatePresence>

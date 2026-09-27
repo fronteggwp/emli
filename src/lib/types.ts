@@ -73,7 +73,16 @@ export type Conversation = {
   unread: number;
 };
 
-export type Message = { id: string; conversation_id: string; sender_id: string; text: string | null; image_url: string | null; created_at: string };
+export type Message = {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  text: string | null;
+  image_url: string | null;
+  created_at: string;
+  /** Только на устройстве: отправка не удалась — можно повторить */
+  failed?: boolean;
+};
 
 export type Friendship = { requester: string; addressee: string; status: "pending" | "accepted"; created_at: string };
 
@@ -112,8 +121,11 @@ export type Food = Macros & {
   source: "system" | "off" | "user";
 };
 
+/** Каких БЖУ нет в источнике (Open Food Facts) — это «неизвестно», а не «0 г» */
+export type MissingMacro = "protein" | "fat" | "carbs";
+
 /** Продукт, который ещё не сохранён в базе (например, из Open Food Facts) */
-export type FoodDraft = Omit<Food, "id" | "owner_id"> & { id?: string; owner_id?: string | null };
+export type FoodDraft = Omit<Food, "id" | "owner_id"> & { id?: string; owner_id?: string | null; missing?: MissingMacro[] };
 
 export type Meal = 0 | 1 | 2 | 3;
 

@@ -88,6 +88,7 @@ export function usePerson(id: string | undefined) {
 export function usePublicStats(id: string) {
   return useQuery({
     queryKey: sk.stats(id),
+    enabled: !!id,
     queryFn: async () => unwrap<PublicStats>(await supabase.rpc("public_stats", { uid: id })),
   });
 }
@@ -140,19 +141,23 @@ export function useFriendActions() {
   };
   return {
     request: useMutation({
+      meta: { achievements: true },
       mutationFn: async (id: string) => unwrap<string>(await supabase.rpc("friend_request", { target: id })),
       onSuccess: done,
     }),
     respond: useMutation({
+      meta: { achievements: true },
       mutationFn: async ({ id, accept }: { id: string; accept: boolean }) =>
         unwrap(await supabase.rpc("friend_respond", { other: id, accept })),
       onSuccess: done,
     }),
     remove: useMutation({
+      meta: { achievements: true },
       mutationFn: async (id: string) => unwrap(await supabase.rpc("friend_remove", { other: id })),
       onSuccess: done,
     }),
     block: useMutation({
+      meta: { achievements: true },
       mutationFn: async (id: string) => unwrap(await supabase.rpc("block_user", { target: id })),
       onSuccess: () => {
         done();
@@ -208,6 +213,7 @@ function patchPost(qc: QueryClient, id: string, fn: (p: Post) => Post | null) {
 
 export function usePost(id: string) {
   const qc = useQueryClient();
+  const uid = useUid();
   return useQuery({
     queryKey: sk.post(id),
     queryFn: async () => {
@@ -220,7 +226,8 @@ export function usePost(id: string) {
       if (!row) return null;
       const [{ data: author }, { data: like }] = await Promise.all([
         supabase.from("profiles").select(PERSON_COLS).eq("id", row.author_id).single(),
-        supabase.from("post_likes").select("post_id").eq("post_id", id).maybeSingle(),
+        // Лайк именно текущего пользователя, а не любой
+        supabase.from("post_likes").select("post_id").eq("post_id", id).eq("user_id", uid).maybeSingle(),
       ]);
       return { ...row, author, liked: !!like } as Post;
     },
@@ -244,6 +251,7 @@ export function useToggleLike() {
 export function useCreatePost() {
   const qc = useQueryClient();
   return useMutation({
+    meta: { achievements: true },
     mutationFn: async (p: { text: string | null; image_url: string | null; attachment: PostAttachment | null; visibility: "public" | "friends" }) =>
       unwrap(await supabase.from("posts").insert(p).select().single()),
     onSuccess: () => {
@@ -369,8 +377,13 @@ export function useSendMessage(cid: string) {
   const qc = useQueryClient();
   const uid = useUid();
   return useMutation({
-    mutationFn: async (m: { id: string; text: string | null; image_url?: string | null }) =>
-      unwrap<Message>(await supabase.from("messages").insert({ conversation_id: cid, ...m }).select().single()),
+    mutationFn: async (m: { id: string; text: string | null; image_url?: string | null }) => {
+      const res = await supabase.from("messages").insert({ conversation_id: cid, ...m }).select().single();
+      // Повтор после обрыва связи: первая попытка на самом деле дошла — берём сохранённое
+      if (res.error?.code === "23505") return unwrap<Message>(await supabase.from("messages").select("*").eq("id", m.id).single());
+      return unwrap<Message>(res);
+    },
+    meta: { silent: true },
     onMutate: (m) => {
       insertMessage(qc, {
         id: m.id,
@@ -385,9 +398,10 @@ export function useSendMessage(cid: string) {
       insertMessage(qc, saved);
       qc.invalidateQueries({ queryKey: sk.convs });
     },
+    // Не отправилось — сообщение остаётся в переписке с пометкой, текст не теряется
     onError: (_e, m) =>
       qc.setQueryData<InfiniteData<Message[]>>(sk.messages(cid), (data) =>
-        data ? { ...data, pages: data.pages.map((p) => p.filter((x) => x.id !== m.id)) } : data,
+        data ? { ...data, pages: data.pages.map((p) => p.map((x) => (x.id === m.id ? { ...x, failed: true } : x))) } : data,
       ),
   });
 }
@@ -398,6 +412,7 @@ export function useRealtime() {
   const qc = useQueryClient();
   const uid = useUid();
   useEffect(() => {
+    let subscribedOnce = false;
     const ch = supabase
       .channel(`inbox:${uid}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => {
@@ -411,17 +426,37 @@ export function useRealtime() {
         qc.invalidateQueries({ queryKey: sk.friendships });
         qc.invalidateQueries({ queryKey: ["challenges"] });
       })
-      .subscribe();
+      .subscribe((status) => {
+        // Соединение восстановилось — сверяем то, что могли пропустить
+        if (status === "SUBSCRIBED" && subscribedOnce) resync();
+        if (status === "SUBSCRIBED") subscribedOnce = true;
+      });
+    const resync = () => {
+      qc.invalidateQueries({ queryKey: sk.convs });
+      qc.invalidateQueries({ queryKey: ["messages"] });
+      qc.invalidateQueries({ queryKey: sk.notices });
+    };
 
     // «В сети»: отмечаемся, пока приложение открыто
     const ping = () => document.visibilityState === "visible" && supabase.rpc("touch_seen").then(() => {});
     ping();
     const t = setInterval(ping, 30_000);
-    document.addEventListener("visibilitychange", ping);
+    let hiddenAt = 0;
+    const onVis = () => {
+      if (document.visibilityState === "hidden") hiddenAt = Date.now();
+      else {
+        ping();
+        // Вернулись после паузы — вебсокет мог отвалиться, подтягиваем свежее
+        if (hiddenAt && Date.now() - hiddenAt > 15_000) resync();
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("online", resync);
     return () => {
       supabase.removeChannel(ch);
       clearInterval(t);
-      document.removeEventListener("visibilitychange", ping);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("online", resync);
     };
   }, [qc, uid]);
 }

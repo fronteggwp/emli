@@ -62,3 +62,13 @@
 .ob-foot {
   padding: 10px 20px 8px;
 }
+
+.ob-note {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--soft);
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.45;
+  text-align: left;
+}
