@@ -19,6 +19,8 @@ import { CheatMealSheet } from "./CheatMeal";
 import { loadDetector } from "@/lib/barcode";
 import "./sheets.css";
 import { Icon3D } from "@/ui/Icon3D";
+import { PhotoFoodSheet } from "./PhotoFood";
+import { PhotoBanner } from "@/ui/PhotoBanner";
 
 export function QuickActions() {
   const nav = useNav();
@@ -68,7 +70,8 @@ export function QuickActions() {
     <>
       <SheetHeader title="Добавить" />
       <div className="sheet-body">
-        <div className="action-tiles">
+        <PhotoBanner onOpen={(mode) => open(<PhotoFoodSheet mode={mode} />, true)} />
+        <div className="action-tiles" style={{ marginTop: 10 }}>
           {tiles.map((x) => (
             <Tap key={x.t} className="action-tile" onClick={x.go}>
               <span className="ico ico-3d">

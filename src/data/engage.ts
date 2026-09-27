@@ -559,3 +559,49 @@ export async function deleteAccount() {
   if (error) throw error;
   return data as { ok?: boolean };
 }
+
+// ───────────── Еда по фото (ИИ)
+
+export type AiFoodItem = Macros & {
+  name: string;
+  grams: number;
+  confidence: number;
+  source: "food" | "recipe" | "ai";
+  food_id: string | null;
+  matched: string | null;
+  per100: [number, number, number, number];
+};
+export type AiFoodResult = { dish: string | null; comment: string | null; items: AiFoodItem[]; total: Macros; ms: Record<string, number> };
+export type AiFoodError = "limit" | "bad_image" | "network" | "failed";
+
+/** Фото → продукты с граммовкой, найденные в базе Emli. Бросает Error с кодом AiFoodError */
+export async function recognizeFood(image: string, hint?: string): Promise<AiFoodResult> {
+  const { data, error } = await supabase.functions.invoke("ai-food", { body: { image, hint } });
+  if (error) {
+    let code: AiFoodError = "failed";
+    try {
+      const ctx = (error as { context?: Response }).context;
+      if (!ctx) code = "network";
+      else {
+        const body = await ctx.json();
+        code = body.error === "limit" ? "limit" : body.error === "bad_image" ? "bad_image" : "failed";
+      }
+    } catch {
+      code = "network";
+    }
+    throw new Error(code);
+  }
+  return data as AiFoodResult;
+}
+
+/** Файл с камеры → JPEG data URL до 1024 px (быстрее и дешевле для ИИ) */
+export async function photoToDataUrl(file: File) {
+  const { compressImage } = await import("./social");
+  const blob = await compressImage(file, 1024, 0.82);
+  return await new Promise<string>((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result));
+    r.onerror = rej;
+    r.readAsDataURL(blob);
+  });
+}

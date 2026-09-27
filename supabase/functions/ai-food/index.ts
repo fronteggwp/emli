@@ -88,8 +88,12 @@ async function candidatesFor(item: Seen, userClient: ReturnType<typeof createCli
   // Рецепты: по совпадению основ слов
   const iw = words(`${item.name} ${item.search}`).map(stem);
   const rs = (await recipes())
-    .map((r) => ({ r, score: words(r.title).map(stem).filter((w) => iw.some((x) => x.startsWith(w) || w.startsWith(x))).length }))
-    .filter((x) => x.score > 0)
+    .map((r) => {
+      const tw = words(r.title).map(stem);
+      return { r, need: Math.min(2, tw.length), score: tw.filter((w) => iw.some((x) => x.startsWith(w) || w.startsWith(x))).length };
+    })
+    // Рецепт — только для блюд: нужно совпадение хотя бы двух слов названия (иначе «лимон» → «вода с лимоном»)
+    .filter((x) => x.score >= x.need)
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);
   for (const { r } of rs) out.push({ key: "", food_id: null, name: `${r.title} (рецепт Emli)`, brand: null, per100: r.per100, kind: "recipe" });
@@ -124,7 +128,15 @@ Deno.serve(async (req) => {
         {
           role: "user",
           content: [
-            { type: "text", text: SEE_PROMPT + (hint ? `\nПодсказка пользователя: ${hint}` : "") },
+            {
+              type: "text",
+              text:
+                SEE_PROMPT +
+                (hint
+                  ? `\n\nПОДСКАЗКА ПОЛЬЗОВАТЕЛЯ — главный источник правды: если в ней названы продукты, их количество (штуки) или граммы, ` +
+                    `используй именно их; по фото уточняй только то, чего в подсказке нет.\nПодсказка: «${hint}»`
+                  : ""),
+            },
             { type: "image_url", image_url: { url: image } },
           ],
         },
@@ -175,7 +187,7 @@ Deno.serve(async (req) => {
             role: "user",
             content:
               `Для каждого продукта выбери из кандидатов базы тот, что соответствует ему по сути: тот же продукт в том же состоянии ` +
-              `(варёный/жареный/сырой), похожая калорийность. Если подходящего нет — null. Числа: ккал/белки/жиры/углеводы на 100 г.\n\n${table}\n\n` +
+              `(варёный/жареный/сырой), похожая калорийность. Для простого продукта (лимон, хлеб, масло) бери продукт, а не рецепт; рецепт — только если это то же готовое блюдо. Если подходящего нет — null. Числа: ккал/белки/жиры/углеводы на 100 г.\n\n${table}\n\n` +
               `Ответ: {"choices":["1.2", null, ...]} — ровно ${items.length} значений по порядку продуктов.`,
           },
         ],

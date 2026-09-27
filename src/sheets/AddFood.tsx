@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronRight, Globe, PackagePlus, Plus, ScanBarcode, Search, X, Zap } from "lucide-react";
+import { Camera, Check, ChevronRight, Globe, PackagePlus, Plus, ScanBarcode, Search, X, Zap } from "lucide-react";
 import { useDay } from "@/state/day";
 import { useLayer, useNav } from "@/nav/Nav";
 import { getFood, useAddEntry, useFoodSearch, useMyFoods, useRecents } from "@/data/api";
@@ -44,6 +44,8 @@ import { LogRecipeSheet } from "./LogRecipe";
 import { confirmDialog } from "@/lib/telegram";
 import "@/pages/recipes.css";
 import "./sheets.css";
+import { PhotoFoodSheet } from "./PhotoFood";
+import { PhotoBanner } from "@/ui/PhotoBanner";
 
 type AddTab = "recent" | "fav" | "mine" | "recipes";
 
@@ -145,9 +147,14 @@ export function AddFoodSheet({ meal: initialMeal, tab: initialTab = "recent" }: 
       <SheetHeader
         title="Добавить еду"
         right={
-          <Tap className="icon-btn" onClick={() => nav.sheet(<ScannerSheet meal={meal} onDone={layer.close} />, { full: true })} aria-label="Сканер">
-            <ScanBarcode size={19} />
-          </Tap>
+          <div className="row" style={{ gap: 6 }}>
+            <Tap className="icon-btn" onClick={() => nav.sheet(<PhotoFoodSheet meal={meal} />, { full: true })} aria-label="Еда по фото">
+              <Camera size={19} />
+            </Tap>
+            <Tap className="icon-btn" onClick={() => nav.sheet(<ScannerSheet meal={meal} onDone={layer.close} />, { full: true })} aria-label="Сканер">
+              <ScanBarcode size={19} />
+            </Tap>
+          </div>
         }
       />
       <div className="search-box" data-sheet-drag-ignore>
@@ -195,6 +202,7 @@ export function AddFoodSheet({ meal: initialMeal, tab: initialTab = "recent" }: 
       <div className="sheet-body">
         {!searching ? (
           <>
+            <PhotoBanner onOpen={(mode) => nav.sheet(<PhotoFoodSheet meal={meal} mode={mode} />, { full: true })} />
             <div className="action-tiles" style={{ marginTop: 10 }}>
               <Tap className="action-tile" onClick={() => nav.sheet(<QuickAddSheet meal={meal} />)}>
                 <span className="ico" style={{ background: "rgba(255,194,71,.15)", color: "var(--fat)" }}>
