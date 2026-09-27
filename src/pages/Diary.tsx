@@ -32,7 +32,7 @@ import { CheckinCard, DayCompleteness } from "@/ui/Checkin";
 import "./diary.css";
 import { Icon3D, MEAL_ICON } from "@/ui/Icon3D";
 import { dishOfItem, planEnd, useActivePlan, useDishes, useEatItem, type MealPlan } from "@/data/mealplan";
-import type { PlanItem } from "@/lib/mealplan";
+import { itemQuick, type PlanItem } from "@/lib/mealplan";
 import { MealPlanScreen } from "./MealPlan";
 import { PlanDishSheet } from "@/sheets/PlanDish";
 import "@/sheets/mealplan.css";
@@ -585,7 +585,7 @@ function PlanDayCard({ plan, day, items }: { plan: MealPlan | null; day: string;
   }
   if (!items.length) return null;
   const eaten = items.filter((i) => i.eaten).length;
-  const cook = items.filter((i) => i.cook && !i.basic && !i.quick);
+  const cook = items.filter((i) => i.cook && !itemQuick(i));
   const n = items.length;
   return (
     <Tap className="mp-diary" scale={0.98} onClick={() => (haptic.tap(), nav.push(<MealPlanScreen id={plan.id} />))}>

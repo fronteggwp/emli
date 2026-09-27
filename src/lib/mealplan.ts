@@ -148,48 +148,210 @@ export function sumItems(items: Macros[]): Macros {
 /** Доля дневной нормы на выбранные приёмы: планируешь только обед и ужин — цель 65% нормы */
 export const mealsShare = (meals: Meal[]) => meals.reduce<number>((a, m) => a + MEAL_SHARE[m], 0);
 
-export type DayGoal = { kcal: number; protein: number };
+/** Цель на день (или на часть дня, которую закрывает план): калории и БЖУ */
+export type DayGoal = { kcal: number; protein: number; fat?: number; carbs?: number };
+
+export const scaleGoal = (g: DayGoal, k: number): DayGoal => ({
+  kcal: g.kcal * k,
+  protein: g.protein * k,
+  fat: g.fat != null ? g.fat * k : undefined,
+  carbs: g.carbs != null ? g.carbs * k : undefined,
+});
+
+/**
+ * Насколько день далёк от цели. Калории — главное, недобор белка — почти так же важен,
+ * лишний жир и углеводы — мягче, небольшой перебор белка почти не штрафуется.
+ * mealDev — насколько приёмы отклонились от своих долей дня (чтобы завтрак не превращался в 100 ккал).
+ */
+export function dayLoss(sum: Macros, g: DayGoal, mealDev = 0) {
+  const k = (sum.kcal - g.kcal) / Math.max(g.kcal, 1);
+  const pu = Math.max(0, g.protein - sum.protein) / Math.max(g.protein, 1);
+  const po = Math.max(0, sum.protein - g.protein * 1.2) / Math.max(g.protein, 1);
+  let l = 30 * k * k + 8 * pu * pu + 0.5 * po * po + 1 * mealDev;
+  if (g.fat) {
+    const x = (sum.fat - g.fat) / g.fat;
+    l += (x > 0 ? 3 : 0.8) * x * x;
+  }
+  if (g.carbs) {
+    const x = (sum.carbs - g.carbs) / g.carbs;
+    l += (x > 0 ? 1.5 : 0.5) * x * x;
+  }
+  return l;
+}
+
+/** Сколько не хватает (+) или лишнего (−) по каждому показателю */
+export function macroGaps(sum: Macros, g: DayGoal) {
+  return {
+    kcal: g.kcal - sum.kcal,
+    protein: g.protein - sum.protein,
+    fat: g.fat != null ? g.fat - sum.fat : 0,
+    carbs: g.carbs != null ? g.carbs - sum.carbs : 0,
+  };
+}
+
+/** День «сходится»: калории ±8%, белка не меньше 92%, жиров не больше 125%, углеводы 65–140% */
+export function dayBalanced(sum: Macros, g: DayGoal) {
+  if (Math.abs(sum.kcal - g.kcal) > g.kcal * 0.08) return false;
+  if (sum.protein < g.protein * 0.92) return false;
+  if (g.fat && sum.fat > g.fat * 1.25) return false;
+  if (g.carbs && (sum.carbs < g.carbs * 0.65 || sum.carbs > g.carbs * 1.4)) return false;
+  return true;
+}
+
+/**
+ * Какое блюдо мешает дню сойтись, если порциями уже не подогнать:
+ * лишние жиры — самое жирное, мало белка — самое «пустое» по белку, лишние углеводы — самое углеводное.
+ */
+export function culprit(items: PlanItem[], sum: Macros, g: DayGoal): { item: PlanItem; why: string } | null {
+  const free = items.filter((i) => !i.eaten && !i.locked && !i.skipped && i.kcal > 80);
+  if (!free.length) return null;
+  const top = (by: (i: PlanItem) => number) => [...free].sort((a, b) => by(b) - by(a))[0];
+  if (sum.protein < g.protein * 0.92) return { item: top((i) => i.kcal / Math.max(i.protein, 1)), why: "мало белка на калории" };
+  if (g.fat && sum.fat > g.fat * 1.25) return { item: top((i) => i.fat), why: "больше всего жиров" };
+  if (g.carbs && sum.carbs > g.carbs * 1.4) return { item: top((i) => i.carbs), why: "больше всего углеводов" };
+  if (sum.kcal > g.kcal * 1.08) return { item: top((i) => i.kcal), why: "самое калорийное" };
+  return null;
+}
+
+/** Главная причина, почему день не сходится — одной фразой */
+export function balanceIssue(sum: Macros, g: DayGoal): string | null {
+  const n = (x: number) => Math.round(Math.abs(x));
+  if (sum.protein < g.protein * 0.92) return `Белка не хватает ${n(g.protein - sum.protein)} г`;
+  if (sum.kcal > g.kcal * 1.08) return `Калорий на ${n(sum.kcal - g.kcal)} больше нормы`;
+  if (sum.kcal < g.kcal * 0.92) return `Калорий на ${n(g.kcal - sum.kcal)} меньше нормы`;
+  if (g.fat && sum.fat > g.fat * 1.25) return `Жиров на ${n(sum.fat - g.fat)} г больше нормы`;
+  if (g.carbs && sum.carbs < g.carbs * 0.65) return `Углеводов не хватает ${n(g.carbs - sum.carbs)} г`;
+  if (g.carbs && sum.carbs > g.carbs * 1.4) return `Углеводов на ${n(sum.carbs - g.carbs)} г больше нормы`;
+  return null;
+}
 
 let seq = 0;
 export const newId = () => `${Date.now().toString(36)}${(++seq).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 /**
- * Порции на день: подгоняем калории к цели, не трогая съеденное и закреплённое.
- * Сначала каждый приём — к своей доле дня (завтрак 25%, обед 35%…), потом добиваем день
- * самым крупным блюдом шагами по ¼ порции.
+ * Порции на день под калории И БЖУ, не трогая съеденное и закреплённое.
+ * 1) Каждый приём — к своей доле калорий дня (завтрак 25%, обед 35%…).
+ * 2) Дальше шагами по ¼ порции: на каждом шаге берём то изменение, которое сильнее всего
+ *    приближает день к цели (dayLoss) — так белковым блюдам порции растут, жирным и сладким уменьшаются.
  */
-export function fitDay(items: PlanItem[], dishOf: (it: PlanItem) => Dish | undefined, goalKcal: number, keepIds?: Set<string>): PlanItem[] {
-  const fixed = items.filter((i) => i.eaten || i.locked || i.skipped || keepIds?.has(i.id));
-  const free = items.filter((i) => !fixed.includes(i));
+export function fitDay(items: PlanItem[], dishOf: (it: PlanItem) => Dish | undefined, goal: DayGoal, keepIds?: Set<string>): PlanItem[] {
+  const isFixed = (i: PlanItem) => i.eaten || i.locked || i.skipped || keepIds?.has(i.id) || !dishOf(i);
+  const live = items.filter((i) => !i.skipped);
+  const free = live.filter((i) => !isFixed(i));
   if (!free.length) return items;
-  const fixedKcal = sumItems(fixed.filter((i) => !i.skipped)).kcal;
-  const base = free.map((i) => ({ it: i, dish: dishOf(i) }));
+  const fixedSum = sumItems(live.filter(isFixed));
+  const meals = [...new Set(live.map((i) => i.meal))];
+  const shareSum = meals.reduce<number>((a, m) => a + MEAL_SHARE[m], 0) || 1;
+  const mealGoal = (m: Meal) => (goal.kcal * MEAL_SHARE[m]) / shareSum;
+
+  // 1) Стартовые порции — по калориям приёма
+  const port = new Map<string, number>();
+  for (const m of meals) {
+    const fixedM = sumItems(live.filter((i) => i.meal === m && isFixed(i))).kcal;
+    const inMeal = free.filter((i) => i.meal === m);
+    const baseM = inMeal.reduce((a, i) => a + dishOf(i)!.serving.kcal, 0);
+    const k = baseM > 0 ? clamp((mealGoal(m) - fixedM) / baseM, 0.6, 1.8) : 1;
+    for (const i of inMeal) port.set(i.id, clamp(quarter(k), 0.5, maxPortions(dishOf(i)!)));
+  }
+
+  // 2) Жадный подбор шагами по ¼
+  const srv = new Map(free.map((i) => [i.id, dishOf(i)!.serving]));
+  const mealFixed = new Map(meals.map((m) => [m, sumItems(live.filter((i) => i.meal === m && isFixed(i))).kcal]));
+  const evaluate = () => {
+    const sum = { ...fixedSum };
+    const mk = new Map(mealFixed);
+    for (const i of free) {
+      const p = port.get(i.id)!;
+      const sv = srv.get(i.id)!;
+      sum.kcal += sv.kcal * p;
+      sum.protein += sv.protein * p;
+      sum.fat += sv.fat * p;
+      sum.carbs += sv.carbs * p;
+      mk.set(i.meal, (mk.get(i.meal) ?? 0) + sv.kcal * p);
+    }
+    let dev = 0;
+    for (const m of meals) dev += ((mk.get(m)! - mealGoal(m)) / Math.max(goal.kcal, 1)) ** 2;
+    return dayLoss(sum, goal, dev);
+  };
+  let cur = evaluate();
+  for (let step = 0; step < 120; step++) {
+    let best: { id: string; p: number; loss: number } | null = null;
+    for (const i of free) {
+      const p0 = port.get(i.id)!;
+      const max = maxPortions(dishOf(i)!);
+      for (const d of [0.25, -0.25]) {
+        const p = p0 + d;
+        if (p < 0.5 || p > max) continue;
+        port.set(i.id, p);
+        const l = evaluate();
+        port.set(i.id, p0);
+        if (l < cur - 1e-6 && (!best || l < best.loss)) best = { id: i.id, p, loss: l };
+      }
+    }
+    if (!best) break;
+    port.set(best.id, best.p);
+    cur = best.loss;
+  }
+  return items.map((i) => (port.has(i.id) ? withPortions(i, dishOf(i)!, port.get(i.id)!) : i));
+}
+
+/** Потолок порции: протеиновый коктейль ×3 или банка творога ×2,5 — так никто не ест */
+export function maxPortions(d: Pick<Dish, "basic" | "category">) {
+  if (d.basic) return d.category === "snack" ? 1.5 : 2;
+  return 2.5;
+}
+
+/** Оценка дня как есть (для сравнения вариантов) */
+function lossOfDay(items: PlanItem[], goal: DayGoal) {
   const live = items.filter((i) => !i.skipped);
   const meals = [...new Set(live.map((i) => i.meal))];
   const shareSum = meals.reduce<number>((a, m) => a + MEAL_SHARE[m], 0) || 1;
-  const factor = new Map<Meal, number>();
-  for (const m of meals) {
-    const goalM = (goalKcal * MEAL_SHARE[m]) / shareSum;
-    const fixedM = sumItems(fixed.filter((i) => i.meal === m && !i.skipped)).kcal;
-    const baseM = base.filter((b) => b.it.meal === m).reduce((a, b) => a + (b.dish?.serving.kcal ?? b.it.kcal), 0);
-    if (baseM > 0) factor.set(m, clamp((goalM - fixedM) / baseM, 0.6, 1.8));
+  let dev = 0;
+  for (const m of meals) dev += ((sumItems(live.filter((i) => i.meal === m)).kcal - (goal.kcal * MEAL_SHARE[m]) / shareSum) / Math.max(goal.kcal, 1)) ** 2;
+  return dayLoss(sumItems(live), goal, dev);
+}
+
+export type BalanceCtx = {
+  dishOf: (it: PlanItem) => Dish | undefined;
+  goal: DayGoal;
+  keepIds?: Set<string>;
+  /** Блюда-добавки: белковые (творог, йогурт, тунец…) и углеводные (банан, каша) — уже отфильтрованы по ограничениям */
+  boosts: Dish[];
+  /** В какие приёмы этого дня можно добавлять */
+  meals: Meal[];
+};
+
+/**
+ * Баланс дня: порции под КБЖУ, а если день всё равно не сходится — добавляем блюдо-добавку
+ * (белковую или углеводную) туда, где она лучше всего закрывает разницу (слабый перекус заменяем),
+ * и пересчитываем порции.
+ */
+export function balanceDay(items: PlanItem[], day: string, ctx: BalanceCtx): PlanItem[] {
+  let list = fitDay(items, ctx.dishOf, ctx.goal, ctx.keepIds);
+  for (let round = 0; round < 2; round++) {
+    const sum = sumItems(list.filter((i) => !i.skipped));
+    if (dayBalanced(sum, ctx.goal)) break;
+    let best: { list: PlanItem[]; loss: number } | null = null;
+    const now = lossOfDay(list, ctx.goal);
+    for (const b of ctx.boosts) {
+      if (list.some((i) => i.kind === b.kind && i.ref === b.ref)) continue;
+      for (const m of ctx.meals) {
+        if (!fitsMeal(b, m)) continue;
+        const inMeal = list.filter((i) => i.meal === m && !i.skipped);
+        // Заменять можно только лёгкий перекус; в основные приёмы добавка идёт вторым блюдом
+        const weak = m === 3 ? inMeal.find((i) => !i.eaten && !i.locked && !ctx.keepIds?.has(i.id) && i.protein < 8) : undefined;
+        const add = itemFrom(b, day, m);
+        const cand = weak ? list.map((i) => (i === weak ? add : i)) : inMeal.length < MAX_PER_SLOT ? [...list, add] : null;
+        if (!cand) continue;
+        const fitted = fitDay(cand, ctx.dishOf, ctx.goal, ctx.keepIds);
+        const l = lossOfDay(fitted, ctx.goal);
+        if (l < now - 0.003 && (!best || l < best.loss)) best = { list: fitted, loss: l };
+      }
+    }
+    if (!best) break;
+    list = best.list;
   }
-  let out = base.map(({ it, dish }) => (dish ? withPortions(it, dish, clamp(factor.get(it.meal) ?? 1, 0.5, 2.5)) : it));
-  for (let step = 0; step < 6; step++) {
-    const total = fixedKcal + sumItems(out).kcal;
-    const diff = goalKcal - total;
-    if (Math.abs(diff) < 90) break;
-    // Больше всего калорий на ¼ порции — самое «крупное» блюдо
-    const idx = out
-      .map((it, i) => ({ i, q: (dishOf(it)?.serving.kcal ?? 0) / 4, p: it.portions }))
-      .filter((x) => x.q > 0 && (diff > 0 ? x.p < 2.5 : x.p > 0.5))
-      .sort((a, b) => b.q - a.q)[0];
-    if (!idx || idx.q > Math.abs(diff) * 1.6) break;
-    const it = out[idx.i];
-    out[idx.i] = withPortions(it, dishOf(it)!, it.portions + (diff > 0 ? 0.25 : -0.25));
-  }
-  const byId = new Map(out.map((i) => [i.id, i]));
-  return items.map((i) => byId.get(i.id) ?? i);
+  return list;
 }
 
 // ───────────── Сборка плана из ответа ИИ
@@ -206,7 +368,10 @@ export type BuildCtx = {
 };
 
 const dishKey = (d: Pick<Dish, "kind" | "ref">) => `${d.kind}:${d.ref}`;
-export const isQuick = (d: Pick<Dish, "basic" | "time">) => !!d.basic || (d.time ?? 99) <= 10;
+/** Готовится до 10 минут (творог с ягодами, тост) — «собрать», не готовка и не заготовка */
+export const isQuick = (d: Pick<Dish, "time">) => (d.time ?? 99) <= 10;
+/** Быстрое ли блюдо в плане; у планов до этого флага все простые блюда считались быстрыми */
+export const itemQuick = (i: Pick<PlanItem, "quick" | "basic">) => i.quick ?? !!i.basic;
 /** Одна заготовка — не больше трёх приёмов */
 const MAX_BATCH = 3;
 
@@ -230,7 +395,7 @@ export function itemFrom(dish: Dish, day: string, meal: Meal, portions = 1): Pla
       cook: true,
       batch: id,
       basic: dish.basic || undefined,
-      quick: isQuick(dish) || undefined,
+      quick: isQuick(dish),
     },
     dish,
     portions,
@@ -303,33 +468,48 @@ export function buildPlan(slots: AiSlot[], ctx: BuildCtx): PlanItem[] {
     return it;
   });
 
-  // 4) Порции под норму + белок
+  // 4) Порции под КБЖУ + добор белка
   const dishOf = (it: PlanItem) => dishes.get(codeOf(dishes, it));
+  const boosts = (ctx.proteinBoost ?? []).map((c) => dishes.get(c)).filter((d): d is Dish => !!d && allowed(d, prefs.exclude));
   const result: PlanItem[] = [...keep];
   const keepIds = new Set(keep.map((k) => k.id));
   for (const day of days) {
-    let list = [...keep.filter((k) => k.day === day), ...items.filter((i) => i.day === day)];
+    const list = [...keep.filter((k) => k.day === day), ...items.filter((i) => i.day === day)];
     if (!list.length) continue;
-    const g = goal(day);
-    const share = mealsShare(prefs.meals.filter((m) => !skips.has(`${day}|${m}`)));
-    list = fitDay(list, dishOf, g.kcal * share, keepIds);
-    const p = sumItems(list.filter((i) => !i.skipped)).protein;
-    const boost = (ctx.proteinBoost ?? []).map((c) => dishes.get(c)).find((d) => d && allowed(d, prefs.exclude));
-    const snackKey = `${day}|3`;
-    if (boost && p < g.protein * share * 0.85 && prefs.meals.includes(3) && !covered.has(snackKey)) {
-      const snacks = list.filter((i) => i.meal === 3);
-      if (!snacks.some((s) => s.ref === boost.ref)) {
-        // Слабый перекус меняем на белковый, иначе добавляем вторым блюдом
-        const weak = snacks.find((s) => !s.locked && !s.eaten && s.protein < 8);
-        const add = itemFrom(boost, day, 3);
-        list = weak ? list.map((i) => (i === weak ? add : i)) : snacks.length < MAX_PER_SLOT ? [...list, add] : list;
-        list = fitDay(list, dishOf, g.kcal * share, keepIds);
-      }
-    }
-    result.push(...list.filter((i) => !keep.includes(i)));
+    const open = prefs.meals.filter((m) => !skips.has(`${day}|${m}`));
+    const g = scaleGoal(goal(day), mealsShare(open));
+    const balanced = balanceDay(list, day, { dishOf, goal: g, keepIds, boosts, meals: open.filter((m) => !covered.has(`${day}|${m}`)) });
+    result.push(...balanced.filter((i) => !keepIds.has(i.id)));
   }
-  return sortItems(result);
+  return sortItems(rebatch(result, prefs.cook));
 }
+
+/**
+ * Добавки белка и замены появляются уже после раскладки заготовок: одно и то же блюдо в соседние дни
+ * (например, отварная грудка пн и вт) объединяем в одну готовку — как при сборке плана.
+ */
+export function rebatch(items: PlanItem[], mode: CookMode): PlanItem[] {
+  if (mode === "daily") return items;
+  const sorted = sortItems(items);
+  const size = new Map<string, number>();
+  for (const i of sorted) size.set(i.batch, (size.get(i.batch) ?? 0) + 1);
+  const open = new Map<string, { batch: string; day: string; n: number }>();
+  const out = sorted.map((i) => {
+    if (i.skipped || itemQuick(i)) return i;
+    const k = `${i.kind}:${i.ref}`;
+    const o = open.get(k);
+    const alone = i.cook && !i.eaten && size.get(i.batch) === 1;
+    if (alone && o && o.batch !== i.batch && daysApart(o.day, i.day) <= KEEP_DAYS && o.n < MAX_BATCH) {
+      o.n++;
+      return { ...i, cook: false, batch: o.batch };
+    }
+    if (i.cook) open.set(k, { batch: i.batch, day: i.day, n: size.get(i.batch) ?? 1 });
+    return i;
+  });
+  return out;
+}
+
+const daysApart = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 
 export const sortItems = (items: PlanItem[]) =>
   [...items].sort((a, b) => a.day.localeCompare(b.day) || a.meal - b.meal || Number(b.cook) - Number(a.cook));
@@ -398,7 +578,7 @@ export type CookSession = {
 export function cookSessions(items: PlanItem[], people: number): CookSession[] {
   const live = items.filter((i) => !i.skipped);
   return live
-    .filter((i) => i.cook && !i.basic && !i.quick)
+    .filter((i) => i.cook && !itemQuick(i))
     .map((c) => {
       const eats = live.filter((i) => i.batch === c.batch).sort((a, b) => a.day.localeCompare(b.day) || a.meal - b.meal);
       const mine = eats.reduce((a, i) => a + i.portions, 0);

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { LogOut, Settings2, Sparkles, Trash2, Users } from "lucide-react";
+import { LogOut, Scale, Settings2, Sparkles, Trash2, Users } from "lucide-react";
 import { useLayer, useNav } from "@/nav/Nav";
 import { SheetHeader } from "@/ui/Screen";
 import { Tap } from "@/ui/Tap";
@@ -9,7 +9,7 @@ import { useUid } from "@/lib/auth";
 import { confirmDialog, haptic } from "@/lib/telegram";
 import { fmt, todayKey } from "@/lib/dates";
 import { useDeletePlan, useDishes, useRemoveMember, useUpdatePlan, planDays, type MealPlan } from "@/data/mealplan";
-import { generate } from "@/data/planGen";
+import { generate, rebalance } from "@/data/planGen";
 import { PlanBuilding, PlanSetupSheet, useGoal } from "./PlanSetup";
 import { PlanShareSheet } from "./PlanShare";
 import { MealPlanScreen } from "@/pages/MealPlan";
@@ -24,6 +24,9 @@ export function PlanMenuSheet({ plan, own }: { plan: MealPlan; own: boolean }) {
   const del = useDeletePlan();
   const leave = useRemoveMember(plan.id);
   const kept = plan.items.filter((i) => i.eaten || i.locked).length;
+  const { map } = useDishes();
+  const goal = useGoal();
+  const update = useUpdatePlan(plan.id);
 
   const act = (fn: () => void) => () => {
     haptic.tap();
@@ -67,6 +70,25 @@ export function PlanMenuSheet({ plan, own }: { plan: MealPlan; own: boolean }) {
               Пересобрать меню
               <div className="muted" style={{ fontSize: 12.5 }}>
                 С сегодняшнего дня{kept ? ` · съеденное и закреплённое (${kept}) останется` : ""}
+              </div>
+            </span>
+          </Tap>
+          <Tap
+            className="list-item"
+            onClick={act(() => {
+              if (!map) return;
+              const today = todayKey();
+              const days = planDays(plan).filter((d) => d >= today);
+              update.mutate({ items: rebalance({ items: plan.items, prefs: plan.prefs, dishes: map, goal, days }) });
+              haptic.success();
+              toast("Порции подогнаны под калории и БЖУ");
+            })}
+          >
+            <Scale size={19} />
+            <span style={{ flex: 1 }}>
+              Подтянуть БЖУ
+              <div className="muted" style={{ fontSize: 12.5 }}>
+                Порции под норму и белковые добавки, где белка мало — без ИИ
               </div>
             </span>
           </Tap>

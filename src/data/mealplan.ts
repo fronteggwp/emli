@@ -394,8 +394,8 @@ async function invokePlan<T>(body: Record<string, unknown>): Promise<T> {
   return data as T;
 }
 
-export type AiCand = { c: string; t: string; k: string; min: number | null; s: number; kcal: number; p: number; tags?: string; fav?: boolean; meals?: string };
-export type AiDay = { d: number; label: string; weekend: boolean; kcal: number; protein: number };
+export type AiCand = { c: string; t: string; k: string; min: number | null; s: number; kcal: number; p: number; f: number; cb: number; tags?: string; fav?: boolean; meals?: string };
+export type AiDay = { d: number; label: string; weekend: boolean; kcal: number; protein: number; fat?: number; carbs?: number };
 
 export const aiPlan = (body: { prefs: unknown; days: AiDay[]; cands: AiCand[]; keep?: { d: number; m: number; t: string }[] }) =>
   invokePlan<{ note: string | null; slots: { d: number; m: number; r: string; cook: boolean }[]; skip?: { d: number; m: number }[]; ms: number }>({ mode: "plan", ...body });

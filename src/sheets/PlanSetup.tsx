@@ -43,7 +43,7 @@ export function useGoal() {
   const t = useDayTargets();
   return (day: string) => {
     const d = t.forDay(day);
-    return { kcal: d.calories, protein: d.protein };
+    return { kcal: d.calories, protein: d.protein, fat: d.fat, carbs: d.carbs };
   };
 }
 

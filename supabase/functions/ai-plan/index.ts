@@ -43,12 +43,27 @@ const COOK_TEXT: Record<string, string> = {
   batch: "готовит 2–3 раза в неделю большими партиями: одно блюдо закрывает 2–3 приёма (например, обеды пн–ср)",
 };
 
-type Cand = { c: string; t: string; k: string; min: number | null; s: number; kcal: number; p: number; tags?: string; fav?: boolean; meals?: string };
-type Day = { d: number; label: string; weekend: boolean; kcal: number; protein: number };
+type Cand = { c: string; t: string; k: string; min: number | null; s: number; kcal: number; p: number; f?: number; cb?: number; tags?: string; fav?: boolean; meals?: string };
+type Day = { d: number; label: string; weekend: boolean; kcal: number; protein: number; fat?: number; carbs?: number };
+
+/** Белок на 100 ккал — главный показатель «белковости» блюда */
+const p100 = (c: Cand) => (c.kcal > 0 ? Math.round((c.p / c.kcal) * 1000) / 10 : 0);
 
 const clip = (s: unknown, n: number) => String(s ?? "").replace(/[\r\n]+/g, " ").slice(0, n);
 const candLine = (c: Cand) =>
-  [c.c, clip(c.t, 60), clip(c.k, 12), c.min ? `${c.min}м` : "", `${c.s}п`, `${Math.round(c.kcal)}ккал ${Math.round(c.p)}б`, clip(c.tags, 60) + (c.fav ? " ♥" : "") + (c.meals ? ` [${clip(c.meals, 30)}]` : "")].join(" | ");
+  [c.c, clip(c.t, 60), clip(c.k, 12), c.min ? `${c.min}м` : "", `${c.s}п`, `${Math.round(c.kcal)}ккал Б${Math.round(c.p)} Ж${Math.round(c.f ?? 0)} У${Math.round(c.cb ?? 0)}`, `Б/100ккал ${p100(c)}`, clip(c.tags, 60) + (c.fav ? " ♥" : "") + (c.meals ? ` [${clip(c.meals, 30)}]` : "")].join(" | ");
+
+/** Насколько белковым должно быть меню: сколько белка на 100 ккал нужно в среднем */
+function proteinRule(days: Day[]) {
+  const k = days.reduce((a, d) => a + d.kcal, 0);
+  const p = days.reduce((a, d) => a + d.protein, 0);
+  if (!k || !p) return "";
+  const need = Math.round((p / k) * 1000) / 10;
+  const share = Math.round(((p * 4) / k) * 100);
+  return need >= 8
+    ? `БЕЛОК — главный приоритет: нужно в среднем ${need} г белка на 100 ккал (${share}% калорий из белка), это очень белковое меню. Основу делай из блюд с Б/100ккал ≥ ${Math.max(7, Math.round(need - 2))}; блюда с Б/100ккал < 5 (крупы, выпечка, сладкое) — только небольшим дополнением.`
+    : `Белок: в среднем ${need} г на 100 ккал (${share}% калорий) — держи основу меню из блюд с Б/100ккал не ниже ${Math.max(4, Math.round(need - 1))}.`;
+}
 
 function context(body: Record<string, unknown>) {
   const p = (body.prefs ?? {}) as Record<string, unknown>;
@@ -99,8 +114,12 @@ Deno.serve(async (req) => {
       const maxCooked = cookMode === "daily" ? n * 2 : cookMode === "batch" ? Math.ceil(n * 0.8) + 1 : n + 1;
       const prompt = [
         `Составь меню на ${days.length} дн.`,
-        "Дни (цель по калориям и белку — на весь день; порции мы подгоним сами, ±40%):",
-        ...days.map((d) => `${d.d}) ${clip(d.label, 20)}${d.weekend ? " (выходной)" : ""} — ${Math.round(d.kcal)} ккал, белок ${Math.round(d.protein)} г`),
+        "Дни (цель на весь день; порции мы подгоним сами, ±40%):",
+        ...days.map(
+          (d) =>
+            `${d.d}) ${clip(d.label, 20)}${d.weekend ? " (выходной)" : ""} — ${Math.round(d.kcal)} ккал, Б ${Math.round(d.protein)} г${d.fat ? `, Ж ${Math.round(d.fat)} г` : ""}${d.carbs ? `, У ${Math.round(d.carbs)} г` : ""}`,
+        ),
+        proteinRule(days),
         text,
         keep.length ? `Уже зафиксировано — эти приёмы НЕ заполняй, но учитывай для разнообразия:\n${keep.map((k) => `д${k.d} ${MEAL_NAMES[k.m] ?? ""}: ${clip(k.t, 60)}`).join("\n")}` : "",
         "",
@@ -111,7 +130,8 @@ Deno.serve(async (req) => {
         "- Только коды из списка. Каждый выбранный приём пищи каждого дня должен быть заполнен.",
         "- Завтрак — завтраки и простые блюда; перекус — простые блюда, перекусы, иногда полезный десерт; обед и ужин — горячее, суп, салат, гарнир, простые обеды.",
         "- В приёме 1–2 блюда. Второе — только если первое лёгкое: горячее + гарнир/салат, суп + салат. Гарнир без основного блюда не ставь.",
-        "- Калории дня близки к цели, белок — не меньше цели: в каждом основном приёме есть источник белка.",
+        "- Калории дня близки к цели, белок — не меньше цели: в каждом основном приёме есть источник белка. Смотри на «Б/100ккал» блюда, а не только на граммы белка.",
+        "- Если цель по жирам или углеводам низкая — жирные блюда (сливки, жареное, сыр, орехи) и крупные гарниры ставь реже и в паре с нежирным белком.",
         "- Заготовки: блюдо, приготовленное в день N, можно есть в дни N+1 и N+2 — для таких приёмов ставь \"cook\": false. Не больше 3 приёмов одного блюда подряд. Простые блюда (метка «простое») собираются каждый раз, для них cook: true.",
         "- Долгие рецепты — на выходные или в день заготовки.",
         `- ВАЖНО: разных блюд, которые нужно готовить (не «простое» и дольше 10 минут), за весь план — не больше ${maxCooked}. Разнообразие делай за счёт простых блюд, гарниров и салатов, а не новых сложных рецептов.`,

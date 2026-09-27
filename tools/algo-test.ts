@@ -293,5 +293,56 @@ test("быстрые блюда (до 10 мин) собираются кажды
   assert.equal(cookSessions(items, 1).length, 0);
 });
 
+test("высокобелковая норма (1690 ккал, Б 193): белок добирается, калории остаются в норме", () => {
+  const mk = (code: string, kcal: number, p: number, fat: number, c: number, o: Partial<Dish> = {}): Dish => ({
+    ...dish(code, { kcal }),
+    serving: { kcal, protein: p, fat, carbs: c, grams: 250 },
+    ...o,
+  });
+  const menu = new Map<string, Dish>([
+    ["r1", mk("r1", 260, 20, 10, 22, { category: "breakfast" })], // сырники
+    ["r2", mk("r2", 300, 42, 12, 4)], // грудка в духовке
+    ["r3", mk("r3", 200, 7, 3, 38, { category: "side" })], // гречка
+    ["r4", mk("r4", 380, 28, 24, 12)], // котлеты
+    ["r5", mk("r5", 130, 2, 10, 8, { category: "salad" })], // салат
+    ["r6", mk("r6", 220, 26, 9, 8, { category: "snack" })], // творог с зеленью
+    ["b-cottage", mk("b-cottage", 218, 31, 9, 3, { category: "snack", basic: true, meals: [3], time: 1 })],
+    ["b-protein-water", mk("b-protein-water", 114, 22.5, 1.5, 2.4, { category: "snack", basic: true, meals: [0, 3], time: 1 })],
+    ["b-tuna-cucumber", mk("b-tuna-cucumber", 130, 26, 1.3, 2.8, { category: "snack", basic: true, meals: [1, 2, 3], time: 3 })],
+  ]);
+  const g = () => ({ kcal: 1690, protein: 193, fat: 54, carbs: 108 });
+  const slots = [
+    { d: 1, m: 0, r: "r1" },
+    { d: 1, m: 1, r: "r2" },
+    { d: 1, m: 1, r: "r3" },
+    { d: 1, m: 2, r: "r4" },
+    { d: 1, m: 2, r: "r5" },
+    { d: 1, m: 3, r: "r6" },
+  ];
+  const before = buildPlan(slots, { prefs: { ...prefs, days: 1, meals: [0, 1, 2, 3] }, days: [days3[0]], dishes: menu, goal: g });
+  const after = buildPlan(slots, {
+    prefs: { ...prefs, days: 1, meals: [0, 1, 2, 3] }, days: [days3[0]], dishes: menu, goal: g,
+    proteinBoost: ["b-cottage", "b-protein-water", "b-tuna-cucumber"],
+  });
+  const s0 = sumItems(before);
+  const s = sumItems(after);
+  assert.ok(s.protein >= 193 * 0.9, `белок ${s.protein.toFixed(0)} (без добавок было ${s0.protein.toFixed(0)})`);
+  assert.ok(Math.abs(s.kcal - 1690) <= 1690 * 0.08, `ккал ${s.kcal}`);
+  assert.ok(s.fat <= 54 * 1.25, `жиры ${s.fat.toFixed(0)}`);
+});
+test("порции смещаются к белку даже без добавок: белка больше, чем при подгонке только калорий", () => {
+  const mk = (code: string, kcal: number, p: number, fat: number, c: number): Dish => ({ ...dish(code, { kcal }), serving: { kcal, protein: p, fat, carbs: c, grams: 250 } });
+  const menu = new Map<string, Dish>([
+    ["r2", mk("r2", 300, 42, 12, 4)],
+    ["r3", mk("r3", 200, 7, 3, 38)],
+  ]);
+  const items = buildPlan([{ d: 1, m: 1, r: "r2" }, { d: 1, m: 1, r: "r3" }], {
+    prefs: { ...prefs, days: 1, meals: [1] }, days: [days3[0]], dishes: menu, goal: () => ({ kcal: 900 / 0.35, protein: 110 / 0.35, fat: 30 / 0.35, carbs: 60 / 0.35 }),
+  });
+  const chicken = items.find((i) => i.ref === "r2")!;
+  const buckwheat = items.find((i) => i.ref === "r3")!;
+  assert.ok(chicken.portions > buckwheat.portions, `грудка ${chicken.portions} vs гречка ${buckwheat.portions}`);
+});
+
 console.log(`\n${passed} прошло, ${failed} упало`);
 if (failed) process.exit(1);

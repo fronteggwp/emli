@@ -8,6 +8,7 @@ import {
   Lock,
   MoreHorizontal,
   Plus,
+  RefreshCw,
   RotateCcw,
   Share2,
   ShoppingBasket,
@@ -31,6 +32,11 @@ import { MEALS, fmtNum } from "@/lib/nutrition";
 import {
   DEPTS,
   cookSessions,
+  dayBalanced,
+  balanceIssue,
+  culprit,
+  itemQuick,
+  MEAL_SHARE,
   mealsShare,
   portionsText,
   qtyText,
@@ -62,7 +68,8 @@ import {
   type MealPlan,
 } from "@/data/mealplan";
 import { PlanSetupSheet, useGoal } from "@/sheets/PlanSetup";
-import { PlanDishSheet } from "@/sheets/PlanDish";
+import { planGoal, rebalance } from "@/data/planGen";
+import { PlanDishSheet, PlanSwapSheet } from "@/sheets/PlanDish";
 import { PlanMenuSheet, PlanRegenSheet } from "@/sheets/PlanMenu";
 import { PlanShareSheet } from "@/sheets/PlanShare";
 import { PlanPickerSheet } from "@/sheets/PlanPicker";
@@ -222,11 +229,45 @@ function MenuTab({ plan, own }: { plan: MealPlan; own: boolean }) {
   const goal = useGoal();
   const { map } = useDishes();
   const items = plan.items.filter((i) => i.day === day && !i.skipped);
-  const share = mealsShare(plan.prefs.meals);
-  const g = goal(day);
+  const g = planGoal(plan.prefs, goal, day);
   const sum = sumItems(items);
+  const update = useUpdatePlan(plan.id);
+  const toast = useToast();
+  // Дни, где план не сходится с нормой (калории ±8%, белок от 92%) — их можно подтянуть без ИИ
+  const offDays = days.filter((d) => {
+    if (d < today) return false;
+    const list = plan.items.filter((i) => i.day === d && !i.skipped);
+    return list.some((i) => !i.eaten && !i.locked) && !dayBalanced(sumItems(list), planGoal(plan.prefs, goal, d));
+  });
+  // После «Подтянуть всё» баннер прячем, пока план не поменяется: повторный пересчёт ничего не даст
+  const sig = (list: typeof plan.items) => list.map((i) => `${i.id}:${i.portions}`).join("|");
+  const [fixedSig, setFixedSig] = useState<string | null>(null);
+  const fix = (which: string[]) => {
+    if (!map) return;
+    haptic.success();
+    const next = rebalance({ items: plan.items, prefs: plan.prefs, dishes: map, goal, days: which });
+    if (which.length > 1) setFixedSig(sig(next));
+    update.mutate({ items: next });
+    if (which.length === 1) {
+      const after = sumItems(next.filter((i) => i.day === which[0] && !i.skipped));
+      const before = sumItems(plan.items.filter((i) => i.day === which[0] && !i.skipped));
+      toast(`Белок ${fmtNum(before.protein)} → ${fmtNum(after.protein)} г · ${fmtNum(after.kcal)} ккал`);
+    } else toast(`Подтянуто дней: ${which.length}`);
+  };
+  const off = items.length > 0 && !dayBalanced(sum, g);
+  const editable = own && day >= today && items.some((i) => !i.eaten && !i.locked);
+  // Поможет ли «Подтянуть»: пробуем пересчёт этого дня; если ничего не меняется — подсказываем, что заменить
+  const trial = useMemo(() => {
+    if (!off || !editable || !map) return null;
+    const next = rebalance({ items: plan.items, prefs: plan.prefs, dishes: map, goal, days: [day] }).filter((i) => i.day === day && !i.skipped);
+    const s = sumItems(next);
+    const same = Math.abs(s.kcal - sum.kcal) < 15 && Math.abs(s.protein - sum.protein) < 2 && Math.abs(s.fat - sum.fat) < 2 && Math.abs(s.carbs - sum.carbs) < 3;
+    return { same, bad: same ? culprit(items, sum, g) : null };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [off, editable, map, plan.items, day]);
+  const canFix = editable && !!trial && !trial.same;
   const eaten = items.filter((i) => i.eaten).length;
-  const cooking = items.filter((i) => i.cook && !i.basic && !i.quick);
+  const cooking = items.filter((i) => i.cook && !itemQuick(i));
   const sessions = useMemo(() => cookSessions(plan.items, plan.prefs.people), [plan.items, plan.prefs.people]);
   const stripRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -235,6 +276,18 @@ function MenuTab({ plan, own }: { plan: MealPlan; own: boolean }) {
 
   return (
     <>
+      {own && offDays.some((d) => d !== day) && fixedSig !== sig(plan.items) && (
+        <motion.div className="mp-balance-banner" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}>
+          <span className="mp-balance-ico">⚖️</span>
+          <span style={{ flex: 1 }}>
+            <b>БЖУ не сходится с нормой: {offDays.length} {offDays.length === 1 ? "день" : offDays.length < 5 ? "дня" : "дней"}</b>
+            <small>Подгоню порции и добавлю белка или углеводов, где не хватает</small>
+          </span>
+          <Tap className="chip on" onClick={() => fix(offDays)}>
+            Подтянуть
+          </Tap>
+        </motion.div>
+      )}
       <div className="mp-daystrip no-scrollbar" ref={stripRef}>
         {days.map((d) => {
           const list = plan.items.filter((i) => i.day === d && !i.skipped);
@@ -268,20 +321,20 @@ function MenuTab({ plan, own }: { plan: MealPlan; own: boolean }) {
           <b className="num">
             <NumberTicker value={Math.round(sum.kcal)} duration={0.5} />
           </b>
-          <span> / {fmtNum(Math.round((g.kcal * share) / 10) * 10)} ккал</span>
+          <span> / {fmtNum(Math.round(g.kcal / 10) * 10)} ккал</span>
         </div>
         <div className="mp-macros">
           {(
             [
-              ["Белки", sum.protein, g.protein * share, "var(--protein)"],
-              ["Жиры", sum.fat, null, "var(--fat)"],
-              ["Углеводы", sum.carbs, null, "var(--carbs)"],
+              ["Белки", sum.protein, g.protein, "var(--protein)"],
+              ["Жиры", sum.fat, g.fat ?? null, "var(--fat)"],
+              ["Углеводы", sum.carbs, g.carbs ?? null, "var(--carbs)"],
             ] as const
           ).map(([name, v, t, c]) => (
             <div key={name} className="mp-macro">
               <div className="mp-macro-top">
                 <span>{name}</span>
-                <b className="num">
+                <b className={`num ${t && (name === "Белки" ? v < t * 0.92 : name === "Жиры" ? v > t * 1.25 : v < t * 0.65 || v > t * 1.4) ? "mp-macro-off" : ""}`}>
                   {fmtNum(v)}
                   {t ? <small> / {fmtNum(t)}</small> : null} г
                 </b>
@@ -292,6 +345,26 @@ function MenuTab({ plan, own }: { plan: MealPlan; own: boolean }) {
             </div>
           ))}
         </div>
+        {off && (
+          <div className="mp-balance">
+            <span>{balanceIssue(sum, g)}</span>
+            {canFix && (
+              <Tap className="mp-balance-btn" onClick={() => fix([day])}>
+                <Sparkles size={13} /> Подтянуть
+              </Tap>
+            )}
+          </div>
+        )}
+        {off && trial?.bad && (
+          <Tap className="mp-culprit" scale={0.98} onClick={() => nav.sheet(<PlanSwapSheet planId={plan.id} itemId={trial.bad!.item.id} />)}>
+            <span>
+              Порциями точнее не подогнать. В «{trial.bad.item.title}» {trial.bad.why} — замени его
+            </span>
+            <span className="mp-ai-pill">
+              <RefreshCw size={11} /> Заменить
+            </span>
+          </Tap>
+        )}
       </motion.div>
 
       {cooking.length > 0 && (
@@ -340,7 +413,7 @@ function MenuTab({ plan, own }: { plan: MealPlan; own: boolean }) {
                 <Tap
                   className="mp-add"
                   onClick={() =>
-                    nav.sheet(<AddToPlan plan={plan} day={day} meal={m} kcal={Math.max(150, g.kcal * share * 0.3 - k * 0.3)} />, { full: true })
+                    nav.sheet(<AddToPlan plan={plan} day={day} meal={m} kcal={Math.max(150, (g.kcal * MEAL_SHARE[m]) / mealsShare(plan.prefs.meals) - k)} />, { full: true })
                   }
                 >
                   <Plus size={15} /> Добавить блюдо
@@ -415,7 +488,7 @@ function DishRow({ plan, item, own, img }: { plan: MealPlan; item: PlanItem; own
               {item.locked && <Lock size={11} />}
             </span>
             <span className="mp-badges">
-              {item.basic || item.quick ? (
+              {itemQuick(item) ? (
                 <span className="mp-badge quick">⚡ собрать</span>
               ) : item.cook ? (
                 <span className="mp-badge cook">🔥 готовим{batchSize > 1 ? ` на ${batchSize}` : ""}</span>
@@ -758,7 +831,7 @@ function CookTab({ plan }: { plan: MealPlan }) {
   const sessions = useMemo(() => cookSessions(plan.items, plan.prefs.people), [plan.items, plan.prefs.people]);
   const today = todayKey();
   const minutes = sessions.reduce((a, s) => a + (dishOfItem(map, s.item)?.time ?? 0), 0);
-  const quick = plan.items.filter((i) => (i.basic || i.quick) && !i.skipped).length;
+  const quick = plan.items.filter((i) => itemQuick(i) && !i.skipped).length;
   if (!sessions.length) {
     return (
       <div className="mp-cook-empty">

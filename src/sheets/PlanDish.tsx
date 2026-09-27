@@ -76,7 +76,7 @@ export function PlanDishSheet({ planId, itemId, own }: { planId: string; itemId:
           </div>
         </div>
         <h2 className="mp-ds-title">{item.title}</h2>
-        {dish?.basic && <div className="mp-ds-sub">Простое блюдо — собирается за {dish.time ?? 5} мин</div>}
+        {dish?.basic && <div className="mp-ds-sub">Простое блюдо из продуктов · {dish.time ?? 5} мин</div>}
 
         <div className="mp-ds-portion">
           {own && (
@@ -132,7 +132,7 @@ export function PlanDishSheet({ planId, itemId, own }: { planId: string; itemId:
         <div className="card list" style={{ padding: 0, marginTop: 12 }}>
           <Tap className="list-item" onClick={() => openRecipe(nav, item, session?.servings)}>
             <BookOpen size={19} />
-            <span style={{ flex: 1 }}>{dish?.basic ? "Как собрать" : "Открыть рецепт"}</span>
+            <span style={{ flex: 1 }}>{dish?.basic ? "Как приготовить" : "Открыть рецепт"}</span>
             <span className="faint">›</span>
           </Tap>
           {own && (

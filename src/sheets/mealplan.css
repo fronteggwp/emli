@@ -1652,3 +1652,73 @@
   margin: 8px 6px 0;
   font-size: 12.5px;
 }
+
+/* Баланс БЖУ */
+.mp-macro-off {
+  color: var(--protein) !important;
+}
+.mp-balance {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 10px 10px 14px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--fat) 14%, transparent);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.mp-balance > span {
+  flex: 1;
+}
+.mp-balance-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--text-inv);
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.mp-balance-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 12px 12px 12px 14px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--fat) 12%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--fat) 30%, transparent);
+}
+.mp-balance-ico {
+  font-size: 24px;
+}
+.mp-balance-banner b {
+  display: block;
+  font-size: 14.5px;
+}
+.mp-balance-banner small {
+  display: block;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.mp-culprit {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 10px 12px 10px 14px;
+  border-radius: 16px;
+  background: var(--soft);
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text-2);
+}
+.mp-culprit > span:first-child {
+  flex: 1;
+}
