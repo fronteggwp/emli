@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion, type PanInfo } from "motion/react";
-import { CalendarDays, Flame, Plus, ScanBarcode } from "lucide-react";
+import { Bookmark, CalendarDays, Flame, Plus, ScanBarcode, X } from "lucide-react";
 import { useDay } from "@/state/day";
 import { useNav } from "@/nav/Nav";
 import { useDayTargets, useEntries, useProfile, useTotals, useDeleteEntry } from "@/data/api";
 import { useInsights } from "@/data/insights";
-import { dayTitle, fmt, fromKey, shiftKey, todayKey, weekStart, WEEKDAYS_SHORT } from "@/lib/dates";
+import { dayTitle, fmt, fromKey, shiftKey, toKey, todayKey, weekStart, WEEKDAYS_SHORT } from "@/lib/dates";
 import { MEALS, sumMacros, fmtNum } from "@/lib/nutrition";
 import type { DayTarget } from "@/lib/cheat";
 import type { Entry, Macros, Meal } from "@/lib/types";
@@ -21,6 +21,13 @@ import { QuickAddSheet } from "@/sheets/QuickAdd";
 import { CheatMealSheet } from "@/sheets/CheatMeal";
 import { useToast } from "@/ui/Toast";
 import { HeaderAvatar } from "@/ui/HeaderAvatar";
+import { SaveTemplateSheet } from "@/sheets/SaveTemplate";
+import { RecipesScreen } from "./Recipes";
+import { WorkoutDetailScreen } from "./WorkoutDetail";
+import { useWorkouts } from "@/data/workouts";
+import { useMealTemplates, useRecipes } from "@/data/engage";
+import { useHomeScreen } from "@/lib/homescreen";
+import { fmtDuration } from "@/state/workout";
 import "./diary.css";
 
 /** Какую долю дневной нормы обычно занимает приём пищи — для полоски у каждого приёма */
@@ -83,6 +90,8 @@ export function DiaryPage() {
 
       <DayBanner target={target} day={day} />
 
+      <DayWorkouts day={day} />
+
       <div className="stack" style={{ marginTop: 14 }}>
         {MEALS.map((m, i) => (
           <MealCard
@@ -103,7 +112,95 @@ export function DiaryPage() {
           <ScanBarcode size={22} />
         </Tap>
       </div>
+
+      <DiaryExtras />
     </div>
+  );
+}
+
+// ───────────────────────── Тренировки дня: сожжённые калории (только для информации)
+
+function DayWorkouts({ day }: { day: string }) {
+  const nav = useNav();
+  const workouts = useWorkouts();
+  const list = (workouts.data ?? []).filter((w) => toKey(new Date(w.started_at)) === day);
+  if (!list.length) return null;
+  const kcal = list.reduce((a, w) => a + w.kcal, 0);
+  return (
+    <button
+      className="day-workout press"
+      onClick={() => (list.length === 1 ? nav.push(<WorkoutDetailScreen id={list[0].id} />) : nav.setTab("workouts"))}
+    >
+      <span className="day-workout-ico">💪</span>
+      <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+        <b>{list.length === 1 ? list[0].name : `${list.length} тренировки`}</b>
+        <div className="day-banner-sub">
+          {fmtDuration(list.reduce((a, w) => a + w.duration_s, 0))} · сожжено ≈ {fmtNum(kcal)} ккал · не прибавляется к норме
+        </div>
+      </span>
+      <span className="day-workout-kcal num">
+        🔥{fmtNum(kcal)}
+      </span>
+    </button>
+  );
+}
+
+// ───────────────────────── Рецепты, мои приёмы, иконка на экран
+
+function DiaryExtras() {
+  const nav = useNav();
+  const recipes = useRecipes();
+  const templates = useMealTemplates();
+  const home = useHomeScreen();
+  const [hint, setHint] = useState(() => {
+    try {
+      const n = Number(localStorage.getItem("emli-opens") ?? 0) + 1;
+      localStorage.setItem("emli-opens", String(n));
+      return n >= 3 && !localStorage.getItem("emli-home-hint");
+    } catch {
+      return false;
+    }
+  });
+  const hideHint = () => {
+    setHint(false);
+    try {
+      localStorage.setItem("emli-home-hint", "1");
+    } catch {
+      /* ничего */
+    }
+  };
+  const tpl = templates.data?.length ?? 0;
+  return (
+    <>
+      <div className="grid-2" style={{ marginTop: 14 }}>
+        <Tap className="diary-tile" scale={0.97} onClick={() => nav.push(<RecipesScreen />)}>
+          <span className="diary-tile-ico" style={{ background: "linear-gradient(135deg, #ffb35c, #ff6a5c)" }}>📖</span>
+          <span>
+            <b>Рецепты</b>
+            <small>{recipes.data ? `${recipes.data.length} блюд с КБЖУ` : "Блюда с КБЖУ"}</small>
+          </span>
+        </Tap>
+        <Tap className="diary-tile" scale={0.97} onClick={() => nav.sheet(<AddFoodSheet tab="mine" />, { full: true })}>
+          <span className="diary-tile-ico" style={{ background: "linear-gradient(135deg, #7c8cff, #b388ff)" }}>⭐</span>
+          <span>
+            <b>Мои приёмы</b>
+            <small>{tpl ? `Сохранено: ${tpl}` : "Набор еды в 1 тап"}</small>
+          </span>
+        </Tap>
+      </div>
+      {hint && (home.status === "missed" || home.status === "unknown") && (
+        <div className="home-hint">
+          <span style={{ fontSize: 26 }}>📲</span>
+          <button className="press" style={{ flex: 1, textAlign: "left" }} onClick={() => (home.add(), hideHint())}>
+            <b>Emli на главный экран</b>
+            <div className="day-banner-sub">Открывай в одно касание, как обычное приложение</div>
+          </button>
+          <button className="icon-btn" style={{ width: 30, height: 30 }} onClick={hideHint} aria-label="Скрыть">
+            <X size={15} />
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -356,6 +453,19 @@ function MealCard({ meal, entries, index, budget }: { meal: Meal; entries: Entry
             <div className="meal-sub">≈ {fmtNum(Math.round(budget / 10) * 10)} ккал по плану</div>
           )}
         </div>
+        {entries.length > 0 && (
+          <Tap
+            className="meal-save"
+            scale={0.85}
+            onClick={() => {
+              haptic.tap();
+              nav.sheet(<SaveTemplateSheet entries={entries.filter((e) => !e.id.startsWith("temp-"))} meal={meal} />);
+            }}
+            aria-label="Сохранить как мой приём"
+          >
+            <Bookmark size={17} />
+          </Tap>
+        )}
         <Tap
           className="meal-add"
           scale={0.85}

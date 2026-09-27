@@ -488,7 +488,7 @@ html.kb .active-bar {
   gap: 10px;
   padding: calc(var(--sat) + 8px) 14px 10px;
   border-bottom: 1px solid var(--line);
-  background: rgba(11, 11, 14, 0.88);
+  background: var(--bar);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   z-index: 3;
@@ -662,7 +662,7 @@ html.kb .active-bar {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(30, 30, 38, 0.95);
+  background: var(--float);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--line-2);
@@ -1043,4 +1043,109 @@ html.kb .rest {
 }
 .for-who > span {
   font-size: 22px;
+}
+
+/* ───────── Калькулятор блинов */
+.barbell {
+  position: relative;
+  height: 130px;
+  margin: 20px 0 6px;
+  display: flex;
+  align-items: center;
+}
+.barbell-bar {
+  position: absolute;
+  left: 0;
+  right: 40%;
+  height: 10px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #d9dbe2, #8d909b);
+}
+.barbell-sleeve {
+  position: absolute;
+  left: 60%;
+  right: 0;
+  height: 16px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #e6e7ec, #9a9da8);
+}
+.barbell-sleeve::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: -12px;
+  width: 8px;
+  height: 40px;
+  border-radius: 2px;
+  background: #8d909b;
+}
+.barbell-plates {
+  position: absolute;
+  left: calc(60% + 2px);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.plate {
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15), 0 4px 10px rgba(0, 0, 0, 0.25);
+}
+.plate span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 10px;
+  font-weight: 800;
+}
+.plate-summary {
+  text-align: center;
+  padding: 12px;
+  border-radius: 18px;
+  background: var(--card-2);
+}
+.plate-list {
+  font-family: var(--font-num);
+  font-size: 22px;
+  font-weight: 800;
+  margin-top: 2px;
+}
+.plate-toggle {
+  min-width: 52px;
+  height: 40px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 14px;
+  display: grid;
+  place-items: center;
+  transition: background 0.2s, color 0.2s;
+}
+
+/* ───────── Суперсеты */
+.aw-ex.ss {
+  position: relative;
+  border-left: 3px solid var(--kcal);
+}
+.aw-ex.ss-first,
+.aw-ex.ss-mid {
+  margin-bottom: 4px;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+.aw-ex.ss-mid,
+.aw-ex.ss-last {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+.ss-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--kcal);
+  margin-bottom: 8px;
 }

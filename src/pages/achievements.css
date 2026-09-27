@@ -1,0 +1,107 @@
+/* ───────── Достижения */
+.ach-summary {
+  text-align: center;
+  padding: 8px 0 4px;
+}
+.ach-count {
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.ach-count span {
+  font-size: 22px;
+  color: var(--text-3);
+}
+.ach-progress {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--card-3);
+  overflow: hidden;
+  margin: 8px auto 0;
+  max-width: 260px;
+}
+.ach-progress i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #ffc247, #ff7a5c);
+}
+.ach-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.ach {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: 14px 6px 12px;
+  border-radius: 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.ach-medal {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+  background: var(--card-3);
+  filter: grayscale(1);
+  opacity: 0.45;
+  margin-bottom: 4px;
+}
+.ach.on .ach-medal {
+  background:
+    radial-gradient(70% 70% at 30% 25%, rgba(255, 255, 255, 0.45), transparent 60%),
+    linear-gradient(135deg, var(--c1), var(--c2));
+  filter: none;
+  opacity: 1;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--c1) 25%, transparent),
+    0 8px 18px color-mix(in srgb, var(--c2) 40%, transparent);
+}
+.ach-title {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.ach:not(.on) .ach-title {
+  color: var(--text-2);
+}
+.ach-desc {
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.25;
+}
+.ach-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  margin-top: 12px;
+  padding: 14px 14px 14px 16px;
+  border-radius: 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.ach-strip-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  min-height: 36px;
+  align-items: center;
+}
+.ach-mini {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}

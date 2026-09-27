@@ -409,6 +409,7 @@ export function useRealtime() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${uid}` }, () => {
         qc.invalidateQueries({ queryKey: sk.notices });
         qc.invalidateQueries({ queryKey: sk.friendships });
+        qc.invalidateQueries({ queryKey: ["challenges"] });
       })
       .subscribe();
 

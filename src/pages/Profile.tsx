@@ -1,4 +1,4 @@
-import { ChevronRight, Info, Newspaper, Package, Pencil, Ruler as RulerIcon, Target, Users } from "lucide-react";
+import { BarChart3, ChefHat, ChevronRight, Info, Newspaper, Package, Pencil, Ruler as RulerIcon, Settings, Target, Trophy, Users } from "lucide-react";
 import { motion } from "motion/react";
 import { useNav } from "@/nav/Nav";
 import { useProfile } from "@/data/api";
@@ -16,6 +16,11 @@ import { PersonScreen } from "./Person";
 import { useFriendships } from "@/data/social";
 import { Tap } from "@/ui/Tap";
 import { Screen } from "@/ui/Screen";
+import { AchievementStrip } from "./Achievements";
+import { SettingsScreen } from "./Settings";
+import { RecipesScreen } from "./Recipes";
+import { ChallengesScreen } from "./Challenges";
+import { WeekReportScreen } from "./WeekReport";
 
 /** Профиль открывается экраном по аватарке в шапке вкладок */
 export function ProfileScreen() {
@@ -36,10 +41,14 @@ function ProfileBody() {
 
   const items = [
     { Icon: Target, title: "Цель и программа", sub: "Калории, БЖУ, темп", go: () => nav.push(<GoalScreen />) },
+    { Icon: BarChart3, title: "Итоги недели", sub: "Оценка, питание, вес и тренировки", go: () => nav.push(<WeekReportScreen />) },
+    { Icon: ChefHat, title: "Рецепты", sub: "База блюд с КБЖУ, избранное и свои рецепты", go: () => nav.push(<RecipesScreen />) },
     { Icon: Package, title: "Мои продукты", sub: "Созданные и отсканированные", go: () => nav.push(<MyFoodsScreen />) },
     { Icon: RulerIcon, title: "Параметры тела", sub: "Рост, возраст, активность", go: () => nav.sheet(<EditBodySheet />) },
     { Icon: Users, title: "Друзья", sub: fs.friends.length ? `${fs.friends.length} в друзьях${fs.incoming.length ? ` · ${fs.incoming.length} заявки` : ""}` : "Найти и пригласить", go: () => nav.push(<FriendsScreen initial={fs.incoming.length ? "requests" : "friends"} />) },
+    { Icon: Trophy, title: "Челленджи", sub: "Соревнования с друзьями", go: () => nav.push(<ChallengesScreen />) },
     { Icon: Newspaper, title: "Мои записи", sub: "Как меня видят другие", go: () => p && nav.push(<PersonScreen id={p.id} />) },
+    { Icon: Settings, title: "Настройки", sub: "Тема, напоминания, данные", go: () => nav.push(<SettingsScreen />) },
     { Icon: Info, title: "О приложении", sub: "Как считаются цифры", go: () => nav.sheet(<AboutSheet />) },
   ];
 
@@ -69,6 +78,8 @@ function ProfileBody() {
           suffix="кг"
         />
       </div>
+
+      {p && <AchievementStrip uid={p.id} />}
 
       <div className="list" style={{ marginTop: 20 }}>
         {items.map((i) => (

@@ -14,6 +14,8 @@ import { WorkoutsPage } from "@/pages/Workouts";
 import { WorkoutProvider } from "@/state/workout";
 import { ActiveBar } from "@/ui/ActiveBar";
 import { Onboarding } from "@/pages/Onboarding";
+import { AchievementWatcher } from "@/pages/Achievements";
+import { useSyncTimezone } from "@/data/engage";
 
 export function App() {
   const auth = useAuth();
@@ -74,8 +76,15 @@ function Tabs({ tab }: { tab: Tab }) {
       <ActiveBar tab={tab} />
       <TabBar />
       <DeepLinks />
+      <Background />
     </>
   );
+}
+
+/** Фоновые задачи: часовой пояс для напоминаний, проверка достижений */
+function Background() {
+  useSyncTimezone();
+  return <AchievementWatcher />;
 }
 
 function TabPage({ active, children }: { active: boolean; children: React.ReactNode }) {

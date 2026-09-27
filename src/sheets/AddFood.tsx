@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, Globe, PackagePlus, Plus, ScanBarcode, Search, X, Zap } from "lucide-react";
+import { Check, ChevronRight, Globe, PackagePlus, Plus, ScanBarcode, Search, X, Zap } from "lucide-react";
 import { useDay } from "@/state/day";
 import { useLayer, useNav } from "@/nav/Nav";
 import { getFood, useAddEntry, useFoodSearch, useMyFoods, useRecents } from "@/data/api";
@@ -19,9 +19,35 @@ import { QuickAddSheet } from "./QuickAdd";
 import { CreateFoodSheet } from "./CreateFood";
 import { ScannerSheet } from "./Scanner";
 import { loadDetector } from "@/lib/barcode";
+import {
+  RECIPE_CATS,
+  recipeItem,
+  searchRecipes,
+  templateTotal,
+  useDeleteTemplate,
+  useFavoriteFoods,
+  useFavorites,
+  useLogItems,
+  useMealTemplates,
+  useRecipes,
+  useUserRecipes,
+  userRecipeItem,
+  userRecipeServing,
+  type MealTemplate,
+  type Recipe,
+  type RecipeCategory,
+  type TemplateItem,
+} from "@/data/engage";
+import { RecipeRow, RecipesScreen } from "@/pages/Recipes";
+import { RecipeEditorScreen } from "@/pages/RecipeEditor";
+import { LogRecipeSheet } from "./LogRecipe";
+import { confirmDialog } from "@/lib/telegram";
+import "@/pages/recipes.css";
 import "./sheets.css";
 
-export function AddFoodSheet({ meal: initialMeal }: { meal?: Meal }) {
+type AddTab = "recent" | "fav" | "mine" | "recipes";
+
+export function AddFoodSheet({ meal: initialMeal, tab: initialTab = "recent" }: { meal?: Meal; tab?: AddTab }) {
   const { day } = useDay();
   const nav = useNav();
   // Подгружаем распознавание штрихкодов заранее — сканер откроется без задержки
@@ -32,11 +58,16 @@ export function AddFoodSheet({ meal: initialMeal }: { meal?: Meal }) {
   const layer = useLayer();
   const [meal, setMeal] = useState<Meal>(initialMeal ?? (mealByTime() as Meal));
   const [q, setQ] = useState("");
-  const [tab, setTab] = useState<"recent" | "mine">("recent");
+  const [tab, setTab] = useState<AddTab>(initialTab);
   const term = useDebounced(q.trim(), 220);
   const search = useFoodSearch(term);
   const recents = useRecents();
   const mine = useMyFoods();
+  const recipes = useRecipes();
+  const templates = useMealTemplates();
+  const myRecipes = useUserRecipes();
+  const log = useLogItems();
+  const toast = useToast();
   // Мировую базу ищем параллельно, с чуть большей паузой — она медленнее нашей
   const offTerm = useDebounced(q.trim(), 450);
   const off = useQuery({
@@ -88,6 +119,16 @@ export function AddFoodSheet({ meal: initialMeal }: { meal?: Meal }) {
   };
 
   const searching = term.length >= 2;
+  const foundTemplates = searching ? (templates.data ?? []).filter((t) => t.name.toLowerCase().includes(term.toLowerCase())) : [];
+  const foundRecipes = searching ? searchRecipes(recipes.data ?? [], term).slice(0, 4) : [];
+
+  const logItems = (items: TemplateItem[], templateId?: string) => {
+    haptic.success();
+    log.mutate({ items, day, meal, templateId });
+    toast(`${MEALS[meal].name}: +${fmtNum(templateTotal(items).kcal)} ккал`, <Check size={18} color="var(--good)" />);
+  };
+  const openRecipe = (r: Recipe) =>
+    nav.sheet(<LogRecipeSheet title={r.title} emoji={r.emoji} serving={r.serving} toItem={(p) => recipeItem(r, p)} meal={meal} onDone={layer.close} />);
 
   return (
     <>
@@ -171,7 +212,9 @@ export function AddFoodSheet({ meal: initialMeal }: { meal?: Meal }) {
                 onChange={setTab}
                 options={[
                   { value: "recent", label: "Недавние" },
-                  { value: "mine", label: "Мои продукты" },
+                  { value: "fav", label: "Избранное" },
+                  { value: "mine", label: "Моё" },
+                  { value: "recipes", label: "Рецепты" },
                 ]}
               />
             </div>
@@ -194,17 +237,76 @@ export function AddFoodSheet({ meal: initialMeal }: { meal?: Meal }) {
                   Здесь появится то, что ты ешь чаще всего
                 </div>
               )
-            ) : mine.data?.length ? (
-              mine.data.map((f) => <DbFoodRow key={f.id} food={f} meal={meal} day={day} onOpen={() => open(f)} />)
+            ) : tab === "fav" ? (
+              <FavTab meal={meal} day={day} onOpenFood={(f) => open(f)} onOpenRecipe={openRecipe} />
+            ) : tab === "mine" ? (
+              <>
+                <div className="group-label row" style={{ justifyContent: "space-between" }}>
+                  <span>⭐ Мои приёмы пищи</span>
+                </div>
+                {templates.data?.length ? (
+                  templates.data.map((t) => <TemplateRow key={t.id} t={t} onLog={() => logItems(t.items, t.id)} />)
+                ) : (
+                  <div className="faint" style={{ fontSize: 14, padding: "6px 2px 4px" }}>
+                    Запиши приём в дневник и нажми значок закладки у него — набор сохранится сюда и будет добавляться в один тап.
+                  </div>
+                )}
+
+                <div className="group-label row" style={{ justifyContent: "space-between" }}>
+                  <span>👩‍🍳 Мои рецепты</span>
+                  <button style={{ color: "var(--kcal)", fontWeight: 600 }} onClick={() => nav.push(<RecipeEditorScreen />)}>
+                    + Создать
+                  </button>
+                </div>
+                {myRecipes.data?.length ? (
+                  myRecipes.data.map((r) => {
+                    const sv = userRecipeServing(r);
+                    return (
+                      <FoodRow
+                        key={r.id}
+                        name={`${r.emoji} ${r.title}`}
+                        sub={`${r.servings} порц. · порция ${fmtNum(sv.grams)} г`}
+                        kcal={sv.kcal}
+                        kcalNote="за порцию"
+                        onOpen={() =>
+                          nav.sheet(<LogRecipeSheet title={r.title} emoji={r.emoji} serving={sv} toItem={(p) => userRecipeItem(r, p)} meal={meal} onDone={layer.close} />)
+                        }
+                        onQuickItems={() => logItems([userRecipeItem(r, 1)])}
+                      />
+                    );
+                  })
+                ) : (
+                  <div className="faint" style={{ fontSize: 14, padding: "6px 2px 4px" }}>
+                    Собери своё блюдо из продуктов — Emli посчитает КБЖУ порции.
+                  </div>
+                )}
+
+                <div className="group-label">📦 Мои продукты</div>
+                {mine.data?.length ? (
+                  mine.data.map((f) => <DbFoodRow key={f.id} food={f} meal={meal} day={day} onOpen={() => open(f)} />)
+                ) : (
+                  <div className="faint" style={{ fontSize: 14, padding: "6px 2px" }}>
+                    Своих продуктов пока нет. Создай продукт или отсканируй штрихкод.
+                  </div>
+                )}
+              </>
             ) : (
-              <div className="empty">
-                <div className="big">📦</div>
-                Своих продуктов пока нет. Создай продукт или отсканируй штрихкод.
-              </div>
+              <RecipesTab meal={meal} onOpen={openRecipe} onQuick={(r) => logItems([recipeItem(r, 1)])} />
             )}
           </>
         ) : (
           <>
+            {(foundTemplates.length > 0 || foundRecipes.length > 0) && (
+              <>
+                {foundTemplates.map((t) => (
+                  <TemplateRow key={t.id} t={t} onLog={() => logItems(t.items, t.id)} />
+                ))}
+                {foundRecipes.map((r) => (
+                  <RecipeRow key={r.id} r={r} onOpen={() => openRecipe(r)} onQuick={() => logItems([recipeItem(r, 1)])} />
+                ))}
+                <div className="group-label">Продукты</div>
+              </>
+            )}
             {search.data?.length ? (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} key={term}>
                 {search.data.map((f) => (
@@ -306,6 +408,7 @@ function FoodRow({
   kcalNote,
   onOpen,
   quick,
+  onQuickItems,
 }: {
   name: string;
   sub: string;
@@ -313,12 +416,19 @@ function FoodRow({
   kcalNote?: string;
   onOpen: () => void;
   quick?: QuickSpec;
+  onQuickItems?: () => void;
 }) {
   const add = useAddEntry();
   const toast = useToast();
   const [done, setDone] = useState(false);
   const onQuick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (onQuickItems) {
+      onQuickItems();
+      setDone(true);
+      setTimeout(() => setDone(false), 1400);
+      return;
+    }
     if (!quick) return;
     haptic.success();
     add.mutate({ ...quick.entry, day: quick.day, meal: quick.meal });
@@ -336,7 +446,7 @@ function FoodRow({
         {fmtNum(kcal)}
         {kcalNote && <small>{kcalNote}</small>}
       </div>
-      {quick && (
+      {(quick || onQuickItems) && (
         <span className={`quick-add tap ${done ? "done" : ""}`} style={{ ["--tap-scale" as string]: 0.8 }} onClick={onQuick} role="button" aria-label="Добавить сразу">
           <AnimatePresence mode="wait" initial={false}>
             <motion.span
@@ -353,5 +463,100 @@ function FoodRow({
         </span>
       )}
     </button>
+  );
+}
+
+// ───────────── Вкладки: избранное, приёмы, рецепты
+
+function FavTab({ meal, day, onOpenFood, onOpenRecipe }: { meal: Meal; day: string; onOpenFood: (f: Food) => void; onOpenRecipe: (r: Recipe) => void }) {
+  const fav = useFavorites();
+  const foods = useFavoriteFoods();
+  const recipes = useRecipes();
+  const log = useLogItems();
+  const toast = useToast();
+  const favRecipes = (fav.data ?? [])
+    .filter((f) => f.kind === "recipe")
+    .map((f) => recipes.data?.find((r) => r.id === f.ref))
+    .filter((r): r is Recipe => !!r);
+  if (fav.isLoading || foods.isLoading) return <SkeletonRows />;
+  if (!foods.data?.length && !favRecipes.length)
+    return (
+      <div className="empty">
+        <div className="big">❤️</div>
+        Нажми на сердечко у продукта или рецепта — он появится здесь
+      </div>
+    );
+  return (
+    <>
+      {(foods.data ?? []).map((f) => (
+        <DbFoodRow key={f.id} food={f} meal={meal} day={day} onOpen={() => onOpenFood(f)} />
+      ))}
+      {favRecipes.length > 0 && <div className="group-label">Рецепты</div>}
+      {favRecipes.map((r) => (
+        <RecipeRow
+          key={r.id}
+          r={r}
+          onOpen={() => onOpenRecipe(r)}
+          onQuick={() => {
+            haptic.success();
+            const item = recipeItem(r, 1);
+            log.mutate({ items: [item], day, meal });
+            toast(`${MEALS[meal].name}: +${fmtNum(item.kcal)} ккал`, <Check size={18} color="var(--good)" />);
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
+function TemplateRow({ t, onLog }: { t: MealTemplate; onLog: () => void }) {
+  const del = useDeleteTemplate();
+  const total = templateTotal(t.items);
+  const names = t.items.map((i) => i.name);
+  return (
+    <FoodRow
+      name={`${t.emoji} ${t.name}`}
+      sub={names.slice(0, 2).join(", ") + (names.length > 2 ? ` и ещё ${names.length - 2}` : "")}
+      kcal={total.kcal}
+      kcalNote={`${t.items.length} прод.`}
+      onOpen={async () => {
+        if (await confirmDialog(`Удалить «${t.name}» из моих приёмов?`)) del.mutate(t.id);
+      }}
+      onQuickItems={onLog}
+    />
+  );
+}
+
+function RecipesTab({ meal, onOpen, onQuick }: { meal: Meal; onOpen: (r: Recipe) => void; onQuick: (r: Recipe) => void }) {
+  const nav = useNav();
+  const recipes = useRecipes();
+  const [cat, setCat] = useState<RecipeCategory>(meal === 0 ? "breakfast" : meal === 3 ? "snack" : "main");
+  const list = (recipes.data ?? []).filter((r) => r.category === cat);
+  return (
+    <>
+      <div className="chips-row" style={{ margin: "4px -16px 4px", padding: "0 16px" }}>
+        {RECIPE_CATS.map((c) => (
+          <Tap
+            key={c.id}
+            className={`chip ${cat === c.id ? "on" : ""}`}
+            style={{ height: 32, fontSize: 13 }}
+            onClick={() => {
+              haptic.select();
+              setCat(c.id);
+            }}
+          >
+            {c.emoji} {c.name}
+          </Tap>
+        ))}
+      </div>
+      {recipes.isLoading ? (
+        <SkeletonRows />
+      ) : (
+        list.map((r) => <RecipeRow key={r.id} r={r} onOpen={() => onOpen(r)} onQuick={() => onQuick(r)} />)
+      )}
+      <button className="food-row press" style={{ justifyContent: "center", color: "var(--kcal)", fontWeight: 600 }} onClick={() => nav.push(<RecipesScreen />)}>
+        Вся книга рецептов <ChevronRight size={16} />
+      </button>
+    </>
   );
 }

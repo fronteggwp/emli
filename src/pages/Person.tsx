@@ -25,6 +25,7 @@ import { useToast } from "@/ui/Toast";
 import { InfiniteSentinel } from "@/ui/InfiniteSentinel";
 import { ChatScreen } from "./Chat";
 import { EditProfileSheet } from "@/sheets/EditProfile";
+import { AchievementStrip } from "./Achievements";
 import "./social.css";
 
 export function PersonScreen({ id }: { id: string }) {
@@ -191,6 +192,8 @@ export function PersonScreen({ id }: { id: string }) {
           </div>
         )}
       </div>
+
+      {(!s?.hidden || me) && <AchievementStrip uid={id} name={p?.first_name} />}
 
       <div className="section-title">Записи</div>
       {s?.hidden && !me ? (

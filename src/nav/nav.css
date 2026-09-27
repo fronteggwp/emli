@@ -147,7 +147,7 @@
   gap: 8px;
   padding: calc(var(--sat) + 8px) 12px 10px;
   /* Плотная шапка с размытием: прокручиваемый текст под ней не просвечивает */
-  background: rgba(11, 11, 14, 0.86);
+  background: var(--bar);
   backdrop-filter: blur(18px) saturate(140%);
   -webkit-backdrop-filter: blur(18px) saturate(140%);
   border-bottom: 1px solid transparent;

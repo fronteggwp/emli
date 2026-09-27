@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, type PanInfo } from "motion/react";
-import { ArrowDown, ArrowUp, Check, ChevronDown, MoreHorizontal, Plus, Repeat, Timer, Trash, TrendingUp } from "lucide-react";
+import { ArrowDown, ArrowUp, Calculator, Check, ChevronDown, Flame, Link2, MoreHorizontal, Plus, Repeat, Timer, Trash, TrendingUp, Unlink } from "lucide-react";
 import { useLayer, useNav } from "@/nav/Nav";
 import { supabase } from "@/lib/supabase";
 import { useInsights } from "@/data/insights";
@@ -18,6 +18,8 @@ import { useToast } from "@/ui/Toast";
 import { ExercisesScreen } from "./Exercises";
 import { ExerciseScreen } from "./ExerciseDetail";
 import { WorkoutDetailScreen } from "./WorkoutDetail";
+import { PlateCalcSheet } from "@/sheets/PlateCalc";
+import { uuid } from "@/data/social";
 import "./workouts.css";
 
 const KIND_LABEL: Record<SetKind, string> = { normal: "", warmup: "Р", drop: "Д", failure: "О" };
@@ -25,6 +27,41 @@ const KIND_NEXT: Record<SetKind, SetKind> = { normal: "warmup", warmup: "drop", 
 const KIND_RU: Record<SetKind, string> = { normal: "Рабочий", warmup: "Разминка", drop: "Дроп-сет", failure: "До отказа" };
 
 const fmtW = (n: number) => String(Math.round(n * 100) / 100).replace(".", ",");
+
+type SsPos = "first" | "mid" | "last";
+/** Суперсеты: «группа» из одного упражнения — уже не суперсет */
+function normalizeGroups(list: ExDraft[]): ExDraft[] {
+  return list.map((e, i) => {
+    if (!e.group) return e;
+    const linked = list[i - 1]?.group === e.group || list[i + 1]?.group === e.group;
+    return linked ? e : { ...e, group: undefined };
+  });
+}
+
+/** Разминочные подходы к рабочему весу */
+export function warmupPlan(work: number, barbell: boolean, step: number) {
+  const r = (w: number) => Math.max(step, Math.round(w / step) * step);
+  if (!work || work < 10) return [];
+  if (!barbell)
+    return work < 16
+      ? [{ w: r(work * 0.5), reps: 10 }]
+      : [
+          { w: r(work * 0.5), reps: 10 },
+          { w: r(work * 0.75), reps: 5 },
+        ];
+  const out: { w: number; reps: number }[] = [];
+  if (work >= 40) out.push({ w: 20, reps: 10 });
+  const steps: [number, number][] = [
+    [0.4, 8],
+    [0.6, 5],
+    [0.8, 3],
+  ];
+  for (const [p, reps] of steps) {
+    const w = r(work * p);
+    if (w > (out[out.length - 1]?.w ?? 0) + step / 2 && w < work) out.push({ w, reps });
+  }
+  return out;
+}
 
 async function fetchLast(ids: string[]) {
   const { data } = await supabase.rpc("last_sets", { exs: ids });
@@ -117,12 +154,18 @@ export function ActiveWorkoutScreen() {
         <AnimatePresence initial={false}>
           {d.exercises.map((x, i) => {
             const ex = catalog.byId.get(x.ex);
+            const list = d.exercises;
+            const prevSame = !!x.group && list[i - 1]?.group === x.group;
+            const nextSame = !!x.group && list[i + 1]?.group === x.group;
+            const ss: SsPos | undefined = prevSame && nextSame ? "mid" : prevSame ? "last" : nextSame ? "first" : undefined;
             return ex ? (
-              <motion.div key={x.key} layout exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}>
+              <motion.div key={x.key} id={`ex-${x.key}`} layout exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}>
                 <ExerciseBlock
                   x={x}
                   ex={ex}
                   index={i}
+                  ss={ss}
+                  ssNext={nextSame ? list[i + 1].key : undefined}
                   count={d.exercises.length}
                   last={last.data?.get(x.ex)}
                   best={bests.data?.get(x.ex)}
@@ -167,6 +210,8 @@ const ExerciseBlock = memo(function ExerciseBlock({
   count,
   last,
   best,
+  ss,
+  ssNext,
 }: {
   x: ExDraft;
   ex: Exercise;
@@ -174,6 +219,8 @@ const ExerciseBlock = memo(function ExerciseBlock({
   count: number;
   last?: SetRow[];
   best?: Best;
+  ss?: SsPos;
+  ssNext?: string;
 }) {
   const wd = useWorkoutDraft();
   const nav = useNav();
@@ -252,7 +299,10 @@ const ExerciseBlock = memo(function ExerciseBlock({
         toast(`🏆 Рекорд: ${ex.n} — ${fmtW(w)} × ${r}`);
       }, 250);
     }
-    wd.startRest(x.rest, x.key);
+    if (ssNext) {
+      // Суперсет: без отдыха — сразу к следующему упражнению
+      setTimeout(() => document.getElementById(`ex-${ssNext}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 250);
+    } else wd.startRest(x.rest, x.key);
   };
 
   // «Как в первом»: вес и повторы первого рабочего подхода — во все остальные незаполненные
@@ -292,7 +342,12 @@ const ExerciseBlock = memo(function ExerciseBlock({
   const workingCount = x.sets.filter((s) => s.kind !== "warmup").length;
 
   return (
-    <div className="aw-ex" style={{ animationDelay: `${index * 40}ms` }}>
+    <div className={`aw-ex ${ss ? `ss ss-${ss}` : ""}`} style={{ animationDelay: `${index * 40}ms` }}>
+      {ss === "first" && (
+        <div className="ss-label">
+          <Link2 size={12} /> Суперсет · без отдыха
+        </div>
+      )}
       <div className="aw-ex-head">
         <button onClick={() => nav.push(<ExerciseScreen id={ex.id} />)} className="tap" style={{ borderRadius: 14 }}>
           <ExerciseImage ex={ex} animate={false} />
@@ -311,7 +366,19 @@ const ExerciseBlock = memo(function ExerciseBlock({
         <button
           className="icon-btn"
           style={{ width: 36, height: 36, background: "transparent" }}
-          onClick={() => nav.sheet(<ExerciseMenu exKey={x.key} index={index} count={count} />)}
+          onClick={() =>
+            nav.sheet(
+              <ExerciseMenu
+                exKey={x.key}
+                index={index}
+                count={count}
+                weighted={weighted && !timed}
+                barbell={ex.e === "barbell"}
+                step={weightStep(ex)}
+                workWeight={parseNum(firstVals?.w ?? "")}
+              />,
+            )
+          }
           aria-label="Ещё"
         >
           <MoreHorizontal size={20} className="muted" />
@@ -492,13 +559,72 @@ function RestTimer() {
 
 // ───────────────────────── Меню упражнения
 
-function ExerciseMenu({ exKey, index, count }: { exKey: string; index: number; count: number }) {
+function ExerciseMenu({
+  exKey,
+  index,
+  count,
+  weighted,
+  barbell,
+  step,
+  workWeight,
+}: {
+  exKey: string;
+  index: number;
+  count: number;
+  weighted: boolean;
+  barbell: boolean;
+  step: number;
+  workWeight: number;
+}) {
   const wd = useWorkoutDraft();
   const nav = useNav();
   const layer = useLayer();
+  const toast = useToast();
   const x = wd.draft?.exercises.find((e) => e.key === exKey);
   if (!x) return null;
-  const upd = (fn: (d: Draft) => Draft) => wd.update(fn);
+  const upd = (fn: (d: Draft) => Draft) =>
+    wd.update((d) => {
+      const n = fn(d);
+      return { ...n, exercises: normalizeGroups(n.exercises) };
+    });
+  const list = wd.draft!.exercises;
+  const next = list[index + 1];
+  const inSs = !!x.group && (list[index - 1]?.group === x.group || next?.group === x.group);
+  const warm = weighted ? warmupPlan(workWeight, barbell, step) : [];
+  const warmText = warm.map((w) => `${fmtW(w.w)}×${w.reps}`).join(" → ");
+
+  const addWarmups = () => {
+    haptic.success();
+    upd((d) => ({
+      ...d,
+      exercises: d.exercises.map((e) =>
+        e.key === exKey
+          ? {
+              ...e,
+              sets: [
+                ...warm.map((w) => ({ ...newSet({ weight: fmtW(w.w), reps: String(w.reps) }), kind: "warmup" as const })),
+                ...e.sets.filter((z) => z.kind !== "warmup" || z.done),
+              ],
+            }
+          : e,
+      ),
+    }));
+    toast(`Разминка: ${warmText}`);
+    layer.close();
+  };
+  const linkNext = () => {
+    if (!next) return;
+    haptic.success();
+    const g = x.group ?? next.group ?? uuid();
+    upd((d) => ({ ...d, exercises: d.exercises.map((e) => (e.key === exKey || e.key === next.key ? { ...e, group: g } : e)) }));
+    toast("Суперсет: отдых только после последнего упражнения");
+    layer.close();
+  };
+  const unlink = () => {
+    haptic.tap();
+    upd((d) => ({ ...d, exercises: d.exercises.map((e) => (e.key === exKey ? { ...e, group: undefined } : e)) }));
+    layer.close();
+  };
   const move = (dir: -1 | 1) => {
     haptic.select();
     upd((d) => {
@@ -530,7 +656,59 @@ function ExerciseMenu({ exKey, index, count }: { exKey: string; index: number; c
             </Tap>
           ))}
         </div>
+        {weighted && (
+          <div className="list" style={{ marginBottom: 10 }}>
+            {warm.length > 0 && (
+              <button className="list-item press" onClick={addWarmups}>
+                <span className="li-icon">
+                  <Flame size={20} />
+                </span>
+                <span style={{ flex: 1 }}>
+                  <div className="li-title">Добавить разминку</div>
+                  <div className="li-sub">
+                    {warmText} перед {fmtW(workWeight)} кг
+                  </div>
+                </span>
+              </button>
+            )}
+            <button
+              className="list-item press"
+              onClick={() => {
+                layer.close();
+                nav.sheet(<PlateCalcSheet weight={workWeight || undefined} />);
+              }}
+            >
+              <span className="li-icon">
+                <Calculator size={20} />
+              </span>
+              <span style={{ flex: 1 }}>
+                <div className="li-title">Калькулятор блинов</div>
+                <div className="li-sub">Что повесить на штангу</div>
+              </span>
+            </button>
+          </div>
+        )}
         <div className="list">
+          {inSs ? (
+            <button className="list-item press" onClick={unlink}>
+              <span className="li-icon">
+                <Unlink size={20} />
+              </span>
+              <span className="li-title">Убрать из суперсета</span>
+            </button>
+          ) : (
+            index < count - 1 && (
+              <button className="list-item press" onClick={linkNext}>
+                <span className="li-icon">
+                  <Link2 size={20} />
+                </span>
+                <span style={{ flex: 1 }}>
+                  <div className="li-title">Суперсет со следующим</div>
+                  <div className="li-sub">Подходы подряд, отдых после последнего</div>
+                </span>
+              </button>
+            )
+          )}
           <button
             className="list-item press"
             onClick={() => {

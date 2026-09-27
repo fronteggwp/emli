@@ -7,7 +7,7 @@ import type { RoutineExercise, SetRow } from "@/data/workouts";
 
 export type SetKind = "normal" | "warmup" | "drop" | "failure";
 export type SetDraft = { id: string; kind: SetKind; weight: string; reps: string; seconds: string; done: boolean; target?: string };
-export type ExDraft = { key: string; ex: string; rest: number; note?: string; sets: SetDraft[] };
+export type ExDraft = { key: string; ex: string; rest: number; note?: string; sets: SetDraft[]; group?: string };
 export type Draft = {
   id: string;
   name: string;

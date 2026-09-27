@@ -428,3 +428,9 @@ verify_jwt = false
 [functions.notify]
 verify_jwt = false
 
+
+[functions.reminders]
+verify_jwt = false
+
+[functions.account]
+verify_jwt = false

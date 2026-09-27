@@ -89,3 +89,17 @@
   border-radius: 18px;
   padding: 12px;
 }
+
+.week-report-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 22px;
+  background:
+    radial-gradient(100% 120% at 0% 0%, rgba(255, 194, 71, 0.16), transparent 60%),
+    var(--card);
+  border: 1px solid var(--line);
+}

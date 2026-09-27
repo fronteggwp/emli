@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { ChevronRight, Dumbbell, History, Library, Play, Plus, Trophy } from "lucide-react";
 import { useNav } from "@/nav/Nav";
 import { useSettings } from "@/data/api";
@@ -21,6 +21,7 @@ import { RoutineScreen } from "./Routine";
 import { WorkoutDetailScreen } from "./WorkoutDetail";
 import { HistoryScreen } from "./WorkoutHistory";
 import { RecordsScreen } from "./Records";
+import { useReminders, useSaveReminders, type Reminders } from "@/data/engage";
 import "./workouts.css";
 
 /** Сколько подходов за период пришлось на каждую мышцу (основная = 1, вспомогательная = 0,5) */
@@ -47,6 +48,7 @@ export function WorkoutsPage() {
   const nextExercises = nextRoutine?.exercises ?? next?.day.exercises.map((x) => ({ ex: x.ex, sets: [], rest: x.rest })) ?? [];
   const last = useLastSets(nextExercises.map((x) => x.ex));
   const myRoutines = (routines.data ?? []).filter((r) => !r.program);
+  useProgramReminders(active, next ? `${active?.title} · ${next.day.title}` : null);
   // Витрина: моя программа + самые известные
   const featured = [...(active ? [active] : []), ...PROGRAMS.filter((p) => p.key !== active?.key && ["starting-strength", "531-bbb", "reddit-ppl", "phul", "golden-six", "start-fullbody"].includes(p.key))].slice(0, 2);
 
@@ -319,4 +321,25 @@ export function WorkoutRowItem({ w, onClick }: { w: WorkoutRow; onClick: () => v
       <ChevronRight size={18} className="faint" />
     </button>
   );
+}
+
+const WD = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
+const DEFAULT_DAYS: Record<number, number[]> = { 1: [3], 2: [1, 4], 3: [1, 3, 5], 4: [1, 2, 4, 5], 5: [1, 2, 3, 4, 5], 6: [1, 2, 3, 4, 5, 6], 7: [1, 2, 3, 4, 5, 6, 7] };
+
+/** Напоминания бота о тренировках: дни — из расписания программы, текст — следующий день программы */
+function useProgramReminders(p: ReturnType<typeof programByKey>, label: string | null) {
+  const rem = useReminders();
+  const save = useSaveReminders();
+  useEffect(() => {
+    const r = rem.data;
+    if (!r || !p) return;
+    const patch: Partial<Reminders> = {};
+    if (!r.workout_days.length) {
+      const fromText = WD.map((w, i) => (new RegExp(`(^|[^а-яё])${w}([^а-яё]|$)`).test(p.schedule.toLowerCase()) ? i + 1 : 0)).filter(Boolean);
+      patch.workout_days = fromText.length === p.perWeek ? fromText : (DEFAULT_DAYS[p.perWeek] ?? [1, 3, 5]);
+    }
+    if (label && r.workout_label !== label) patch.workout_label = label;
+    if (Object.keys(patch).length) save.mutate(patch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rem.data?.workout_label, rem.data?.workout_days.length, p?.key, label]);
 }

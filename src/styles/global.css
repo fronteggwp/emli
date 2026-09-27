@@ -22,6 +22,16 @@
 
   --glass: rgba(22, 22, 27, 0.72);
   --shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  --bar: rgba(11, 11, 14, 0.88);
+  --bg-clear: rgba(11, 11, 14, 0);
+  --soft: rgba(255, 255, 255, 0.05);
+  --float: rgba(30, 30, 38, 0.95);
+  --hero-1: #17171e;
+  --hero-2: #121216;
+  --hero-c1: #1c1614;
+  --hero-c2: #131113;
+  --wk-1: #15251d;
+  --wk-2: #121418;
 
   --r-sm: 12px;
   --r: 20px;
@@ -36,6 +46,57 @@
   --tabbar-h: 64px;
 
   color-scheme: dark;
+}
+
+/* Плавная смена темы */
+.theme-anim,
+.theme-anim *,
+.theme-anim *::before,
+.theme-anim *::after {
+  transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease, fill 0.4s ease !important;
+}
+
+/* Светлая тема */
+:root[data-theme="light"] {
+  --bg: #f2f2f7;
+  --bg-2: #ffffff;
+  --card: #ffffff;
+  --card-2: #f0f0f5;
+  --card-3: #e3e3ea;
+  --line: rgba(0, 0, 0, 0.07);
+  --line-2: rgba(0, 0, 0, 0.12);
+  --text: #111116;
+  --text-2: rgba(17, 17, 22, 0.62);
+  --text-3: rgba(17, 17, 22, 0.4);
+  --text-inv: #ffffff;
+
+  --kcal: #5b6cff;
+  --kcal-2: #9b6bff;
+  --protein: #f0643f;
+  --fat: #e09a00;
+  --carbs: #1fae62;
+  --weight: #9b6bff;
+  --good: #1fae62;
+  --danger: #e5484d;
+
+  --glass: rgba(255, 255, 255, 0.8);
+  --shadow: 0 10px 30px rgba(20, 20, 40, 0.1);
+  --bar: rgba(242, 242, 247, 0.9);
+  --bg-clear: rgba(242, 242, 247, 0);
+  --soft: rgba(0, 0, 0, 0.04);
+  --float: rgba(255, 255, 255, 0.96);
+  --hero-1: #ffffff;
+  --hero-2: #f7f7fc;
+  --hero-c1: #fff4ec;
+  --hero-c2: #ffffff;
+  --wk-1: #e9f8ef;
+  --wk-2: #ffffff;
+
+  color-scheme: light;
+}
+:root[data-theme="light"] .card,
+:root[data-theme="light"] .hero {
+  box-shadow: 0 1px 2px rgba(20, 20, 40, 0.04), 0 6px 20px rgba(20, 20, 40, 0.05);
 }
 
 *,
@@ -461,7 +522,7 @@ img {
   right: 0;
   top: 0;
   height: calc(var(--sat) + 10px);
-  background: linear-gradient(var(--bg) 60%, rgba(11, 11, 14, 0));
+  background: linear-gradient(var(--bg) 60%, var(--bg-clear));
   pointer-events: none;
   z-index: 4;
 }

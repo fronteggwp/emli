@@ -1,0 +1,257 @@
+/* ───────── Челленджи */
+.ch-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 14px;
+  border-radius: 24px;
+  background:
+    radial-gradient(120% 100% at 100% 0%, color-mix(in srgb, var(--c1) 22%, transparent), transparent 60%),
+    var(--card);
+  border: 1px solid var(--line);
+}
+.ch-card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ch-emoji {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+  background: linear-gradient(135deg, var(--c1), var(--c2));
+  flex-shrink: 0;
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--c1) 35%, transparent);
+}
+.ch-title {
+  font-weight: 700;
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ch-sub {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-top: 2px;
+}
+.ch-place {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-2);
+}
+.ch-place b {
+  font-size: 22px;
+  color: var(--text);
+  line-height: 1.1;
+}
+.ch-time {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--card-3);
+  margin-top: 12px;
+  overflow: hidden;
+}
+.ch-time i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--c1), var(--c2));
+}
+.ch-time.light {
+  background: rgba(255, 255, 255, 0.25);
+  margin-top: 14px;
+}
+.ch-time.light i {
+  background: #fff;
+}
+.ch-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.ch-foot b {
+  color: var(--text);
+}
+.ch-accept {
+  background: var(--good);
+  color: #062a14;
+}
+.ch-decline {
+  background: var(--card-2);
+}
+.ch-empty {
+  text-align: center;
+  padding: 30px 18px;
+}
+.ch-empty-t {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 8px 0 6px;
+}
+.ch-hero {
+  text-align: center;
+  color: #fff;
+  border-radius: 30px;
+  padding: 24px 20px 20px;
+  background:
+    radial-gradient(80% 70% at 50% 0%, rgba(255, 255, 255, 0.32), transparent 65%),
+    linear-gradient(160deg, var(--c1), var(--c2));
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+}
+.ch-hero-emoji {
+  font-size: 64px;
+  line-height: 1;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.3));
+}
+.ch-hero-title {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-top: 10px;
+}
+.ch-hero-sub {
+  margin-top: 4px;
+  font-weight: 600;
+  opacity: 0.92;
+}
+.ch-hero-dates {
+  margin-top: 6px;
+  font-size: 13px;
+  opacity: 0.8;
+}
+.podium {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: end;
+  gap: 8px;
+  margin-top: 22px;
+}
+.podium-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.podium-name {
+  font-weight: 650;
+  font-size: 14px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.podium-val {
+  font-size: 18px;
+  font-weight: 800;
+}
+.podium-block {
+  width: 100%;
+  border-radius: 16px 16px 6px 6px;
+  display: grid;
+  place-items: start center;
+  padding-top: 8px;
+  font-size: 26px;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+}
+.podium-col.p1 .podium-block {
+  height: 96px;
+  background: linear-gradient(180deg, rgba(255, 194, 71, 0.35), rgba(255, 194, 71, 0.06));
+  border-color: rgba(255, 194, 71, 0.35);
+}
+.podium-col.p2 .podium-block {
+  height: 70px;
+  background: linear-gradient(180deg, rgba(200, 205, 220, 0.3), rgba(200, 205, 220, 0.05));
+}
+.podium-col.p3 .podium-block {
+  height: 54px;
+  background: linear-gradient(180deg, rgba(205, 127, 50, 0.32), rgba(205, 127, 50, 0.05));
+}
+.ch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+}
+.ch-row + .ch-row {
+  border-top: 1px solid var(--line);
+}
+.ch-row.me {
+  background: rgba(124, 140, 255, 0.08);
+}
+.ch-rank {
+  width: 20px;
+  text-align: center;
+  font-weight: 800;
+  color: var(--text-2);
+}
+.ch-row-name {
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ch-bar {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--card-3);
+  margin-top: 6px;
+  overflow: hidden;
+}
+.ch-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--kcal), var(--kcal-2));
+}
+.ch-row-val {
+  font-size: 17px;
+  font-weight: 800;
+}
+.ch-emoji-btn {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  border-radius: 16px;
+  background: var(--card-2);
+  font-size: 26px;
+  display: grid;
+  place-items: center;
+}
+.ch-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.ch-metric {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--card-2);
+  border: 2px solid transparent;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  transition: border-color 0.2s;
+}
+.ch-metric span {
+  font-size: 20px;
+}
+.ch-metric.on {
+  border-color: var(--kcal);
+}

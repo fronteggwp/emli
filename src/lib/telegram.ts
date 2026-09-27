@@ -29,6 +29,9 @@ interface TgWebApp {
   openTelegramLink(url: string): void;
   openLink(url: string): void;
   showConfirm?(msg: string, cb: (ok: boolean) => void): void;
+  addToHomeScreen?(): void;
+  close?(): void;
+  checkHomeScreenStatus?(cb: (status: "unsupported" | "unknown" | "added" | "missed") => void): void;
 }
 
 declare global {
@@ -42,7 +45,7 @@ const raw = typeof window !== "undefined" ? window.Telegram?.WebApp : undefined;
 export const tg: TgWebApp | null = raw && raw.initData ? raw : null;
 export const inTelegram = !!tg;
 
-const can = (v: string) => !!tg && tg.isVersionAtLeast(v);
+export const can = (v: string) => !!tg && tg.isVersionAtLeast(v);
 
 export function initTelegram() {
   applySafeArea();
@@ -57,7 +60,7 @@ export function initTelegram() {
       /* старые клиенты */
     }
   }
-  paintChrome("#0b0b0e");
+  paintChrome(getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#0b0b0e");
   tg.onEvent("safeAreaChanged", applySafeArea);
   tg.onEvent("contentSafeAreaChanged", applySafeArea);
   tg.onEvent("fullscreenChanged", applySafeArea);

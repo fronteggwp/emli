@@ -7,10 +7,12 @@ import { MotionConfig } from "motion/react";
 import { AuthProvider } from "@/lib/auth";
 import { initTelegram } from "@/lib/telegram";
 import { initViewport } from "@/lib/viewport";
+import { initTheme } from "@/lib/theme";
 import { ToastProvider } from "@/ui/Toast";
 import { App } from "./App";
 
 initTelegram();
+initTheme();
 
 // iOS включает :active-состояния только при наличии обработчика касаний
 document.addEventListener("touchstart", () => {}, { passive: true });

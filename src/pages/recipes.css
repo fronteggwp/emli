@@ -1,0 +1,420 @@
+/* ───────── Рецепты: карточки */
+.recipe-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.recipe-rail {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  margin: 0 -16px;
+  padding: 0 16px 4px;
+  scroll-snap-type: x mandatory;
+  scroll-padding: 0 16px;
+}
+.recipe-rail .recipe-card {
+  flex: 0 0 158px;
+  scroll-snap-align: start;
+}
+.recipe-card {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  border-radius: 22px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  min-width: 0;
+}
+.recipe-cover {
+  position: relative;
+  height: 112px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(90% 90% at 30% 20%, rgba(255, 255, 255, 0.35), transparent 60%),
+    linear-gradient(135deg, var(--c1), var(--c2));
+}
+.recipe-emoji {
+  font-size: 54px;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.25));
+  transform: translateY(-2px);
+}
+.recipe-fav {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 14px;
+}
+.recipe-time {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 650;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.recipe-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px 12px;
+  min-height: 74px;
+}
+.recipe-title {
+  font-weight: 650;
+  font-size: 15px;
+  line-height: 1.22;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.recipe-meta {
+  margin-top: auto;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.recipe-meta b {
+  color: var(--text);
+  font-size: 14px;
+}
+.recipe-create {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 20px;
+  border-radius: 22px;
+  border: 1.5px dashed var(--line-2);
+  text-align: center;
+  font-size: 14px;
+}
+.recipe-dot {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+/* ───────── Рецепт */
+.rc-hero {
+  position: relative;
+  margin: 0 -4px;
+  border-radius: 30px;
+  padding: 26px 20px 20px;
+  text-align: center;
+  color: #fff;
+  overflow: hidden;
+  background:
+    radial-gradient(80% 70% at 50% 0%, rgba(255, 255, 255, 0.35), transparent 65%),
+    linear-gradient(160deg, var(--c1), var(--c2));
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+}
+.rc-emoji {
+  font-size: 84px;
+  line-height: 1;
+  filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.3));
+}
+.rc-cat {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 12px;
+  font-weight: 650;
+}
+.rc-title {
+  margin-top: 8px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+}
+.rc-desc {
+  margin-top: 8px;
+  font-size: 15px;
+  opacity: 0.9;
+}
+.rc-chips {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+}
+.rc-chips span {
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 13px;
+  font-weight: 650;
+}
+.rc-chips i {
+  font-style: normal;
+  opacity: 0.35;
+}
+.rc-macros {
+  margin-top: 12px;
+}
+.rc-mgrid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr 1fr;
+  gap: 6px;
+  margin-top: 12px;
+}
+.rc-mgrid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 8px;
+  border-radius: 16px;
+  background: var(--card-2);
+}
+.rc-mgrid b {
+  font-size: 20px;
+  font-weight: 800;
+}
+.rc-mgrid small {
+  font-size: 12px;
+  font-weight: 600;
+}
+.rc-mgrid span {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.rc-mgrid > .rc-kcal {
+  background: linear-gradient(135deg, rgba(124, 140, 255, 0.25), rgba(179, 136, 255, 0.12));
+}
+.rc-mgrid > .rc-kcal b {
+  font-size: 24px;
+}
+.rc-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.rc-tags span {
+  font-size: 12px;
+  color: var(--text-2);
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: var(--soft);
+}
+.section-title .rc-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.rc-stepper b {
+  font-size: 17px;
+  min-width: 18px;
+  text-align: center;
+}
+.rc-ing {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  font-size: 15px;
+}
+.rc-ing + .rc-ing {
+  border-top: 1px solid var(--line);
+}
+.rc-ing-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--kcal);
+  flex-shrink: 0;
+}
+.rc-ing b {
+  font-size: 15px;
+  white-space: nowrap;
+}
+.rc-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  transition: opacity 0.25s;
+}
+.rc-step-n {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  font-weight: 800;
+  font-size: 14px;
+  background: var(--card-2);
+  transition: background 0.25s, color 0.25s;
+}
+.rc-step-t {
+  font-size: 15px;
+  line-height: 1.45;
+  padding-top: 3px;
+}
+.rc-step.done {
+  opacity: 0.5;
+}
+.rc-step.done .rc-step-n {
+  background: var(--good);
+  color: #062a14;
+}
+.rc-step.done .rc-step-t {
+  text-decoration: line-through;
+}
+.rc-tip {
+  display: flex;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(255, 194, 71, 0.16), rgba(255, 122, 92, 0.08));
+  border: 1px solid rgba(255, 194, 71, 0.25);
+  font-size: 15px;
+  line-height: 1.4;
+}
+.rc-tip > span {
+  font-size: 20px;
+}
+.rc-bar {
+  position: sticky;
+  bottom: 0;
+  margin: 20px -16px 0;
+  padding: 12px 16px var(--sab);
+  background: linear-gradient(var(--bg-clear), var(--bg) 35%);
+  z-index: 2;
+}
+.lr-amount {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 22px 8px 4px;
+}
+
+/* ───────── Свой рецепт */
+.re-emoji-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin: 0 -16px;
+  padding: 2px 16px;
+}
+.re-emoji {
+  flex: 0 0 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: var(--card-2);
+  font-size: 24px;
+  display: grid;
+  place-items: center;
+  border: 2px solid transparent;
+  transition: border-color 0.2s, background 0.2s;
+}
+.re-emoji.on {
+  border-color: var(--kcal);
+  background: var(--card-3);
+}
+.re-servings {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: var(--card-2);
+}
+.re-time {
+  width: 60px;
+  text-align: right;
+  font-size: 20px;
+  font-weight: 800;
+  background: none;
+  border: 0;
+  outline: none;
+  color: var(--text);
+}
+.re-ing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px 10px 16px;
+}
+.re-ing + .re-ing {
+  border-top: 1px solid var(--line);
+}
+.re-grams {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: var(--card-2);
+  font-size: 13px;
+  color: var(--text-2);
+}
+.re-grams input {
+  width: 46px;
+  text-align: right;
+  font-family: var(--font-num);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  background: none;
+  border: 0;
+  outline: none;
+  padding: 0;
+}
+.re-total {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr 1fr;
+  gap: 6px;
+  margin-top: 12px;
+}
+.re-total > div {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 8px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.re-total b {
+  font-size: 18px;
+  font-weight: 800;
+}
+.re-total span {
+  font-size: 11px;
+  color: var(--text-2);
+}
+textarea.re-steps {
+  height: auto;
+  min-height: 110px;
+  padding: 14px 16px;
+  line-height: 1.45;
+  resize: none;
+  font: inherit;
+  font-size: 16px;
+  color: var(--text);
+}

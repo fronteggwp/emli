@@ -10,9 +10,17 @@ import { PersonScreen } from "@/pages/Person";
 import { PostScreen } from "@/pages/PostScreen";
 import { FriendsScreen } from "@/pages/Friends";
 import { supabase } from "@/lib/supabase";
+import { AddFoodSheet } from "@/sheets/AddFood";
+import { LogWeightSheet } from "@/sheets/LogWeight";
+import { WeekReportScreen } from "@/pages/WeekReport";
+import { ChallengeScreen } from "@/pages/Challenges";
+import { useDay } from "@/state/day";
+import { todayKey } from "@/lib/dates";
+import type { Meal } from "@/lib/types";
 
 /**
- * Переходы из бота и приглашений: ?ref=код, ?chat=id, ?post=id, ?user=id, ?friends
+ * Переходы из бота и приглашений: ?ref=код, ?chat=id, ?post=id, ?user=id, ?friends,
+ * ?add=приём, ?workout, ?weigh, ?week, ?challenge=id
  * (или start_param вида ref_код, если приложение открыто прямой ссылкой).
  */
 export function DeepLinks() {
@@ -20,6 +28,7 @@ export function DeepLinks() {
   const toast = useToast();
   const qc = useQueryClient();
   const uid = useUid();
+  const { setDay } = useDay();
   const done = useRef(false);
   useRealtime();
 
@@ -30,7 +39,7 @@ export function DeepLinks() {
     const hash = new URLSearchParams(location.search);
     const start = tg?.initDataUnsafe.start_param ?? "";
     if (start.startsWith("ref_")) hash.set("ref", start.slice(4));
-    const linked = ["ref", "chat", "post", "user", "friends"].some((k) => hash.has(k));
+    const linked = ["ref", "chat", "post", "user", "friends", "add", "workout", "weigh", "week", "challenge"].some((k) => hash.has(k));
     if (linked) history.replaceState(null, "", location.pathname + location.hash);
 
     (async () => {
@@ -66,6 +75,32 @@ export function DeepLinks() {
       if (user) {
         nav.setTab("community");
         setTimeout(() => nav.push(<PersonScreen id={user} />), 250);
+        return;
+      }
+      if (hash.has("add")) {
+        const m = Number(hash.get("add"));
+        nav.setTab("diary");
+        setDay(todayKey());
+        setTimeout(() => nav.sheet(<AddFoodSheet meal={hash.get("add") && m >= 0 && m <= 3 ? (m as Meal) : undefined} />, { full: true }), 300);
+        return;
+      }
+      if (hash.has("workout")) {
+        nav.setTab("workouts");
+        return;
+      }
+      if (hash.has("weigh")) {
+        nav.setTab("diary");
+        setTimeout(() => nav.sheet(<LogWeightSheet />), 300);
+        return;
+      }
+      if (hash.has("week")) {
+        setTimeout(() => nav.push(<WeekReportScreen />), 250);
+        return;
+      }
+      const challenge = hash.get("challenge");
+      if (challenge) {
+        nav.setTab("community");
+        setTimeout(() => nav.push(<ChallengeScreen id={challenge} />), 250);
         return;
       }
       if (hash.has("friends")) {

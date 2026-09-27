@@ -84,6 +84,7 @@ Deno.serve(async (req) => {
       friend_accept: [`🤝 ${who} теперь у тебя в друзьях`, `user=${record.actor_id}`],
       like: [`❤️ ${who} оценил твою запись`, `post=${record.post_id}`],
       comment: [`💬 ${who} прокомментировал твою запись:\n«${clip(record.preview ?? "", 200)}»`, `post=${record.post_id}`],
+      challenge: [`🏆 ${who} зовёт тебя в челлендж «${clip(record.preview ?? "", 60)}»`, `challenge=${record.challenge_id}`],
     };
     const t = texts[record.kind];
     if (!t) return json({ skipped: "kind" });

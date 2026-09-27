@@ -143,3 +143,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return <AuthCtx.Provider value={state}>{children}</AuthCtx.Provider>;
 }
+
+/** После удаления аккаунта: забываем токен на устройстве */
+export function forgetSession() {
+  setAccessToken(null);
+  try {
+    localStorage.removeItem(STORE_KEY);
+    localStorage.removeItem("emli-workout");
+  } catch {
+    /* ничего */
+  }
+}

@@ -15,6 +15,10 @@ import { NotificationsScreen } from "./Notifications";
 import { FriendsScreen, shareInvite } from "./Friends";
 import { PersonScreen } from "./Person";
 import { HeaderAvatar } from "@/ui/HeaderAvatar";
+import { ChallengeScreen, ChallengesScreen } from "./Challenges";
+import { useMyChallenges } from "@/data/engage";
+import { METRICS } from "@/lib/achievements";
+import { todayKey } from "@/lib/dates";
 import "./social.css";
 
 export function CommunityPage() {
@@ -27,6 +31,9 @@ export function CommunityPage() {
   const feed = useFeed(scope);
   const friends = usePeople(fs.friends);
   const posts = feed.data?.pages.flat() ?? [];
+  const challenges = useMyChallenges();
+  const chInvites = (challenges.data ?? []).filter((c) => c.status === "invited" && c.end_date >= todayKey()).length;
+  const live = (challenges.data ?? []).find((c) => c.status === "joined" && c.start_date <= todayKey() && c.end_date >= todayKey());
 
   // Друзья онлайн — первыми
   const friendList = fs.friends
@@ -65,6 +72,13 @@ export function CommunityPage() {
           </span>
           <span>Друзья</span>
         </button>
+        <button className="friend-bubble tap" onClick={() => nav.push(<ChallengesScreen />)}>
+          <span className="invite-circle" style={{ position: "relative", borderStyle: "solid" }}>
+            <span style={{ fontSize: 22 }}>🏆</span>
+            {chInvites > 0 && <span className="badge">{chInvites}</span>}
+          </span>
+          <span>Челленджи</span>
+        </button>
         {friendList.map((p) => (
           <button key={p!.id} className="friend-bubble tap" onClick={() => nav.push(<PersonScreen id={p!.id} />)}>
             <span style={{ position: "relative" }}>
@@ -75,6 +89,19 @@ export function CommunityPage() {
           </button>
         ))}
       </div>
+
+      {live && (
+        <button className="live-ch press" onClick={() => nav.push(<ChallengeScreen id={live.id} />)}>
+          <span className="live-ch-emoji">{live.emoji}</span>
+          <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+            <div className="live-ch-title">{live.title}</div>
+            <div className="live-ch-sub">
+              {live.my_place === 1 ? "Ты лидируешь 🥇" : live.my_place ? `Ты #${live.my_place} из ${live.members}` : "Идёт челлендж"} · {METRICS[live.metric].fmt(live.my_value ?? 0)} {METRICS[live.metric].short}
+            </div>
+          </span>
+          <span className="live-dot" />
+        </button>
+      )}
 
       <button className="composer press" onClick={() => nav.sheet(<NewPostSheet />, { full: true })}>
         <Avatar url={me?.avatar_url} name={me?.first_name ?? ""} size={38} />

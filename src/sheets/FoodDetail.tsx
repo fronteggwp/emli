@@ -15,6 +15,8 @@ import { NumberTicker } from "@/ui/NumberTicker";
 import { Tap } from "@/ui/Tap";
 import { useToast } from "@/ui/Toast";
 import { CreateFoodSheet } from "./CreateFood";
+import { FavButton } from "@/ui/FavButton";
+import "@/pages/engage.css";
 import "./sheets.css";
 
 type Props =
@@ -148,11 +150,18 @@ function Detail({ food, entry, meal: meal0, day: day0, grams: grams0, onDone }: 
     <>
       <SheetHeader
         right={
-          own ? (
-            <Tap className="icon-btn" onClick={() => nav.sheet(<CreateFoodSheet food={food as Food} />)} aria-label="Изменить продукт">
-              <Pencil size={17} />
-            </Tap>
-          ) : undefined
+          <div className="row" style={{ gap: 6 }}>
+            <FavButton
+              kind="food"
+              refId={"id" in food ? food.id : null}
+              ensure={async () => (await saveFood.mutateAsync(food)).id}
+            />
+            {own && (
+              <Tap className="icon-btn" onClick={() => nav.sheet(<CreateFoodSheet food={food as Food} />)} aria-label="Изменить продукт">
+                <Pencil size={17} />
+              </Tap>
+            )}
+          </div>
         }
       />
       <div className="sheet-body">

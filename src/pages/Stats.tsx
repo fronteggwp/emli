@@ -18,6 +18,7 @@ import { GoalScreen } from "./Goal";
 import { ExpenditureScreen } from "./Expenditure";
 import { LogWeightSheet } from "@/sheets/LogWeight";
 import { HeaderAvatar } from "@/ui/HeaderAvatar";
+import { WeekReportScreen } from "./WeekReport";
 import "./stats.css";
 
 type Metric = "kcal" | "protein" | "fat" | "carbs";
@@ -45,6 +46,15 @@ export function StatsPage() {
       </div>
 
       <WeekCard />
+
+      <Tap className="week-report-btn" scale={0.98} onClick={() => nav.push(<WeekReportScreen />)}>
+        <span style={{ fontSize: 22 }}>📊</span>
+        <span style={{ flex: 1, textAlign: "left" }}>
+          <b>Итоги недели</b>
+          <div className="muted" style={{ fontSize: 13 }}>Оценка, питание, вес, тренировки и совет</div>
+        </span>
+        <Chevron size={18} className="faint" />
+      </Tap>
 
       <div className="grid-2" style={{ marginTop: 12 }}>
         <Tap className="card stat-card" scale={0.97} onClick={() => nav.push(<WeightScreen />)}>
