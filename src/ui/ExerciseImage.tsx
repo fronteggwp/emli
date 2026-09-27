@@ -18,7 +18,7 @@ export const ExerciseImage = memo(function ExerciseImage({
   radius?: number;
 }) {
   const [loaded, setLoaded] = useState(0);
-  const style = { width: size ?? "100%", height: size, borderRadius: radius } as const;
+  const style = size ? { width: size, height: size, borderRadius: radius, aspectRatio: "auto" } : { borderRadius: radius };
   if (ex.custom || !ex.img) {
     return (
       <div className="ex-img ex-img-empty" style={style}>

@@ -34,7 +34,8 @@ export type Post = {
 export type PostAttachment =
   | { type: "day"; day: string; kcal: number; protein: number; fat: number; carbs: number; target: number }
   | { type: "weight"; change: number; days: number; current?: number | null }
-  | { type: "streak"; days: number };
+  | { type: "streak"; days: number }
+  | { type: "workout"; name: string; duration: number; volume: number; sets: number; kcal: number; prs: number; muscles: string[] };
 
 export type Comment = { id: string; post_id: string; author_id: string; text: string; created_at: string; author?: Person };
 
@@ -79,6 +80,8 @@ export type Settings = {
   birth_date: string | null;
   height_cm: number | null;
   activity: number | null;
+  active_program?: string | null;
+  program_started?: string | null;
   onboarded: boolean;
 };
 

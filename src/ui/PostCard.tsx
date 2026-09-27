@@ -78,6 +78,32 @@ export const PostCard = memo(function PostCard({ post, detail = false }: { post:
 });
 
 export function AttachmentCard({ a }: { a: PostAttachment }) {
+  if (a.type === "workout") {
+    const h = Math.floor(a.duration / 3600);
+    const m = Math.round((a.duration % 3600) / 60);
+    return (
+      <div className="attach" style={{ background: "radial-gradient(120% 120% at 0% 0%, rgba(79,209,139,.22), transparent 60%), var(--card-2)", alignItems: "flex-start" }}>
+        <span className="icon-btn" style={{ background: "rgba(79,209,139,.18)", color: "var(--good)", width: 52, height: 52, fontSize: 24 }}>
+          🏋️
+        </span>
+        <div style={{ minWidth: 0 }}>
+          <div className="muted" style={{ fontSize: 13 }}>
+            Тренировка{a.prs ? ` · 🏆 ${a.prs} ${a.prs === 1 ? "рекорд" : "рекорда"}` : ""}
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.2 }}>{a.name}</div>
+          <div className="num muted" style={{ fontSize: 13, marginTop: 4 }}>
+            {h ? `${h} ч ` : ""}
+            {m} мин · {a.sets} подх. · {fmtNum(a.volume)} кг · {a.kcal} ккал
+          </div>
+          {a.muscles.length > 0 && (
+            <div className="faint" style={{ fontSize: 12.5, marginTop: 2 }}>
+              {a.muscles.join(" · ")}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
   if (a.type === "day") {
     return (
       <div className="attach">

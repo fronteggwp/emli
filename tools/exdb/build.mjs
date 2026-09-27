@@ -5,8 +5,17 @@ import fs from "node:fs";
 const here = (p) => new URL(p, import.meta.url);
 const base = JSON.parse(fs.readFileSync(here("./exercises.json"), "utf8"));
 const ru = {};
-for (const f of fs.readdirSync(here("./ru/")).filter((f) => f.endsWith(".json"))) {
+for (const f of fs.readdirSync(here("./ru/")).filter((f) => f.endsWith(".json")).sort()) {
   Object.assign(ru, JSON.parse(fs.readFileSync(here(`./ru/${f}`), "utf8")));
+}
+
+// Ручные правки названий и синонимов поверх перевода
+const overrides = JSON.parse(fs.readFileSync(here("./overrides.json"), "utf8"));
+for (const [id, o] of Object.entries(overrides)) {
+  if (!ru[id]) continue;
+  if (o.n) ru[id].n = o.n;
+  if (o.a) ru[id].a = [...new Set([...o.a, ...(ru[id].a ?? [])])];
+  if (o.p != null) ru[id].p = o.p;
 }
 
 const seen = new Set();

@@ -18,7 +18,7 @@ import "@/pages/social.css";
 
 type Kind = "day" | "weight" | "streak" | null;
 
-export function NewPostSheet({ preset }: { preset?: Kind }) {
+export function NewPostSheet({ preset, attach }: { preset?: Kind; attach?: PostAttachment }) {
   const uid = useUid();
   const layer = useLayer();
   const toast = useToast();
@@ -57,7 +57,7 @@ export function NewPostSheet({ preset }: { preset?: Kind }) {
     return out;
   }, [today.data, ins, weightDays]);
 
-  const attachment = options.find((o) => o.kind === kind)?.a ?? null;
+  const attachment = attach ?? options.find((o) => o.kind === kind)?.a ?? null;
   const canPost = !busy && (text.trim().length > 0 || !!file || !!attachment);
 
   const submit = async () => {

@@ -113,7 +113,7 @@ export const LEVEL_RU = { beginner: "Новичок", intermediate: "Средн�
 /** Кардио, растяжка и статика (планка) — на время, а не вес × повторы */
 export const isTimed = (ex: Pick<Exercise, "c" | "f" | "e">) =>
   ex.c === "cardio" || ex.c === "stretching" || (ex.f === "static" && ex.e === "body only");
-export const usesWeight = (ex: Pick<Exercise, "e" | "c">) => !isTimed(ex) && ex.e !== "body only" && ex.e !== "foam roll";
+export const usesWeight = (ex: Pick<Exercise, "e" | "c" | "f">) => !isTimed(ex) && ex.e !== "body only" && ex.e !== "foam roll";
 
 /** Метаболические эквиваленты (Compendium of Physical Activities, усреднённо) */
 const MET: Record<Category, number> = {
@@ -170,14 +170,18 @@ export function searchExercises(list: Exercise[], q: string) {
   const words = needle.split(" ");
   const scored: { e: Exercise; s: number }[] = [];
   for (const e of list) {
-    const hay = norm([e.n, e.en, ...e.a].join(" "));
+    const muscles = norm(e.pm.map((m) => MUSCLE_RU[m]).join(" "));
+    const hay = norm([e.n, e.en, ...e.a].join(" ")) + " " + muscles;
     if (!words.every((w) => hay.includes(w))) continue;
-    let s = e.p * 10;
     const name = norm(e.n);
-    if (name.startsWith(needle)) s += 50;
-    else if (name.includes(" " + words[0]) || name.startsWith(words[0])) s += 25;
-    if (e.a.some((a) => norm(a) === needle)) s += 40;
-    s -= name.length / 20;
+    let s = e.p * 15;
+    if (name === needle) s += 120;
+    else if (name.startsWith(needle)) s += 50;
+    else if (name.split(" ").some((w) => w.startsWith(words[0]))) s += 30;
+    if (e.a.some((a) => norm(a) === needle)) s += 15;
+    // Запрос — это мышца («грудь», «бицепс бедра»): базовые упражнения на неё — наверх
+    if (muscles.split(" ").some((w) => w.startsWith(words[0]))) s += 25;
+    s -= name.length / 15;
     scored.push({ e, s });
   }
   return scored.sort((a, b) => b.s - a.s).map((x) => x.e);

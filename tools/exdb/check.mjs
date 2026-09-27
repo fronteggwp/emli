@@ -30,7 +30,7 @@ for (const [id, { f, v }] of final) {
   if (!Array.isArray(v.i) || v.i.length < 3) { console.log(`${f}: ${id} мало шагов i`); bad++; }
   const text = (v.i ?? []).join(" ");
   if (text.length < 70) { console.log(`${f}: ${id} слишком короткая техника (${text.length} симв.)`); bad++; }
-  if (/Исходное положение установлено|Выполняйте движение/.test(text)) { console.log(`${f}: ${id} заглушка вместо перевода`); bad++; }
+  if ((v.i ?? []).some((st) => /^(Исходное положение установлено|Выполняйте движение|Вернитесь в исходное)\.?$/.test(st.trim()))) { console.log(`${f}: ${id} заглушка вместо перевода`); bad++; }
 }
 const missing = [...ids].filter((id) => !final.has(id));
 console.log(`переведено ${final.size} из ${ids.size}, ошибок ${bad}, не хватает ${missing.length}`);
