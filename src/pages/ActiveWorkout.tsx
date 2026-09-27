@@ -4,8 +4,10 @@ import { ArrowDown, ArrowUp, Calculator, Check, ChevronDown, Flame, Link2, MoreH
 import { useLayer, useNav } from "@/nav/Nav";
 import { supabase } from "@/lib/supabase";
 import { useInsights } from "@/data/insights";
-import { useBests, useCatalog, useLastSets, useSaveWorkout, type Best, type PR, type SetRow } from "@/data/workouts";
-import { parseReps } from "@/data/programs";
+import { useBests, useCatalog, useLastSets, useSaveWorkout, useSessions, useWorkouts, type Best, type PR, type SetRow } from "@/data/workouts";
+import { useSettings } from "@/data/api";
+import { planFor, bestE1rmFrom, type Plan, type Session } from "@/lib/progression";
+import { parseReps, programByKey } from "@/data/programs";
 import { exDraftFrom, fmtDuration, newSet, useNow, useWorkoutDraft, type Draft, type ExDraft, type SetDraft, type SetKind } from "@/state/workout";
 import { burnedKcal, e1rm, isTimed, metOf, usesWeight, weightStep, type Exercise, type Muscle } from "@/lib/exercise";
 import { parseNum } from "@/lib/hooks";
@@ -81,6 +83,13 @@ export function ActiveWorkoutScreen() {
   const save = useSaveWorkout();
   const d = wd.draft;
   const last = useLastSets(d?.exercises.map((e) => e.ex) ?? []);
+  const sessions = useSessions(d?.exercises.map((e) => e.ex) ?? []);
+  const settings = useSettings();
+  const allWorkouts = useWorkouts();
+  const programSessions = d?.program
+    ? (allWorkouts.data ?? []).filter((w) => w.program === d.program && (!settings.data?.program_started || w.started_at.slice(0, 10) >= settings.data.program_started)).length
+    : 0;
+  const programDayTitle = d?.program != null && d.programDay != null ? programByKey(d.program)?.days[d.programDay]?.title : undefined;
   const now = useNow(!!d);
   const [saving, setSaving] = useState(false);
 
@@ -168,6 +177,10 @@ export function ActiveWorkoutScreen() {
                   ssNext={nextSame ? list[i + 1].key : undefined}
                   count={d.exercises.length}
                   last={last.data?.get(x.ex)}
+                  sessions={sessions.data?.get(x.ex)}
+                  program={d.program}
+                  programDayTitle={programDayTitle}
+                  programSessions={programSessions}
                   best={bests.data?.get(x.ex)}
                 />
               </motion.div>
@@ -212,6 +225,10 @@ const ExerciseBlock = memo(function ExerciseBlock({
   best,
   ss,
   ssNext,
+  sessions,
+  program,
+  programDayTitle,
+  programSessions = 0,
 }: {
   x: ExDraft;
   ex: Exercise;
@@ -221,6 +238,10 @@ const ExerciseBlock = memo(function ExerciseBlock({
   best?: Best;
   ss?: SsPos;
   ssNext?: string;
+  sessions?: Session[];
+  program?: string | null;
+  programDayTitle?: string;
+  programSessions?: number;
 }) {
   const wd = useWorkoutDraft();
   const nav = useNav();
@@ -232,14 +253,22 @@ const ExerciseBlock = memo(function ExerciseBlock({
   const lastWorking = (last ?? []).filter((s) => s.kind !== "warmup");
 
   // Подсказка прогрессии: в прошлый раз все рабочие подходы до верха диапазона — пора добавить вес
-  const suggest = useMemo(() => {
-    if (timed || !t || !t.max || !lastWorking.length) return null;
-    const lastW = Math.max(...lastWorking.map((s) => s.weight ?? 0));
-    if (!lastW) return null;
-    const allTop = lastWorking.every((s) => (s.reps ?? 0) >= t.max);
-    return allTop ? lastW + weightStep(ex) : null;
+  // План на сегодня по схеме программы (или двойная прогрессия для своих тренировок)
+  const workingTotal = x.sets.filter((z) => z.kind !== "warmup").length;
+  const plan: Plan = useMemo(() => {
+    if (timed) return { sets: null, weight: null, note: null, tone: "info" };
+    return planFor({
+      program: program ?? null,
+      programDayTitle,
+      ex,
+      targetReps: target,
+      workingSets: workingTotal,
+      history: sessions ?? [],
+      bestE1rm: best?.best_e1rm ?? bestE1rmFrom(sessions ?? []),
+      programSessions,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [last, target]);
+  }, [sessions, target, program, programSessions, workingTotal, best?.best_e1rm]);
 
   const upd = (fn: (e: ExDraft) => ExDraft) => wd.update((d) => ({ ...d, exercises: d.exercises.map((e) => (e.key === x.key ? fn(e) : e)) }));
   const updSet = (id: string, patch: Partial<SetDraft>) => upd((e) => ({ ...e, sets: e.sets.map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
@@ -253,6 +282,16 @@ const ExerciseBlock = memo(function ExerciseBlock({
       let j = i - 1;
       while (j >= 0 && (x.sets[j].kind === "warmup") !== (st.kind === "warmup")) j--;
       const lastS = st.kind === "warmup" ? undefined : (lastWorking[workingNo] ?? lastWorking[lastWorking.length - 1]);
+      const planned = st.kind !== "warmup" ? plan.sets?.[workingNo] : undefined;
+      if (planned) {
+        out.push({ w: planned.w != null ? fmtW(planned.w) : "", r: planned.r.replace("+", ""), sec: "" });
+        return;
+      }
+      if (j < 0 && st.kind !== "warmup" && plan.weight) {
+        const targetR = t && !t.toFailure && !t.timed ? String(t.min === t.max ? t.max : t.min) : "";
+        out.push({ w: fmtW(plan.weight), r: targetR || (lastS?.reps ? String(lastS.reps) : ""), sec: "" });
+        return;
+      }
       if (j >= 0) {
         const p = x.sets[j];
         out.push({ w: p.weight || out[j].w, r: p.reps || out[j].r, sec: p.seconds || out[j].sec });
@@ -267,7 +306,7 @@ const ExerciseBlock = memo(function ExerciseBlock({
     });
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [x.sets, last, target]);
+  }, [x.sets, last, target, plan]);
 
   const toggle = (s: SetDraft, i: number) => {
     if (s.done) {
@@ -332,11 +371,25 @@ const ExerciseBlock = memo(function ExerciseBlock({
     upd((e) => ({ ...e, sets: [...e.sets, newSet({ weight: lastSet?.weight, reps: "", seconds: lastSet?.seconds }, lastSet?.target)] }));
   };
 
-  const applySuggest = () => {
-    if (!suggest) return;
+  const applyPlan = () => {
+    if (!plan.weight && !plan.sets) return;
     haptic.select();
-    upd((e) => ({ ...e, sets: e.sets.map((s) => (s.kind !== "warmup" && !s.done ? { ...s, weight: fmtW(suggest) } : s)) }));
-    toast(`Вес ${fmtW(suggest)} кг во всех рабочих подходах`);
+    upd((e) => {
+      const warm = e.sets.filter((z) => z.kind === "warmup");
+      let work = e.sets.filter((z) => z.kind !== "warmup");
+      // Схема сменилась (например, 6×2 вместо 5×3) — подгоняем число подходов
+      if (plan.sets && plan.sets.length !== work.length) {
+        work = Array.from({ length: plan.sets.length }, (_, i) => work[i] ?? newSet(undefined, work[0]?.target));
+      }
+      work = work.map((z, i) => {
+        if (z.done) return z;
+        const p = plan.sets?.[i];
+        const w = p?.w ?? plan.weight;
+        return { ...z, weight: w != null ? fmtW(w) : z.weight, reps: p ? p.r.replace("+", "") : z.reps };
+      });
+      return { ...e, sets: [...warm, ...work] };
+    });
+    toast(plan.sets ? "Подходы заполнены по плану" : `Вес ${fmtW(plan.weight!)} кг во всех рабочих подходах`);
   };
 
   const workingCount = x.sets.filter((s) => s.kind !== "warmup").length;
@@ -357,9 +410,9 @@ const ExerciseBlock = memo(function ExerciseBlock({
           <div className="faint" style={{ fontSize: 12.5, marginTop: 2 }}>
             {target ? `${workingCount} × ${target}` : `${workingCount} подх.`} · отдых {fmtDuration(x.rest)}
           </div>
-          {suggest && (
-            <button className="aw-hint tap" onClick={applySuggest}>
-              <TrendingUp size={13} /> Пора прибавить: {fmtW(suggest)} кг
+          {plan.note && (
+            <button className={`aw-hint tap tone-${plan.tone}`} onClick={applyPlan}>
+              <TrendingUp size={13} /> {plan.note}
             </button>
           )}
         </div>
@@ -818,6 +871,7 @@ export function buildWorkout(d: Draft, byId: Map<string, Exercise>, bests: Map<s
     let bestW = 0;
     let bestE = 0;
     let bestR = 0;
+    let bestSet = 0;
     done.forEach((s, i) => {
       const weight = parseNum(s.weight) || null;
       const reps = parseNum(s.reps) || null;
@@ -828,6 +882,7 @@ export function buildWorkout(d: Draft, byId: Map<string, Exercise>, bests: Map<s
       if (weight) bestW = Math.max(bestW, weight);
       if (weight && reps) bestE = Math.max(bestE, e1rm(weight, reps));
       if (reps) bestR = Math.max(bestR, reps);
+      if (weight && reps) bestSet = Math.max(bestSet, weight * reps);
       for (const m of ex?.pm ?? []) muscles[m] = (muscles[m] ?? 0) + 1;
       for (const m of ex?.sm ?? []) muscles[m] = (muscles[m] ?? 0) + 0.5;
     });
@@ -838,6 +893,8 @@ export function buildWorkout(d: Draft, byId: Map<string, Exercise>, bests: Map<s
       if (bestE && b.best_e1rm && bestE > b.best_e1rm) prs.push({ ex: x.ex, kind: "e1rm", value: bestE, prev: b.best_e1rm });
       else if (bestW && b.best_weight && bestW > b.best_weight) prs.push({ ex: x.ex, kind: "weight", value: bestW, prev: b.best_weight });
       else if (!bestW && bestR && b.best_reps && bestR > b.best_reps) prs.push({ ex: x.ex, kind: "reps", value: bestR, prev: b.best_reps });
+      // Больше повторов с тем же весом — тоже рекорд: лучший подход по «вес × повторы»
+      else if (bestSet && b.best_volume && bestSet > b.best_volume) prs.push({ ex: x.ex, kind: "volume", value: bestSet, prev: b.best_volume });
     }
   });
 

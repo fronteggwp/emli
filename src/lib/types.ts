@@ -96,6 +96,7 @@ export type Settings = {
   activity: number | null;
   active_program?: string | null;
   program_started?: string | null;
+  last_checkin?: string | null;
   onboarded: boolean;
 };
 
@@ -161,4 +162,5 @@ export type RecentFood = Macros & {
   brand: string | null;
   grams: number | null;
   last_used: string;
+  uses?: number;
 };

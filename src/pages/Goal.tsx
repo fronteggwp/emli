@@ -31,7 +31,7 @@ export function GoalScreen() {
     g && ins.current != null
       ? (() => {
           const calories = caloriesFor(ins.tdee.value, g.rate_kg_week, sex);
-          return { calories, ...macrosFor(calories, ins.current, g.kind) };
+          return { calories, ...macrosFor(calories, ins.current, g.kind, settings.data?.height_cm, ins.bodyFat) };
         })()
       : null;
   const recDiff = rec && t ? rec.calories - t.calories : 0;

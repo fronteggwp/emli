@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, ChevronRight, Globe, PackagePlus, Plus, ScanBarcode, Search, X, Zap } from "lucide-react";
@@ -61,7 +61,14 @@ export function AddFoodSheet({ meal: initialMeal, tab: initialTab = "recent" }: 
   const [tab, setTab] = useState<AddTab>(initialTab);
   const term = useDebounced(q.trim(), 220);
   const search = useFoodSearch(term);
-  const recents = useRecents();
+  const recents = useRecents(meal);
+  // Твоя обычная порция каждого продукта — подставляется в поиске
+  const usual = useMemo(() => new Map((recents.data ?? []).filter((r) => r.food_id && r.grams).map((r) => [r.food_id!, r.grams!])), [recents.data]);
+  // Свои частые продукты — выше в выдаче
+  const searchSorted = useMemo(() => {
+    const list = search.data ?? [];
+    return [...list].sort((a, b) => Number(usual.has(b.id)) - Number(usual.has(a.id)));
+  }, [search.data, usual]);
   const mine = useMyFoods();
   const recipes = useRecipes();
   const templates = useMealTemplates();
@@ -211,7 +218,7 @@ export function AddFoodSheet({ meal: initialMeal, tab: initialTab = "recent" }: 
                 value={tab}
                 onChange={setTab}
                 options={[
-                  { value: "recent", label: "Недавние" },
+                  { value: "recent", label: "Частые" },
                   { value: "fav", label: "Избранное" },
                   { value: "mine", label: "Моё" },
                   { value: "recipes", label: "Рецепты" },
@@ -309,8 +316,8 @@ export function AddFoodSheet({ meal: initialMeal, tab: initialTab = "recent" }: 
             )}
             {search.data?.length ? (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} key={term}>
-                {search.data.map((f) => (
-                  <DbFoodRow key={f.id} food={f} meal={meal} day={day} onOpen={() => open(f)} />
+                {searchSorted.map((f) => (
+                  <DbFoodRow key={f.id} food={f} meal={meal} day={day} usualGrams={usual.get(f.id)} onOpen={() => open(f, usual.get(f.id))} />
                 ))}
               </motion.div>
             ) : search.isFetching ? (
@@ -379,16 +386,20 @@ function SkeletonRows() {
   );
 }
 
-function DbFoodRow({ food, meal, day, onOpen }: { food: Food; meal: Meal; day: string; onOpen: () => void }) {
-  const grams = food.serving_g ?? 100;
+function DbFoodRow({ food, meal, day, onOpen, usualGrams }: { food: Food; meal: Meal; day: string; onOpen: () => void; usualGrams?: number }) {
+  const grams = usualGrams ?? food.serving_g ?? 100;
   const m = scaleMacros(food, grams);
-  const portion = food.serving_g ? `${food.serving_name ?? "порция"} · ${fmtNum(grams)} г` : "100 г";
+  const portion = usualGrams
+    ? `обычно ${fmtNum(grams)} г`
+    : food.serving_g
+      ? `${food.serving_name ?? "порция"} · ${fmtNum(grams)} г`
+      : "100 г";
   return (
     <FoodRow
       name={food.name}
       sub={[food.brand, portion].filter(Boolean).join(" · ")}
       kcal={m.kcal}
-      kcalNote={food.serving_g ? "за порцию" : "на 100 г"}
+      kcalNote={usualGrams || food.serving_g ? "за порцию" : "на 100 г"}
       onOpen={onOpen}
       quick={{ meal, day, entry: { ...m, name: food.name, brand: food.brand, grams, food_id: food.id } }}
     />

@@ -293,7 +293,12 @@ export type Recipe = {
   steps: string[];
   tip: string | null;
   serving: Macros & { grams: number };
+  photo?: { author: string; source: "pexels" | "wiki"; license: string | null; link: string } | null;
 };
+
+/** Фото рецепта: большое для карточки рецепта, маленькое для списков */
+export const recipeImg = (r: Pick<Recipe, "id" | "photo">, small = false) =>
+  r.photo ? `${import.meta.env.BASE_URL}recipes/img/${r.id}${small ? "-s" : ""}.webp` : null;
 
 export const RECIPE_CATS: { id: RecipeCategory; name: string; emoji: string; colors: [string, string] }[] = [
   { id: "breakfast", name: "Завтраки", emoji: "🍳", colors: ["#ffb35c", "#ff7a5c"] },

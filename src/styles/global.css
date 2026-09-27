@@ -538,3 +538,16 @@ img {
   pointer-events: none;
   z-index: 4;
 }
+
+/* ───────── Фото с плавным появлением */
+.photo {
+  opacity: 0;
+  transform: scale(1.04);
+  transition:
+    opacity 0.5s ease,
+    transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.photo.in {
+  opacity: 1;
+  transform: none;
+}

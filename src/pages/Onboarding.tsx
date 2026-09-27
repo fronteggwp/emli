@@ -44,7 +44,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
   const tdee = tdeeFrom(sex, weight, height, age, activity);
   const rate = kind === "maintain" ? 0 : ((kind === "lose" ? -1 : 1) * weight * pct) / 100;
   const calories = caloriesFor(tdee, rate, sex);
-  const macros = macrosFor(calories, weight, kind);
+  const macros = macrosFor(calories, weight, kind, height);
   const eta = etaDays(weight, kind === "maintain" ? null : target, rate);
   const targetOk = kind === "maintain" || (kind === "lose" ? target < weight : target > weight);
 

@@ -9,3 +9,6 @@ supabase/.branches
 .env
 .env.*
 .claude/
+
+tools/recipes/.sheets/
+tools/recipes/.sheets_part*.json

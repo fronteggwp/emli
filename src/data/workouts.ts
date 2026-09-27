@@ -4,6 +4,9 @@ import { supabase } from "@/lib/supabase";
 import { useUid } from "@/lib/auth";
 import type { Exercise, Muscle } from "@/lib/exercise";
 import { PROGRAMS, programByKey, type ProgramExercise } from "./programs";
+import type { Session as PlanSession } from "@/lib/progression";
+
+type Session = PlanSession & { id: string };
 
 function unwrap<T>(res: { data: T | null; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message);
@@ -267,6 +270,41 @@ export function useLastSets(ids: string[]) {
       for (const r of rows) {
         const s = numify(r, ["weight"]);
         map.set(s.exercise, [...(map.get(s.exercise) ?? []), s]);
+      }
+      return map;
+    },
+    staleTime: 60_000,
+  });
+}
+
+/** Последние тренировки с этими упражнениями, по сессиям (новые сначала) — для прогрессии */
+export function useSessions(ids: string[]) {
+  const key = [...new Set(ids)].sort().join(",");
+  return useQuery({
+    queryKey: ["ex-sessions", key],
+    enabled: !!key,
+    queryFn: async () => {
+      type Row = Pick<SetRow, "exercise" | "weight" | "reps" | "kind" | "set_order" | "workout_id" | "done_at"> & {
+        workouts: { started_at: string; program_day: number | null } | null;
+      };
+      const res = await supabase
+        .from("workout_sets")
+        .select("exercise,weight,reps,kind,set_order,workout_id,done_at,workouts(started_at,program_day)")
+        .in("exercise", key.split(","))
+        .order("done_at", { ascending: false })
+        .limit(600);
+      const rows = unwrap(res as unknown as { data: Row[] | null; error: { message: string } | null });
+      const map = new Map<string, Session[]>();
+      for (const r of rows) {
+        const list = map.get(r.exercise) ?? [];
+        let s = list.find((x) => x.id === r.workout_id);
+        if (!s) {
+          if (list.length >= 6) continue;
+          s = { id: r.workout_id, at: r.workouts?.started_at ?? r.done_at, programDay: r.workouts?.program_day ?? null, sets: [] };
+          list.push(s);
+          map.set(r.exercise, list);
+        }
+        s.sets.push({ weight: Number(r.weight ?? 0), reps: Number(r.reps ?? 0), kind: r.kind });
       }
       return map;
     },

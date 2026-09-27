@@ -5,6 +5,8 @@ import fs from "node:fs";
 const CATS = ["breakfast", "soup", "main", "salad", "side", "snack", "dessert", "drink"];
 const dir = new URL("./data/", import.meta.url);
 const all = [];
+const photosFile = new URL("./photos.json", import.meta.url);
+const photos = fs.existsSync(photosFile) ? JSON.parse(fs.readFileSync(photosFile, "utf8")) : {};
 const ids = new Set();
 let bad = 0;
 const err = (f, id, m) => {
@@ -73,6 +75,7 @@ for (const f of fs.readdirSync(dir).filter((f) => f.endsWith(".json")).sort()) {
       steps: r.steps,
       tip: r.tip ?? null,
       serving: { kcal: Math.round(per[0]), protein: per[1], fat: per[2], carbs: per[3], grams: Math.round(weight / r.servings) },
+      photo: photos[id] ? { author: photos[id].author, source: photos[id].source, license: photos[id].license, link: photos[id].link } : null,
     });
   }
 }

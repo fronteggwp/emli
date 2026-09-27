@@ -1,5 +1,5 @@
 import type { DayTotal, GoalKind, Macros, Sex, Targets, Weight } from "./types";
-import { daysBetween, shiftKey, todayKey } from "./dates";
+import { shiftKey, todayKey } from "./dates";
 
 export const KCAL_PER_KG = 7700;
 
@@ -27,12 +27,32 @@ export const ACTIVITY = [
   { v: 1.9, title: "Очень высокая", desc: "Физическая работа и спорт каждый день" },
 ];
 
-export function bmr(sex: Sex, weight: number, height: number, age: number) {
-  return 10 * weight + 6.25 * height - 5 * age + (sex === "male" ? 5 : -161);
+/**
+ * Базовый обмен. Если известен процент жира — учитываем формулу Кэтча–Макардла по «сухой» массе
+ * (точнее для спортивных и для людей с большим весом), иначе Миффлин–Сан Жеор.
+ */
+export function bmr(sex: Sex, weight: number, height: number, age: number, bodyFat?: number | null) {
+  const mifflin = 10 * weight + 6.25 * height - 5 * age + (sex === "male" ? 5 : -161);
+  if (bodyFat && bodyFat >= 3 && bodyFat <= 60) {
+    const katch = 370 + 21.6 * weight * (1 - bodyFat / 100);
+    // Смешиваем: одна формула страхует ошибки другой (и неточность измерения жира)
+    return 0.6 * katch + 0.4 * mifflin;
+  }
+  return mifflin;
 }
 
-export function tdeeFrom(sex: Sex, weight: number, height: number, age: number, activity: number) {
-  return Math.round(bmr(sex, weight, height, age) * activity);
+export function tdeeFrom(sex: Sex, weight: number, height: number, age: number, activity: number, bodyFat?: number | null) {
+  return Math.round(bmr(sex, weight, height, age, bodyFat) * activity);
+}
+
+/**
+ * Вес, от которого считаем белок и жиры. При лишнем весе считать от всей массы — перебор:
+ * берём вес при «здоровом» проценте жира (если он известен) или вес при ИМТ 25.
+ */
+export function referenceWeight(weight: number, heightCm?: number | null, bodyFat?: number | null) {
+  if (bodyFat && bodyFat >= 3 && bodyFat <= 60) return Math.min(weight, (weight * (1 - bodyFat / 100)) / 0.8);
+  if (heightCm && heightCm > 120) return Math.min(weight, 25 * (heightCm / 100) ** 2);
+  return Math.min(weight, 120);
 }
 
 /** Темпы изменения веса, % массы тела в неделю */
@@ -57,10 +77,17 @@ export function caloriesFor(tdee: number, rateKgWeek: number, sex: Sex) {
   return round10(Math.max(raw, sex === "male" ? 1500 : 1200));
 }
 
-export function macrosFor(calories: number, weight: number, kind: GoalKind) {
-  const perKg = kind === "lose" ? 1.8 : 1.6;
-  const protein = Math.round(Math.min(weight, 150) * perKg);
-  const fatKcal = Math.min(Math.max(weight * 0.5 * 9, calories * 0.25), calories * 0.35);
+/**
+ * БЖУ под калории. Белок — по современным рекомендациям (ISSN, Morton 2018): на дефиците больше
+ * (сохраняем мышцы), на наборе и поддержании — 1,8 г/кг от опорного веса.
+ * Жиры — не меньше 0,6 г/кг и 25–35% калорий, остальное — углеводы.
+ */
+export function macrosFor(calories: number, weight: number, kind: GoalKind, heightCm?: number | null, bodyFat?: number | null) {
+  const ref = referenceWeight(weight, heightCm, bodyFat);
+  const perKg = kind === "lose" ? 2.0 : 1.8;
+  // Белок не больше 35% калорий — иначе на маленькой норме не останется места углеводам
+  const protein = Math.round(Math.min(ref * perKg, (calories * 0.35) / 4));
+  const fatKcal = Math.min(Math.max(ref * 0.6 * 9, calories * 0.25), calories * 0.35);
   const fat = Math.round(fatKcal / 9);
   const carbs = Math.max(0, Math.round((calories - protein * 4 - fat * 9) / 4));
   return { protein, fat, carbs };
@@ -99,31 +126,98 @@ export function scaleMacros(per100: Macros, grams: number): Macros {
   };
 }
 
-export type TrendPoint = { day: string; scale: number | null; trend: number };
+export type TrendPoint = { day: string; scale: number | null; trend: number; slope: number };
 
 /**
- * Сглаженный тренд веса (экспоненциальное среднее, как в Happy Scale / MacroFactor).
- * Скачки воды и соли гасятся, видна реальная динамика.
+ * Тренд веса — двойное экспоненциальное сглаживание (Хольт): уровень + скорость изменения.
+ * • Скачки воды и соли гасятся, а реальное движение видно без запаздывания обычного среднего.
+ * • Пропуски взвешиваний не «замораживают» тренд: он продолжает движение (не дольше 10 дней).
+ * • Резкие выбросы (после солёного ужина, в одежде) учитываются лишь частично.
  */
 export function trendSeries(weights: Weight[] | undefined, until = todayKey()): TrendPoint[] {
   if (!weights?.length) return [];
   const byDay = new Map(weights.map((w) => [w.day, Number(w.weight_kg)]));
   const first = [...byDay.keys()].sort()[0];
+  const ALPHA = 0.1;
+  const BETA = 0.15;
+  const MAX_SLOPE = 0.15; // кг в день
   const out: TrendPoint[] = [];
-  let t = byDay.get(first)!;
+  let level = byDay.get(first)!;
+  let slope = 0;
+  let sinceObs = 0;
   for (let d = first; d <= until; d = shiftKey(d, 1)) {
     const s = byDay.get(d) ?? null;
-    if (s != null) t = t + 0.1 * (s - t);
-    out.push({ day: d, scale: s, trend: Math.round(t * 100) / 100 });
+    if (d !== first) {
+      sinceObs++;
+      if (sinceObs <= 10) level += slope;
+    }
+    if (s != null && d !== first) {
+      let r = s - level;
+      const lim = Math.max(1, level * 0.012);
+      if (Math.abs(r) > lim) r = Math.sign(r) * (lim + (Math.abs(r) - lim) * 0.3);
+      level += ALPHA * r;
+      slope = Math.max(-MAX_SLOPE, Math.min(MAX_SLOPE, slope + BETA * ALPHA * r));
+      sinceObs = 0;
+    }
+    out.push({ day: d, scale: s, trend: Math.round(level * 100) / 100, slope });
   }
   return out;
 }
 
+function regressionSlopeXY(pts: { x: number; y: number }[]) {
+  const n = pts.length;
+  const mx = pts.reduce((a, p) => a + p.x, 0) / n;
+  const my = pts.reduce((a, p) => a + p.y, 0) / n;
+  let num = 0;
+  let den = 0;
+  for (const p of pts) {
+    num += (p.x - mx) * (p.y - my);
+    den += (p.x - mx) ** 2;
+  }
+  return den ? num / den : 0;
+}
+
+/** Наклон по методу наименьших квадратов (единиц в день) */
+function regressionSlope(ys: number[]) {
+  const n = ys.length;
+  if (n < 2) return 0;
+  const mx = (n - 1) / 2;
+  const my = ys.reduce((a, y) => a + y, 0) / n;
+  let num = 0;
+  let den = 0;
+  ys.forEach((y, x) => {
+    num += (x - mx) * (y - my);
+    den += (x - mx) ** 2;
+  });
+  return den ? num / den : 0;
+}
+
 export type TdeeEstimate = { value: number; confidence: number; observed: number | null };
 
+export type DayStatus = "complete" | "incomplete";
+
 /**
- * Адаптивная оценка расхода: сколько съедено минус изменение запасов (по тренду веса).
- * Пока данных мало, опираемся на формулу; чем больше записей — тем больше веса у наблюдений.
+ * Какие дни годятся для расчёта расхода. Отмеченные вручную — как отметил.
+ * Остальные: явно недозаписанные (меньше половины обычного для тебя дня) не учитываем.
+ */
+export function completeDays(totals: DayTotal[], flags?: Map<string, DayStatus>) {
+  const logged = totals.filter((t) => t.entries > 0);
+  const sorted = logged.map((t) => Number(t.kcal)).sort((a, b) => a - b);
+  const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+  return logged.filter((t) => isCompleteDay(Number(t.kcal), median, flags?.get(t.day)));
+}
+
+export function isCompleteDay(kcal: number, typical: number, flag?: DayStatus) {
+  if (flag === "complete") return true;
+  if (flag === "incomplete") return false;
+  return kcal >= Math.max(500, typical * 0.5);
+}
+
+/**
+ * Адаптивная оценка расхода (как в MacroFactor): средние съеденные калории минус изменение
+ * запасов. Изменение веса — наклон тренда по всему окну (метод наименьших квадратов), а не
+ * по двум крайним точкам: так оценка не прыгает от одного взвешивания. Неполные дни не учитываются.
+ * Пока данных мало, опираемся на формулу; чем больше полных дней — тем больше веса у наблюдений.
  */
 export function estimateTdee(
   totals: DayTotal[] | undefined,
@@ -131,21 +225,44 @@ export function estimateTdee(
   fallback: number,
   endDay = shiftKey(todayKey(), -1),
   windowDays = 21,
+  flags?: Map<string, DayStatus>,
 ): TdeeEstimate {
   const from = shiftKey(endDay, -(windowDays - 1));
-  const logged = (totals ?? []).filter((t) => t.day >= from && t.day <= endDay && t.entries > 0 && t.kcal > 300);
-  const inWindow = trend.filter((p) => p.day >= shiftKey(from, -1) && p.day <= endDay);
-  if (logged.length < 5 || inWindow.length < 2) return { value: fallback, confidence: 0, observed: null };
-  const a = inWindow[0];
-  const b = inWindow[inWindow.length - 1];
-  const span = daysBetween(a.day, b.day);
-  if (span < 6) return { value: fallback, confidence: 0, observed: null };
-  const avgIntake = logged.reduce((s, t) => s + Number(t.kcal), 0) / logged.length;
-  const observed = avgIntake - ((b.trend - a.trend) * KCAL_PER_KG) / span;
-  const confidence = Math.min(1, logged.length / 14) * Math.min(1, span / 14);
+  const logged = completeDays((totals ?? []).filter((t) => t.day >= from && t.day <= endDay), flags);
+  const inWindow = trend.filter((p) => p.day >= from && p.day <= endDay);
+  if (logged.length < 5 || inWindow.length < 7) return { value: fallback, confidence: 0, observed: null };
+  // Наклон — по самим взвешиваниям (без выбросов дальше 1,5 кг от тренда): у тренда есть
+  // запаздывание, а регрессия по сырым точкам несмещённая. Мало взвешиваний — по тренду.
+  const raw = inWindow.map((p, i) => ({ x: i, y: p.scale, t: p.trend })).filter((p) => p.y != null && Math.abs(p.y - p.t) < 1.5);
+  const slope = raw.length >= 6 ? regressionSlopeXY(raw.map((p) => ({ x: p.x, y: p.y as number }))) : regressionSlope(inWindow.map((p) => p.trend));
+  const avgIntake = logged.reduce((sum, t) => sum + Number(t.kcal), 0) / logged.length;
+  const observed = avgIntake - slope * KCAL_PER_KG;
+  const confidence = Math.min(1, logged.length / 14) * Math.min(1, inWindow.length / 14);
   const blended = confidence * observed + (1 - confidence) * fallback;
   const value = Math.round(Math.min(Math.max(blended, fallback * 0.6), fallback * 1.5));
   return { value, confidence, observed: Math.round(observed) };
+}
+
+/**
+ * Еженедельная корректировка нормы. Цель достигнута — переходим на поддержание.
+ * За одну корректировку норма меняется не больше чем на 250 ккал — без резких скачков.
+ */
+export function checkinPlan(o: {
+  tdee: number;
+  current: number;
+  kind: GoalKind;
+  rateKgWeek: number;
+  targetWeight: number | null;
+  sex: Sex;
+  heightCm?: number | null;
+  bodyFat?: number | null;
+  prevCalories?: number | null;
+}) {
+  const reached =
+    o.targetWeight != null && ((o.kind === "lose" && o.current <= o.targetWeight) || (o.kind === "gain" && o.current >= o.targetWeight));
+  let calories = caloriesFor(o.tdee, reached ? 0 : o.rateKgWeek, o.sex);
+  if (o.prevCalories) calories = round10(Math.min(o.prevCalories + 250, Math.max(o.prevCalories - 250, calories)));
+  return { calories, ...macrosFor(calories, o.current, reached ? "maintain" : o.kind, o.heightCm, o.bodyFat), reached };
 }
 
 /** Когда будет достигнут целевой вес при текущем темпе */

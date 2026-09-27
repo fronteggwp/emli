@@ -37,7 +37,7 @@ export function EditGoalSheet() {
   const pctValid = rates.some((r) => Math.abs(r.pct - pct) < 0.001) ? pct : (rates[1]?.pct ?? 0);
   const rate = effKind === "maintain" ? 0 : ((effKind === "lose" ? -1 : 1) * weight * pctValid) / 100;
   const calories = caloriesFor(ins.tdee.value, rate, settings.data?.sex ?? "male");
-  const macros = macrosFor(calories, weight, effKind);
+  const macros = macrosFor(calories, weight, effKind, settings.data?.height_cm, ins.bodyFat);
 
   const targetOk = effKind === "maintain" || (effKind === "lose" ? target < weight : target > weight);
 

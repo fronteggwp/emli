@@ -29,7 +29,7 @@ export function EditProgramSheet() {
     haptic.tap();
     const g = ins.goal;
     const calories = caloriesFor(ins.tdee.value, g?.rate_kg_week ?? 0, settings.data?.sex ?? "male");
-    const m = macrosFor(calories, ins.current ?? 75, g?.kind ?? "maintain");
+    const m = macrosFor(calories, ins.current ?? 75, g?.kind ?? "maintain", settings.data?.height_cm, ins.bodyFat);
     setP(m.protein);
     setF(m.fat);
     setC(m.carbs);

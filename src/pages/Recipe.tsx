@@ -4,7 +4,9 @@ import { motion } from "motion/react";
 import { useNav } from "@/nav/Nav";
 import {
   catOf,
+  recipeImg,
   recipeItem,
+  type Recipe,
   useRecipes,
   useUserRecipes,
   userRecipeItem,
@@ -18,6 +20,8 @@ import { Screen } from "@/ui/Screen";
 import { Tap } from "@/ui/Tap";
 import { FavButton } from "@/ui/FavButton";
 import { NumberTicker } from "@/ui/NumberTicker";
+import { Photo } from "@/ui/Photo";
+import { tg } from "@/lib/telegram";
 import { LogRecipeSheet } from "@/sheets/LogRecipe";
 import { RecipeEditorScreen } from "./RecipeEditor";
 import "./engage.css";
@@ -41,6 +45,8 @@ export type RecipeVM = {
   toItem: (portions: number) => TemplateItem;
   favRef?: string;
   onEdit?: () => void;
+  img?: string | null;
+  credit?: Recipe["photo"];
 };
 
 const DIFF = ["", "Легко", "Средне", "Сложно"];
@@ -69,6 +75,8 @@ export function RecipeScreen({ id }: { id: string }) {
         serving: r.serving,
         toItem: (p) => recipeItem(r, p),
         favRef: r.id,
+        img: recipeImg(r),
+        credit: r.photo,
       }}
     />
   );
@@ -133,6 +141,37 @@ function RecipeView({ vm }: { vm: RecipeVM }) {
         </div>
       }
     >
+      {vm.img ? (
+        <>
+          <div className="rc-photo">
+            <Photo src={vm.img} alt={vm.title} eager />
+            <span className="rc-photo-shade" />
+            {vm.category && <span className="rc-cat rc-photo-cat">{vm.category}</span>}
+            <div className="rc-photo-info">
+              <div className="rc-title">{vm.title}</div>
+              {vm.description && <div className="rc-desc">{vm.description}</div>}
+              <div className="rc-chips">
+                {vm.time ? <span>⏱ {vm.time} мин</span> : null}
+                {vm.difficulty ? (
+                  <span>
+                    {"●".repeat(vm.difficulty)}
+                    <i>{"●".repeat(3 - vm.difficulty)}</i> {DIFF[vm.difficulty]}
+                  </span>
+                ) : null}
+                <span>🍽 {vm.servings} порц.</span>
+              </div>
+            </div>
+          </div>
+          {vm.credit && (
+            <button
+              className="rc-credit"
+              onClick={() => (tg ? tg.openLink(vm.credit!.link) : window.open(vm.credit!.link, "_blank"))}
+            >
+              Фото: {vm.credit.author} · {vm.credit.source === "pexels" ? "Pexels" : `Wikimedia Commons${vm.credit.license ? `, ${vm.credit.license}` : ""}`}
+            </button>
+          )}
+        </>
+      ) : (
       <div className="rc-hero" style={{ ["--c1" as string]: vm.colors[0], ["--c2" as string]: vm.colors[1] }}>
         <motion.div
           className="rc-emoji"
@@ -156,6 +195,7 @@ function RecipeView({ vm }: { vm: RecipeVM }) {
           <span>🍽 {vm.servings} порц.</span>
         </div>
       </div>
+      )}
 
       <div className="card rc-macros">
         <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>

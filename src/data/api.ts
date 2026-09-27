@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { withPlans, type CheatPlan, type DayTarget } from "@/lib/cheat";
-import { targetFor } from "@/lib/nutrition";
+import { targetFor, type DayStatus } from "@/lib/nutrition";
 import { supabase } from "@/lib/supabase";
 import { useUid } from "@/lib/auth";
 import { shiftKey, todayKey } from "@/lib/dates";
@@ -187,11 +187,15 @@ export function useFoodSearch(q: string) {
   });
 }
 
-export function useRecents() {
+/** Частые продукты: рейтинг по частоте и давности, с учётом приёма пищи; порция — твоя обычная */
+export function useRecents(meal?: number) {
   return useQuery({
-    queryKey: qk.recents,
+    queryKey: [...qk.recents, meal ?? "all"],
     queryFn: async () =>
-      unwrap<RecentFood[]>(await supabase.rpc("recent_foods", { lim: 40 })).map((f) => numify(f, [...MACRO_KEYS, "grams"])),
+      unwrap<RecentFood[]>(await supabase.rpc("recent_foods", { lim: 60, for_meal: meal ?? null })).map((f) =>
+        numify(f, [...MACRO_KEYS, "grams"]),
+      ),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -338,6 +342,39 @@ export function useSaveTargets() {
       return unwrap(await supabase.from("targets").insert(t).select().single());
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.targets }),
+  });
+}
+
+// ───────────── Отметки дней: «записал не всё» / «записал всё»
+
+export function useDayFlags() {
+  return useQuery({
+    queryKey: ["day-flags"],
+    queryFn: async () => {
+      const rows = unwrap<{ day: string; status: DayStatus }[]>(await supabase.from("day_flags").select("day,status"));
+      return new Map(rows.map((r) => [r.day, r.status]));
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useSetDayFlag() {
+  const qc = useQueryClient();
+  const uid = useUid();
+  return useMutation({
+    mutationFn: async ({ day, status }: { day: string; status: DayStatus | null }) => {
+      if (status) unwrap(await supabase.from("day_flags").upsert({ user_id: uid, day, status }));
+      else unwrap(await supabase.from("day_flags").delete().eq("day", day));
+    },
+    onMutate: ({ day, status }) => {
+      qc.setQueryData<Map<string, DayStatus>>(["day-flags"], (old) => {
+        const m = new Map(old ?? []);
+        if (status) m.set(day, status);
+        else m.delete(day);
+        return m;
+      });
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["day-flags"] }),
   });
 }
 

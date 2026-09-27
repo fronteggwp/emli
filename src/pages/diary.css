@@ -495,3 +495,69 @@
   border: 1px solid rgba(124, 140, 255, 0.28);
   animation: rise 0.4s cubic-bezier(0.32, 0.72, 0, 1);
 }
+
+/* ───────── Еженедельная корректировка */
+.checkin {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 22px;
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(124, 140, 255, 0.2), transparent 60%),
+    var(--card);
+  border: 1px solid rgba(124, 140, 255, 0.28);
+}
+.checkin-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.checkin-ico {
+  font-size: 26px;
+}
+.checkin-sub {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-top: 1px;
+}
+.checkin-body {
+  margin-top: 10px;
+  font-size: 15px;
+}
+.checkin-body b {
+  font-size: 18px;
+}
+.checkin-macros {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-top: 2px;
+}
+
+/* ───────── Неполный день */
+.day-flag {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 13px;
+  color: var(--text-2);
+  background: var(--soft);
+}
+.day-flag.warn {
+  background: rgba(255, 194, 71, 0.1);
+  border: 1px solid rgba(255, 194, 71, 0.25);
+}
+.day-flag button {
+  color: var(--kcal);
+  font-weight: 650;
+}
+.day-flag-link {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-3);
+}

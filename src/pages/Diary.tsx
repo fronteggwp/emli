@@ -28,6 +28,7 @@ import { useWorkouts } from "@/data/workouts";
 import { useMealTemplates, useRecipes } from "@/data/engage";
 import { useHomeScreen } from "@/lib/homescreen";
 import { fmtDuration } from "@/state/workout";
+import { CheckinCard, DayCompleteness } from "@/ui/Checkin";
 import "./diary.css";
 
 /** Какую долю дневной нормы обычно занимает приём пищи — для полоски у каждого приёма */
@@ -90,6 +91,8 @@ export function DiaryPage() {
 
       <DayBanner target={target} day={day} />
 
+      {isToday && <CheckinCard />}
+
       <DayWorkouts day={day} />
 
       <div className="stack" style={{ marginTop: 14 }}>
@@ -103,6 +106,8 @@ export function DiaryPage() {
           />
         ))}
       </div>
+
+      <DayCompleteness day={day} kcal={sum.kcal} hasEntries={!!entries.data?.length} />
 
       <div className="row" style={{ marginTop: 16, gap: 10 }}>
         <Tap className="btn btn-block add-food" onClick={() => nav.sheet(<AddFoodSheet />, { full: true })}>

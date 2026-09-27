@@ -5,6 +5,7 @@ import {
   RECIPE_CATS,
   catOf,
   searchRecipes,
+  recipeImg,
   useFavorites,
   useRecipes,
   useUserRecipes,
@@ -16,6 +17,8 @@ import {
 import { fmtNum } from "@/lib/nutrition";
 import { haptic } from "@/lib/telegram";
 import { Screen } from "@/ui/Screen";
+import { Photo } from "@/ui/Photo";
+import { todayKey } from "@/lib/dates";
 import { Tap } from "@/ui/Tap";
 import { RecipeScreen, UserRecipeScreen } from "./Recipe";
 import { RecipeEditorScreen } from "./RecipeEditor";
@@ -133,7 +136,9 @@ export function RecipesScreen({ initial = "all" }: { initial?: Cat }) {
             ))}
           </div>
         ) : browsing ? (
-          RECIPE_CATS.map((c) => {
+          <>
+          <DailyRecipe list={all} />
+          {RECIPE_CATS.map((c) => {
             const items = all.filter((r) => r.category === c.id);
             if (!items.length) return null;
             return (
@@ -156,7 +161,8 @@ export function RecipesScreen({ initial = "all" }: { initial?: Cat }) {
                 </div>
               </div>
             );
-          })
+          })}
+          </>
         ) : list.length ? (
           <>
             <div className="muted" style={{ fontSize: 13, margin: "14px 2px 10px" }}>
@@ -194,6 +200,7 @@ export function RecipeCard({ r, fav }: { r: Recipe; fav?: boolean }) {
     <Tap className="recipe-card" scale={0.97} onClick={() => nav.push(<RecipeScreen id={r.id} />)}>
       <span className="recipe-cover" style={{ ["--c1" as string]: c.colors[0], ["--c2" as string]: c.colors[1] }}>
         <span className="recipe-emoji">{r.emoji}</span>
+        {r.photo && <Photo src={recipeImg(r, true)!} alt={r.title} className="recipe-img" />}
         {fav && <span className="recipe-fav">❤️</span>}
         <span className="recipe-time">⏱ {r.time} мин</span>
       </span>
@@ -233,6 +240,7 @@ export function RecipeRow({ r, onOpen, onQuick }: { r: Recipe; onOpen: () => voi
     <button className="food-row press" onClick={onOpen}>
       <span className="recipe-dot" style={{ background: `linear-gradient(135deg, ${c.colors[0]}, ${c.colors[1]})` }}>
         {r.emoji}
+        {r.photo && <Photo src={recipeImg(r, true)!} alt="" className="recipe-img" />}
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="food-row-name">{r.title}</div>
@@ -258,5 +266,33 @@ export function RecipeRow({ r, onOpen, onQuick }: { r: Recipe; onOpen: () => voi
         </span>
       )}
     </button>
+  );
+}
+
+/** Рецепт дня — большая карточка с фото, меняется каждый день */
+function DailyRecipe({ list }: { list: Recipe[] }) {
+  const nav = useNav();
+  const withPhoto = list.filter((r) => r.photo);
+  if (!withPhoto.length) return null;
+  const day = todayKey();
+  let h = 0;
+  for (const ch of day) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const r = withPhoto[h % withPhoto.length];
+  const c = catOf(r.category);
+  return (
+    <Tap className="daily" scale={0.98} onClick={() => nav.push(<RecipeScreen id={r.id} />)}>
+      <Photo src={recipeImg(r)!} alt={r.title} className="daily-img" eager />
+      <span className="daily-shade" />
+      <span className="daily-badge">✨ Рецепт дня</span>
+      <span className="daily-info">
+        <span className="daily-cat">
+          {c.emoji} {c.name} · ⏱ {r.time} мин
+        </span>
+        <span className="daily-title">{r.title}</span>
+        <span className="daily-meta">
+          <b className="num">{fmtNum(r.serving.kcal)}</b> ккал · Б {fmtNum(r.serving.protein)} · Ж {fmtNum(r.serving.fat)} · У {fmtNum(r.serving.carbs)}
+        </span>
+      </span>
+    </Tap>
   );
 }

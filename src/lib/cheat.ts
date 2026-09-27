@@ -47,7 +47,10 @@ export function applyDelta(t: Pick<Targets, "calories" | "protein" | "fat" | "ca
     fat += (delta * 0.35) / 9;
     carbs += (delta * 0.65) / 4;
   } else {
-    const cut = -delta;
+    // Безопасный минимум: день «экономии» не ниже 70% обычной нормы и не ниже 1200 ккал
+    const floor = Math.max(1200, t.calories * 0.7);
+    const cut = Math.min(-delta, Math.max(0, t.calories - floor));
+    delta = -cut;
     let fromCarbs = (cut * 0.65) / 4;
     let fromFat = (cut * 0.35) / 9;
     const carbRoom = Math.max(carbs - 40, 0);
