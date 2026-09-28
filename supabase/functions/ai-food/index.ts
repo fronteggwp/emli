@@ -1,8 +1,9 @@
 // Распознавание еды по фото (мини-харнес):
-//  1) модель раскладывает фото на продукты с граммовкой и своей оценкой КБЖУ на 100 г;
-//  2) каждый продукт ищем в базе продуктов Emli (готовые блюда не берём) — кандидаты;
-//  3) второй быстрый запрос выбирает точное совпадение из кандидатов (или «нет»);
-//  4) КБЖУ считаем сами: граммы × данные базы; нет в базе — оценка модели с пометкой.
+//  1) модель смотрит фото и раскладывает блюдо на продукты с граммовкой и своей оценкой КБЖУ на 100 г;
+//  2) продукты ищем в тех же базах, что поиск в приложении (справочник Emli + база товаров), готовые блюда не берём;
+//  3) вторая модель видит выдачу, при необходимости ищет ещё раз другими словами и сама выбирает вариант
+//     (или пересчитывает с сухого/сырого продукта);
+//  4) КБЖУ считаем сами: граммы × данные базы; не нашлось — оценка модели с пометкой.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const CORS = {
@@ -181,44 +182,186 @@ const SEE_PROMPT = `Ты оцениваешь еду на фото для дне
 /** Готовые блюда в базе не ищем: блюдо модель раскладывает на продукты, КБЖУ берём по продуктам */
 const DISH_CATEGORIES = new Set(["Готовые блюда", "Салаты"]);
 const DISH_NAME = /^(сырники|блины|оладьи|пирож|омлет|вареники|пельмени|котлет|голубц)/i;
+const PICK_ROUNDS = 3;
+
+type Food = { id?: string; name: string; brand: string | null; category?: string | null; kcal: number; protein: number; fat: number; carbs: number };
+const per100Of = (f: Food): Per100 => [+f.kcal, +f.protein, +f.fat, +f.carbs];
 
 /**
- * Кандидаты для продукта — из тех же источников, что поиск в приложении:
- * общая база продуктов Emli (базовые продукты: «гречка варёная», «масло подсолнечное») и
+ * Один поисковый запрос — в тех же двух базах, что поиск в приложении:
+ * общая база продуктов Emli (справочник: «гречка варёная», «куриная грудка жареная») и
  * база товаров (штрихкоды Emli + Open Food Facts через food-search: «Мука пшеничная, Макфа»).
  */
-async function candidatesFor(item: Seen, userClient: ReturnType<typeof createClient>, token: string): Promise<Candidate[]> {
-  const local = (async () => {
-    const out: Candidate[] = [];
-    const seen = new Set<string>();
-    for (const q of [...new Set([item.search, item.name, item.search.split(" ")[0]].filter((x) => x && x.length >= 2))]) {
-      const { data } = await userClient.rpc("search_foods", { q, lim: 8 });
-      for (const f of (data ?? []) as { id: string; name: string; brand: string | null; category: string | null; kcal: number; protein: number; fat: number; carbs: number }[]) {
-        if (seen.has(f.id) || DISH_CATEGORIES.has(f.category ?? "") || DISH_NAME.test(f.name)) continue;
-        seen.add(f.id);
-        out.push({ key: "", food_id: f.id, name: f.name, brand: f.brand, per100: [+f.kcal, +f.protein, +f.fat, +f.carbs], kind: "food" });
-      }
-      if (out.length >= 5) break;
+async function searchBoth(q: string, userClient: ReturnType<typeof createClient>, token: string): Promise<Candidate[]> {
+  const local = userClient
+    .rpc("search_foods", { q, lim: 10 })
+    .then(({ data }) =>
+      ((data ?? []) as Food[])
+        .filter((f) => !DISH_CATEGORIES.has(f.category ?? "") && !DISH_NAME.test(f.name))
+        .slice(0, 7)
+        .map((f): Candidate => ({ key: "", food_id: f.id ?? null, name: f.name, brand: f.brand, per100: per100Of(f), kind: "food" })),
+    );
+  const products = fetch(`${SUPABASE_URL}/functions/v1/food-search?q=${encodeURIComponent(q)}`, {
+    headers: { Authorization: `Bearer ${token}`, apikey: Deno.env.get("SUPABASE_ANON_KEY")! },
+    signal: AbortSignal.timeout(4000),
+  })
+    .then((r) => r.json())
+    .then((list: Food[]) =>
+      Array.isArray(list)
+        ? list
+            .filter((f) => f.name && f.kcal > 0)
+            .slice(0, 8)
+            .map((f): Candidate => ({ key: "", food_id: null, name: f.name, brand: f.brand, per100: per100Of(f), kind: "product" }))
+        : [],
+    )
+    .catch(() => [] as Candidate[]);
+  const [a, b] = await Promise.all([local.then((x) => x, () => [] as Candidate[]), products]);
+  return [...a, ...b];
+}
+
+const PICK_PROMPT = `Ты подбираешь продукты из базы для дневника питания. По фото уже определены продукты с весом и примерной оценкой КБЖУ.
+Для каждого продукта найди в результатах поиска тот, чьи КБЖУ на 100 г правильно описывают ЭТОТ продукт в ЭТОМ состоянии.
+
+Как выбирать:
+- Тот же продукт и то же состояние. Готовое на тарелке (варёное, жареное, запечённое) — готовый вариант. Ингредиенты изделий из теста и фарша (сырники, котлеты, пельмени) — сырой вариант.
+- Если есть только сухой или сырой вариант готового продукта — бери его и укажи product_grams: сколько граммов этого продукта ушло на порцию. Варёные крупы и макароны ≈ 0,35–0,4 от готового веса (200 г варёной гречки ≈ 75 г сухой); мясо и рыба при варке и жарке теряют 25–35% (100 г жареной грудки ≈ 140 г сырой). Если брал вариант в том же состоянии — product_grams не пиши.
+- Не бери другой продукт (яйцо вместо курицы, огурец свежий вместо солёного), готовое блюдо или смесь вместо ингредиента (салат «Цезарь» вместо соуса), товар с явно ошибочными цифрами (25 ккал у мяса, белок у масла).
+- Из нескольких похожих бери типичный: цифры, как у большинства похожих; базовый продукт Emli или обычный магазинный, а не особый (не «лайт», не «протеиновый», если на фото обычный).
+- Сверяй цифры с оценкой по фото: вариант с пометкой ⚠ сильно расходится с ней по калориям, белку или жирам — это другой продукт или ошибка в базе, его не бери.
+- Нет подходящего — "search" с 1–3 новыми запросами: синоним или проще («куриная грудка» вместо «куриное филе», «рис» вместо «рис басмати варёный», «сметана 15» вместо «сметана домашняя»). Не повторяй прошлые запросы.
+- Если после поиска подходящего всё равно нет — "none": тогда останется оценка.
+{LAST}
+Продукты и результаты поиска (ккал, Б, Ж, У на 100 г):
+{TABLE}
+
+Ответ — только JSON, по одному решению на каждый продукт из списка:
+{"decisions":[{"item":1,"action":"pick","id":"1.3","why":"коротко почему"},{"item":2,"action":"pick","id":"2.1","product_grams":75,"why":"..."},{"item":3,"action":"search","queries":["..."],"why":"..."},{"item":4,"action":"none","why":"..."}]}`;
+
+type Decision = { item: number; action: "pick" | "search" | "none"; id?: string; product_grams?: number; queries?: string[]; why?: string };
+
+/** КБЖУ на 100 г продукта с тарелки по выбранному варианту; product_grams — сколько граммов сухого/сырого ушло на порцию */
+function effective(c: Candidate, d: Decision, it: Seen): Per100 {
+  const pg = Number(d.product_grams);
+  const factor = pg > 0 ? Math.min(3, Math.max(0.2, pg / it.grams)) : 1;
+  return c.per100.map((v) => v * factor) as Per100;
+}
+
+/** Страховка от явной подмены: сравниваем с оценкой по фото не только калории, но и белки с жирами */
+function plausible(c: Per100, est: Per100) {
+  if (!(est[0] > 0)) return true;
+  const ratio = (a: number, b: number) => Math.max(a, 1) / Math.max(b, 1);
+  const within = (a: number, b: number, lim: number) => ratio(a, b) <= lim && ratio(b, a) <= lim;
+  if (!within(c[0], est[0], 1.8)) return false;
+  if (Math.max(c[1], est[1]) >= 8 && !within(c[1], est[1], 2.5)) return false;
+  if (Math.max(c[2], est[2]) >= 8 && !within(c[2], est[2], 3)) return false;
+  return true;
+}
+
+/**
+ * Подбор продуктов в базе как у человека в поиске: модель видит выдачу, при необходимости ищет ещё
+ * (до PICK_ROUNDS кругов, все продукты тарелки — одним запросом за круг) и сама выбирает вариант.
+ */
+async function pickFromBase(items: Seen[], userClient: ReturnType<typeof createClient>, token: string) {
+  const pools: Candidate[][] = items.map(() => []);
+  const asked: Set<string>[] = items.map(() => new Set());
+  const add = (i: number, list: Candidate[]) => {
+    for (const c of list) {
+      const id = `${c.name}|${c.brand ?? ""}|${c.per100[0]}`.toLowerCase();
+      if (pools[i].some((x) => `${x.name}|${x.brand ?? ""}|${x.per100[0]}`.toLowerCase() === id)) continue;
+      pools[i].push({ ...c, key: `${i + 1}.${pools[i].length + 1}` });
     }
-    return out.slice(0, 5);
-  })();
-  const products = (async () => {
+  };
+  const search = (i: number, queries: string[]) =>
+    Promise.all(
+      [...new Set(queries.map((q) => String(q).trim().toLowerCase().slice(0, 40)))]
+        .filter((q) => q.length >= 2 && !asked[i].has(q))
+        .map(async (q) => {
+          asked[i].add(q);
+          add(i, await searchBoth(q, userClient, token));
+        }),
+    );
+  await Promise.all(items.map((it, i) => search(i, [it.search, it.name])));
+
+  const final: (Decision | null)[] = items.map(() => null);
+  const notes: string[] = items.map(() => "");
+  let open = items.map((_, i) => i);
+  let rounds = 0;
+  for (let round = 1; round <= PICK_ROUNDS && open.length; round++) {
+    rounds = round;
+    const last = round === PICK_ROUNDS;
+    const table = open
+      .map((i) => {
+        const it = items[i];
+        const head = `Продукт ${i + 1}: «${it.name}», ${it.grams} г на тарелке; оценка по фото: ${it.per100.map((v) => Math.round(v)).join("/")}; искали: ${[...asked[i]].join(", ")}`;
+        const rows = pools[i]
+          .slice(0, 24)
+          .map((c) => `  ${c.key}) ${c.name}${c.brand ? ` [${c.brand}]` : ""}${c.kind === "food" ? " (база Emli)" : ""} — ${c.per100.map((v) => Math.round(v * 10) / 10).join("/")}${plausible(c.per100, it.per100) ? "" : " ⚠"}`);
+        return [head, ...(rows.length ? rows : ["  (ничего не найдено)"])].join("\n");
+      })
+      .join("\n\n");
+    const rule = last
+      ? "\nЭто последний круг: \"search\" нельзя — выбери или ответь \"none\".\n"
+      : round === 1
+        ? "\nЭто первый круг: \"none\" нельзя — если подходящего нет, сделай \"search\" другими словами.\n"
+        : "";
+    const prompt = PICK_PROMPT.replace("{TABLE}", table).replace("{LAST}", rule);
+    let decisions: Decision[] = [];
     try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/food-search?q=${encodeURIComponent(item.search || item.name)}`, {
-        headers: { Authorization: `Bearer ${token}`, apikey: Deno.env.get("SUPABASE_ANON_KEY")! },
-        signal: AbortSignal.timeout(4000),
-      });
-      const list = (await res.json()) as { name: string; brand: string | null; kcal: number; protein: number; fat: number; carbs: number }[];
-      if (!Array.isArray(list)) return [];
-      return list
-        .filter((f) => f.name && f.kcal > 0)
-        .slice(0, 5)
-        .map((f): Candidate => ({ key: "", food_id: null, name: f.name, brand: f.brand, per100: [+f.kcal, +f.protein, +f.fat, +f.carbs], kind: "product" }));
+      const reply = await chat([{ role: "system", content: SYSTEM }, { role: "user", content: prompt }], 250 * open.length);
+      decisions = Array.isArray(reply.decisions) ? reply.decisions : [];
     } catch {
-      return [];
+      break; // выбор не удался — останутся оценки модели по фото
     }
-  })();
-  return [...(await local), ...(await products)];
+    const again: { i: number; queries: string[] }[] = [];
+    const retry: number[] = [];
+    for (const i of open) {
+      const d = decisions.find((x) => Number(x?.item) === i + 1);
+      if (d?.action === "search" && !last && Array.isArray(d.queries) && d.queries.length) {
+        again.push({ i, queries: d.queries.slice(0, 3) });
+        continue;
+      }
+      // Выбор, который не проходит страховку, и «ничего не нашла» — возвращаем модели: пусть ищет другими словами
+      const c = d?.action === "pick" ? (pools[i].find((x) => x.key === String(d.id)) ?? null) : null;
+      const bad = c && !plausible(effective(c, d!, items[i]), items[i].per100);
+      if (!last && (bad || !d || d.action === "none")) {
+        notes[i] = bad ? `Прошлый выбор «${c!.name}» не подходит: цифры не сходятся с этим продуктом. Найди другой вариант или сделай search.` : "Подходящего пока нет — сделай search другими словами.";
+        retry.push(i);
+        continue;
+      }
+      final[i] = d ?? null;
+    }
+    open = [...again.map((x) => x.i), ...retry];
+    await Promise.all(again.map(({ i, queries }) => search(i, queries)));
+  }
+
+  const result = items.map((it, i) => {
+    const d = final[i];
+    const c = d?.action === "pick" ? (pools[i].find((x) => x.key === String(d.id)) ?? null) : null;
+    const eff = c ? effective(c, d!, it) : null;
+    const factor = c ? eff![0] / Math.max(c.per100[0], 0.01) : 1;
+    const ok = !!(c && eff && plausible(eff, it.per100));
+    const per100 = ok ? eff! : it.per100;
+    const k = it.grams / 100;
+    return {
+      name: it.name,
+      grams: it.grams,
+      confidence: it.confidence,
+      separate: it.separate ?? false,
+      source: ok ? c!.kind : "ai",
+      food_id: ok ? c!.food_id : null,
+      matched: ok ? c!.name : null,
+      brand: ok ? c!.brand : null,
+      product_grams: ok && Math.abs(factor - 1) > 0.01 ? Math.round(it.grams * factor) : null,
+      note: d?.why ? String(d.why).slice(0, 160) : null,
+      rejected: c && !ok ? c.name : null,
+      per100: per100.map((v) => Math.round(v * 10) / 10) as Per100,
+      kcal: Math.round(per100[0] * k),
+      protein: Math.round(per100[1] * k * 10) / 10,
+      fat: Math.round(per100[2] * k * 10) / 10,
+      carbs: Math.round(per100[3] * k * 10) / 10,
+    };
+  });
+  return { result, rounds, searches: asked.reduce((a, s) => a + s.size, 0) };
 }
 
 Deno.serve(async (req) => {
@@ -285,69 +428,13 @@ Deno.serve(async (req) => {
       return json({ dish: seen.dish ?? null, comment: seen.comment ?? "Еды на фото не видно", items: [], total: { kcal: 0, protein: 0, fat: 0, carbs: 0 }, ms: { see: tSee, total: Date.now() - t0 }, model: seenBy });
     }
 
-    // 2) Кандидаты из базы
+    // 2–3) Поиск продуктов в базе и выбор — моделью, с повторным поиском при необходимости
     const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: `Bearer ${token}` } },
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const cands = await Promise.all(items.map((i) => candidatesFor(i, userClient, token)));
-    cands.forEach((list, i) => list.forEach((c, j) => (c.key = `${i + 1}.${j + 1}`)));
-    const tSearchAt = Date.now();
-    const tSearch = tSearchAt - t0;
-
-    // 3) Выбор совпадений одним быстрым запросом
-    let choices: (string | null)[] = items.map(() => null);
-    if (cands.some((c) => c.length)) {
-      const table = items
-        .map((it, i) =>
-          [
-            `Продукт ${i + 1}: «${it.name}», ~${it.grams} г, оценка на 100 г: ${it.per100.join("/")}`,
-            ...(cands[i].length ? cands[i].map((c) => `  ${c.key}) ${c.name}${c.brand ? ` (${c.brand})` : ""} — ${c.per100.map((v) => Math.round(v * 10) / 10).join("/")}`) : ["  (кандидатов нет)"]),
-          ].join("\n"),
-        )
-        .join("\n");
-      const pick = await chat(
-        [
-          { role: "system", content: SYSTEM },
-          {
-            role: "user",
-            content:
-              `Для каждого продукта с фото выбери из кандидатов тот же продукт в том же состоянии. Кандидаты — базовые продукты и товары из магазинов (бренд в скобках).\n` +
-              `- Для готового продукта (варёный, жареный, тушёный, запечённый) не бери сухой или сырой (макароны сухие, крупа, сырое мясо) — у них другая калорийность.\n` +
-              `- Товар из магазина подходит для того, что едят как купили: мука, сливки, сметана, творог, сыр, соусы, томатная паста, сухарики, маслины, солёные огурцы, колбаса.\n` +
-              `- Не бери готовое блюдо или смесь вместо отдельного продукта (для «соус цезарь» не бери «салат цезарь»).\n` +
-              `- Калорийность должна быть близка к оценке. Если подходящего нет — null. Числа: ккал/белки/жиры/углеводы на 100 г.\n\n${table}\n\n` +
-              `Ответ: {"choices":["1.2", null, ...]} — ровно ${items.length} значений по порядку продуктов.`,
-          },
-        ],
-        300,
-      );
-      if (Array.isArray(pick.choices)) choices = items.map((_, i) => (typeof pick.choices[i] === "string" ? pick.choices[i] : null));
-    }
-
-    // 4) Считаем КБЖУ сами
-    const result = items.map((it, i) => {
-      const c = cands[i].find((x) => x.key === choices[i]) ?? null;
-      // Защита от явной ошибки выбора (например, сухие макароны вместо варёных): калорийность отличается больше чем в 1,8 раза — не доверяем
-      const sane = c && it.per100[0] > 0 ? c.per100[0] / it.per100[0] < 1.8 && it.per100[0] / Math.max(c.per100[0], 1) < 1.8 : !!c;
-      const per100 = c && sane ? c.per100 : it.per100;
-      const k = it.grams / 100;
-      return {
-        name: it.name,
-        grams: it.grams,
-        confidence: it.confidence,
-        separate: it.separate ?? false,
-        source: c && sane ? c.kind : "ai",
-        food_id: c && sane ? c.food_id : null,
-        matched: c && sane ? c.name : null,
-        brand: c && sane ? c.brand : null,
-        per100,
-        kcal: Math.round(per100[0] * k),
-        protein: Math.round(per100[1] * k * 10) / 10,
-        fat: Math.round(per100[2] * k * 10) / 10,
-        carbs: Math.round(per100[3] * k * 10) / 10,
-      };
-    });
+    const tPickAt = Date.now();
+    const { result, rounds, searches } = await pickFromBase(items, userClient, token);
     const total = result.reduce(
       (a, r) => ({ kcal: a.kcal + r.kcal, protein: a.protein + r.protein, fat: a.fat + r.fat, carbs: a.carbs + r.carbs }),
       { kcal: 0, protein: 0, fat: 0, carbs: 0 },
@@ -358,7 +445,9 @@ Deno.serve(async (req) => {
       comment: seen.comment ?? null,
       items: result,
       total: { kcal: Math.round(total.kcal), protein: Math.round(total.protein), fat: Math.round(total.fat), carbs: Math.round(total.carbs) },
-      ms: { see: tSee, search: tSearch - tSee, pick: Date.now() - tSearchAt, total: Date.now() - t0 },
+      ms: { see: tSee, pick: Date.now() - tPickAt, total: Date.now() - t0 },
+      rounds,
+      searches,
       model: seenBy,
     });
   } catch (e) {

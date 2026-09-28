@@ -386,6 +386,15 @@
   font-weight: 700;
 }
 .pf-src.db {
+  max-width: 100%;
+  min-width: 0;
+}
+.pf-src-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pf-src.db {
   background: rgba(79, 209, 139, 0.14);
   color: var(--good);
 }

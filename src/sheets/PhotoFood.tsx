@@ -465,8 +465,9 @@ function ItemRow({ r, index, onGrams, onRemove }: { r: Row; index: number; onGra
               <Sparkles size={11} /> оценка ИИ
             </span>
           ) : (
-            <span className="pf-src db">
-              <Check size={11} strokeWidth={3} /> {r.source === "product" ? (r.brand ?? "база товаров") : r.source === "recipe" ? "рецепт Emli" : "база Emli"}
+            <span className="pf-src db" title={r.matched ?? undefined}>
+              <Check size={11} strokeWidth={3} />
+              <span className="pf-src-name">{r.matched ? `${r.matched}${r.brand ? ` · ${r.brand}` : ""}` : r.source === "recipe" ? "рецепт Emli" : "база Emli"}</span>
             </span>
           )}
           {r.separate && <span className="pf-src side">рядом</span>}
