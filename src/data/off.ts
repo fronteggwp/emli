@@ -122,11 +122,14 @@ async function invokeBarcode<T>(body: Record<string, unknown>): Promise<T> {
 
 export const lookupBarcode = (code: string) => invokeBarcode<BarcodeResult>({ action: "lookup", code });
 
+/** «МАЙОНЕЗ МОСКОВСКИЙ ПРОВАНСАЛЬ» → «Майонез московский провансаль» — кассовые базы пишут капсом */
+const calm = (s: string) => (s.length > 6 && s === s.toUpperCase() && /[А-ЯЁA-Z]{3}/.test(s) ? s.charAt(0) + s.slice(1).toLowerCase() : s);
+
 /** Товар из общей базы → черновик продукта для карточки */
 export function productDraft(p: BarcodeProduct): FoodDraft | null {
   if (p.kcal == null) return null;
   return {
-    name: p.name ?? `Товар ${p.barcode}`,
+    name: p.name ? calm(p.name) : `Товар ${p.barcode}`,
     brand: p.brand,
     barcode: p.barcode,
     category: null,

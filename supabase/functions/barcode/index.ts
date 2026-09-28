@@ -371,7 +371,8 @@ async function lookup(raw: string, uid: string) {
         if (lab) {
           tried.push("off_label");
           // С фото таблицы КБЖУ название обычно не видно — берём из каталога штрихкодов
-          if (!name && !lab.name) {
+          // С фото таблицы видно только общее «Майонез» — полное название берём из каталога, если его нет в OFF
+          if (!name) {
             const raw = await nameFromBarcodeList(code).catch(() => null);
             tried.push("barcode-list");
             if (raw) {
