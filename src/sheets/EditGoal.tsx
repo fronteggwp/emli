@@ -23,7 +23,8 @@ export function EditGoalSheet() {
   const saveGoal = useSaveGoal();
   const saveTargets = useSaveTargets();
   const g = ins.goal;
-  const weight = ins.current ?? g?.start_weight ?? 75;
+  // Текущий вес — последнее взвешивание: то число, которое человек знает
+  const weight = ins.weight ?? ins.current ?? g?.start_weight ?? 75;
 
   const [kind, setKind] = useState<GoalKind>(g?.kind ?? "lose");
   const [target, setTarget] = useState(g?.target_weight ?? Math.round(weight * 0.9));

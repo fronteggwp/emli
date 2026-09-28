@@ -4,6 +4,7 @@ import { useNav } from "@/nav/Nav";
 import { useProfile } from "@/data/api";
 import { useInsights } from "@/data/insights";
 import { fmtKg } from "@/lib/nutrition";
+import { fmt } from "@/lib/dates";
 import { NumberTicker } from "@/ui/NumberTicker";
 import { Avatar } from "@/ui/Avatar";
 import { GoalScreen } from "./Goal";
@@ -40,7 +41,8 @@ function ProfileBody() {
   const p = profile.data;
   // Серия и число дней — с сервера, по всей истории (локальные данные — только за полгода)
   const stats = usePublicStats(p?.id ?? "");
-  const lost = ins.goal && ins.current != null ? ins.current - ins.goal.start_weight : null;
+  // «Сброшено» — по взвешиваниям: старт цели минус последнее взвешивание (сходится с историей и публичным профилем)
+  const lost = ins.goal && ins.weight != null ? Math.round((ins.weight - ins.goal.start_weight) * 10) / 10 : null;
 
   const items = [
     { Icon: Target, i3: "goal" as const, title: "Цель и программа", sub: "Калории, БЖУ, темп", go: () => nav.push(<GoalScreen />) },
@@ -97,9 +99,10 @@ function ProfileBody() {
         ))}
       </div>
 
-      {ins.current != null && (
+      {ins.weight != null && (
         <div className="faint" style={{ textAlign: "center", fontSize: 13, marginTop: 20 }}>
-          Текущий вес по тренду: {fmtKg(ins.current)} кг
+          Вес: {fmtKg(ins.weight)} кг{ins.lastScale ? ` · ${fmt(ins.lastScale.day, "d MMMM")}` : ""}
+          {ins.trendShown && ins.current != null && Math.abs(ins.current - ins.weight) >= 0.1 ? ` · тренд ${fmtKg(ins.current)} кг` : ""}
         </div>
       )}
     </div>

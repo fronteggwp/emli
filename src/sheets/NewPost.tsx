@@ -7,7 +7,7 @@ import { useCreatePost, uploadImage } from "@/data/social";
 import { useEntries } from "@/data/api";
 import { useInsights } from "@/data/insights";
 import { todayKey } from "@/lib/dates";
-import { sumMacros } from "@/lib/nutrition";
+import { scaleChange, sumMacros } from "@/lib/nutrition";
 import { haptic } from "@/lib/telegram";
 import type { PostAttachment } from "@/lib/types";
 import { SheetHeader } from "@/ui/Screen";
@@ -37,7 +37,8 @@ export function NewPostSheet({ preset, attach }: { preset?: Kind; attach?: PostA
   const input = useRef<HTMLInputElement>(null);
   const preview = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
 
-  const weightDays = Math.min(30, ins.trend.length);
+  // Прогресс веса — по взвешиваниям за последние 30 дней (как в профиле и у друзей)
+  const weightCh = scaleChange(ins.weights, 30);
   const options = useMemo(() => {
     const out: { kind: Exclude<Kind, null>; label: string; Icon: typeof Sun; a: PostAttachment }[] = [];
     const s = sumMacros(today.data ?? []);
@@ -48,18 +49,17 @@ export function NewPostSheet({ preset, attach }: { preset?: Kind; attach?: PostA
         Icon: Sun,
         a: { type: "day", day: todayKey(), kcal: Math.round(s.kcal), protein: Math.round(s.protein), fat: Math.round(s.fat), carbs: Math.round(s.carbs), target: ins.target?.calories ?? 0 },
       });
-    if (weightDays >= 7) {
-      const from = ins.trend[ins.trend.length - weightDays].trend;
+    if (weightCh && weightCh.days >= 7) {
       out.push({
         kind: "weight",
         label: "Прогресс веса",
         Icon: Scale,
-        a: { type: "weight", change: Math.round(((ins.current ?? from) - from) * 10) / 10, days: weightDays },
+        a: { type: "weight", change: weightCh.change, days: weightCh.days },
       });
     }
     if (ins.streak >= 2) out.push({ kind: "streak", label: "Серия", Icon: Flame, a: { type: "streak", days: ins.streak } });
     return out;
-  }, [today.data, ins, weightDays]);
+  }, [today.data, ins, weightCh]);
 
   const attachment = attach ?? options.find((o) => o.kind === kind)?.a ?? null;
   const canPost = !busy && (text.trim().length > 0 || !!file || !!attachment);

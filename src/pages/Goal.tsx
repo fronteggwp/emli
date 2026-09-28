@@ -45,7 +45,7 @@ export function GoalScreen() {
   };
 
   const pct = Math.round((ins.progress ?? 0) * 100);
-  const left = g?.target_weight != null && ins.current != null ? Math.abs(g.target_weight - ins.current) : null;
+  const left = ins.goalLeft;
 
   return (
     <Screen title="Цель и программа">
@@ -67,7 +67,7 @@ export function GoalScreen() {
                   {fmtKg(g.start_weight)} → <b style={{ color: "var(--text)" }}>{fmtKg(g.target_weight)} кг</b>
                 </div>
                 <div className="muted" style={{ fontSize: 14, marginTop: 2 }}>
-                  Осталось {left != null ? fmtKg(left) : "—"} кг
+                  {ins.goalReached ? "🎉 Цель достигнута" : `Осталось ${left != null ? fmtKg(left) : "—"} кг`}
                 </div>
                 {ins.eta != null && ins.eta > 0 && (
                   <div className="faint" style={{ fontSize: 13, marginTop: 6 }}>
@@ -77,7 +77,7 @@ export function GoalScreen() {
               </>
             ) : (
               <div className="muted" style={{ fontSize: 14, marginTop: 4 }}>
-                Держим вес около {ins.current != null ? fmtKg(ins.current) : "—"} кг
+                Держим вес около {ins.weight != null ? fmtKg(ins.weight) : "—"} кг
               </div>
             )}
             <div className="faint" style={{ fontSize: 13, marginTop: 2 }}>

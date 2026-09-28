@@ -2,7 +2,7 @@
 // Каждый тест проверяет конкретное правило; при ошибке процесс завершается с кодом 1.
 import assert from "node:assert/strict";
 import { planFor, historyFor, roleOf, sessionSuccess, type Session } from "../src/lib/progression";
-import { estimateTdee, trendSeries, macrosFor, checkinPlan, isCompleteDay, completeDays, caloriesFor } from "../src/lib/nutrition";
+import { estimateTdee, trendSeries, scaleChange, macrosFor, checkinPlan, isCompleteDay, completeDays, caloriesFor } from "../src/lib/nutrition";
 import { burnedKcal, e1rm, type Exercise } from "../src/lib/exercise";
 import { planSplit, withPlans, type CheatPlan } from "../src/lib/cheat";
 import { buildPlan, cookSessions, shoppingList, qtyText, removeItem, replaceItem, sumItems, type Dish, type PlanPrefs, type Dict } from "../src/lib/mealplan";
@@ -127,6 +127,26 @@ test("выброс в самом начале тоже гасится (2-е вз
   const w = days.slice(0, 20).map((d, i) => ({ day: d, weight_kg: 80 + (i === 1 ? 3 : 0), body_fat: null }));
   const t = trendSeries(w, days[19]);
   assert.ok(Math.abs(t[19].trend - 80) < 0.4, `тренд ${t[19].trend}`);
+});
+test("вес для показа: изменение по взвешиваниям совпадает с историей (53,5 → 53,1 = −0,4)", () => {
+  const w = [
+    { day: "2026-09-26", weight_kg: 53.5, body_fat: null },
+    { day: "2026-09-28", weight_kg: 53.1, body_fat: null },
+  ];
+  assert.equal(scaleChange(w, 7, "2026-09-28")?.change, -0.4);
+  assert.equal(scaleChange(w, 30, "2026-09-28")?.change, -0.4);
+  assert.equal(scaleChange(w, null, "2026-09-28")?.change, -0.4);
+  assert.equal(scaleChange(w.slice(0, 1), 7, "2026-09-28"), null);
+});
+test("изменение за неделю берёт взвешивание на начало недели, а не самое первое", () => {
+  const w = [
+    { day: "2026-09-01", weight_kg: 60, body_fat: null },
+    { day: "2026-09-20", weight_kg: 58, body_fat: null },
+    { day: "2026-09-25", weight_kg: 57.6, body_fat: null },
+    { day: "2026-09-28", weight_kg: 57.5, body_fat: null },
+  ];
+  assert.equal(scaleChange(w, 7, "2026-09-28")?.change, -0.5); // 58 (20 сент) → 57,5
+  assert.equal(scaleChange(w, null, "2026-09-28")?.change, -2.5);
 });
 test("расход: регулярные данные → ≈2500 (±3%)", () => {
   const weights = days.map((d, i) => ({ day: d, weight_kg: 80 - (0.5 / 7) * i + noise(i), body_fat: null })).filter((_, i) => i % 3 !== 1);

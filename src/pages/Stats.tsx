@@ -59,12 +59,12 @@ export function StatsPage() {
       <div className="grid-2" style={{ marginTop: 12 }}>
         <Tap className="card stat-card" scale={0.97} onClick={() => nav.push(<WeightScreen />)}>
           <div className="card-title">Вес</div>
-          <div className="card-sub">тренд, 30 дней</div>
+          <div className="card-sub">{ins.lastScale ? fmt(ins.lastScale.day, "d MMMM") : "30 дней"}</div>
           <div style={{ margin: "14px 0 10px" }}>
             <Sparkline values={ins.trend.slice(-30).map((p) => p.trend)} color="var(--weight)" />
           </div>
           <div className="stat-foot">
-            <span className="stat-value num">{ins.current != null ? <NumberTicker value={ins.current} digits={1} /> : "—"}</span>
+            <span className="stat-value num">{ins.weight != null ? <NumberTicker value={ins.weight} digits={1} /> : "—"}</span>
             <span className="muted" style={{ marginLeft: 4 }}>кг</span>
             <Chevron size={18} className="faint" style={{ marginLeft: "auto" }} />
           </div>
@@ -228,7 +228,7 @@ function GoalCard({ onOpen }: { onOpen: () => void }) {
   const g = ins.goal;
   if (!g) return null;
   const kindTitle = g.kind === "lose" ? "Снижение веса" : g.kind === "gain" ? "Набор массы" : "Поддержание веса";
-  const left = g.target_weight != null && ins.current != null ? Math.abs(g.target_weight - ins.current) : null;
+  const left = ins.goalLeft;
   const etaDate = ins.eta ? fmt(shiftKey(todayKey(), ins.eta), "d MMMM yyyy") : null;
   return (
     <Tap className="card goal-card" scale={0.98} onClick={onOpen} style={{ marginTop: 12, display: "block", width: "100%", textAlign: "left" }}>
@@ -248,7 +248,7 @@ function GoalCard({ onOpen }: { onOpen: () => void }) {
             </div>
             <div style={{ textAlign: "center" }}>
               <div className="num goal-num" style={{ color: "var(--weight)" }}>
-                {ins.current != null ? fmtKg(ins.current) : "—"}
+                {ins.weight != null ? fmtKg(ins.weight) : "—"}
               </div>
               <div className="faint">сейчас</div>
             </div>
@@ -260,14 +260,14 @@ function GoalCard({ onOpen }: { onOpen: () => void }) {
           <Bar value={(ins.progress ?? 0) * 100} max={100} color="linear-gradient(90deg, var(--kcal), var(--weight))" height={10} />
           <div className="row muted" style={{ fontSize: 13, marginTop: 10, justifyContent: "space-between" }}>
             <span>
-              {Math.round((ins.progress ?? 0) * 100)}% · осталось {left != null ? fmtKg(left) : "—"} кг
+              {ins.goalReached ? "🎉 Цель достигнута" : `${Math.round((ins.progress ?? 0) * 100)}% · осталось ${left != null ? fmtKg(left) : "—"} кг`}
             </span>
             {etaDate && <span>≈ {etaDate}</span>}
           </div>
         </>
       ) : (
         <div className="muted" style={{ fontSize: 14, marginTop: 10 }}>
-          Держим вес около {ins.current != null ? fmtKg(ins.current) : "—"} кг
+          Держим вес около {ins.weight != null ? fmtKg(ins.weight) : "—"} кг
         </div>
       )}
     </Tap>

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useDayFlags, useDayTargets, useGoal, useSettings, useTargets, useTotals, useWeights } from "./api";
 import { ageFrom, daysBetween, rangeKeys, shiftKey, todayKey } from "@/lib/dates";
-import { checkinPlan, estimateTdee, etaDays, targetFor, tdeeFrom, trendSeries, typicalKcal } from "@/lib/nutrition";
+import { TREND_MIN_WEIGHINS, checkinPlan, estimateTdee, etaDays, scaleChange, targetFor, tdeeFrom, trendSeries, typicalKcal } from "@/lib/nutrition";
 
 /** Всё, что считается из данных пользователя: тренд веса, расход, серии, прогресс цели, корректировка */
 export function useInsights() {
@@ -17,7 +17,10 @@ export function useInsights() {
     const today = todayKey();
     const trend = trendSeries(weights.data, today);
     const lastScale = weights.data?.length ? weights.data[weights.data.length - 1] : undefined;
+    // current — тренд (для расчётов); weight — последнее взвешивание (то, что показываем человеку)
     const current = trend.length ? trend[trend.length - 1].trend : (lastScale?.weight_kg ?? null);
+    const weight = lastScale ? Number(lastScale.weight_kg) : null;
+    const weighIns = weights.data?.length ?? 0;
     // Последний известный процент жира (не старше 90 дней)
     const bf = [...(weights.data ?? [])].reverse().find((w) => w.body_fat != null && daysBetween(w.day, today) <= 90)?.body_fat ?? null;
 
@@ -55,17 +58,19 @@ export function useInsights() {
     let streak = 0;
     for (let d = byDay.get(today)?.entries ? today : yesterday; byDay.get(d)?.entries; d = shiftKey(d, -1)) streak++;
 
-    const change = (days: number) => {
-      if (trend.length < 2) return null;
-      const from = trend.find((p) => p.day >= shiftKey(today, -days)) ?? trend[0];
-      return current != null ? current - from.trend : null;
-    };
+    // Изменения — по взвешиваниям: человек может проверить их по истории
+    const change = (days: number) => scaleChange(weights.data, days, today)?.change ?? null;
 
     const g = goal.data;
     const eta = g && current != null ? etaDays(current, g.target_weight, g.rate_kg_week) : null;
+    // Цель пройдена по весам — «осталось» 0 (не «осталось 18,9 кг» при перевыполненной цели)
+    const goalReached =
+      !!g && g.kind !== "maintain" && g.target_weight != null && weight != null && (g.kind === "lose" ? weight <= g.target_weight : weight >= g.target_weight);
+    const goalLeft = g && g.kind !== "maintain" && g.target_weight != null && weight != null ? (goalReached ? 0 : Math.abs(g.target_weight - weight)) : null;
+    // Прогресс к цели — от последнего взвешивания (рядом показываем «сейчас» = это же число)
     const progress =
-      g && current != null && g.target_weight != null && g.start_weight !== g.target_weight
-        ? Math.min(Math.max((g.start_weight - current) / (g.start_weight - g.target_weight), 0), 1)
+      g && weight != null && g.target_weight != null && g.start_weight !== g.target_weight
+        ? Math.min(Math.max((g.start_weight - weight) / (g.start_weight - g.target_weight), 0), 1)
         : null;
 
     // Еженедельная корректировка: прошла неделя с последней настройки, и данных достаточно
@@ -93,6 +98,10 @@ export function useInsights() {
     return {
       trend,
       current,
+      weight,
+      weighIns,
+      /** Тренд имеет смысл показывать рядом с весом, когда взвешиваний достаточно */
+      trendShown: weighIns >= TREND_MIN_WEIGHINS,
       lastScale,
       bodyFat: bf,
       formula,
@@ -107,8 +116,10 @@ export function useInsights() {
       change7: change(7),
       change30: change(30),
       goal: g,
-      eta,
+      eta: goalReached ? null : eta,
       progress,
+      goalReached,
+      goalLeft,
       target,
       checkin,
     };

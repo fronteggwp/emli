@@ -4,8 +4,8 @@ import { Plus } from "lucide-react";
 import { useNav } from "@/nav/Nav";
 import { useInsights } from "@/data/insights";
 import { useDeleteWeight } from "@/data/api";
-import { daysBetween, fmt, shiftKey, todayKey } from "@/lib/dates";
-import { fmtKg } from "@/lib/nutrition";
+import { fmt, shiftKey, todayKey } from "@/lib/dates";
+import { TREND_MIN_WEIGHINS, fmtKg, scaleChange } from "@/lib/nutrition";
 import { haptic } from "@/lib/telegram";
 import { Screen } from "@/ui/Screen";
 import { LineChart, useMounted } from "@/ui/Charts";
@@ -24,15 +24,20 @@ export function WeightScreen() {
   const mounted = useMounted(320);
   const [range, setRange] = useState<Range>(30);
 
+  // Пока взвешиваний мало, линия идёт по самим взвешиваниям; потом — тренд с точками весов
   const points = useMemo(() => {
     const from = range ? shiftKey(todayKey(), -range + 1) : "0000";
-    return ins.trend.filter((p) => p.day >= from).map((p) => ({ day: p.day, value: p.trend, dot: p.scale }));
-  }, [ins.trend, range]);
+    const inRange = ins.trend.filter((p) => p.day >= from);
+    return ins.trendShown
+      ? inRange.map((p) => ({ day: p.day, value: p.trend, dot: p.scale }))
+      : inRange.filter((p) => p.scale != null).map((p) => ({ day: p.day, value: p.scale!, dot: p.scale }));
+  }, [ins.trend, ins.trendShown, range]);
 
-  const first = points[0];
-  const last = points[points.length - 1];
-  const change = first && last ? last.value - first.value : null;
-  const weeks = first && last ? Math.max(daysBetween(first.day, last.day) / 7, 1) : 1;
+  // Изменение за период — по взвешиваниям (проверяется по истории ниже)
+  const ch = scaleChange(ins.weights, range || null);
+  const change = ch?.change ?? null;
+  const weeks = ch ? Math.max(ch.days / 7, 1) : 1;
+  const trendGap = ins.weight != null && ins.current != null ? Math.round((ins.current - ins.weight) * 10) / 10 : 0;
 
   return (
     <Screen
@@ -45,17 +50,21 @@ export function WeightScreen() {
     >
       <div className="card" style={{ background: "radial-gradient(120% 100% at 0% 0%, rgba(179,136,255,.16), transparent 60%), var(--card)" }}>
         <div className="muted" style={{ fontSize: 13 }}>
-          Тренд веса
+          {ins.lastScale ? `Вес · ${fmt(ins.lastScale.day, "d MMMM")}` : "Вес"}
         </div>
         <div className="row" style={{ alignItems: "baseline", gap: 6, marginTop: 4 }}>
-          <span className="big-stat num">{ins.current != null ? <NumberTicker value={ins.current} digits={1} /> : "—"}</span>
+          <span className="big-stat num">{ins.weight != null ? <NumberTicker value={ins.weight} digits={1} /> : "—"}</span>
           <span className="muted" style={{ fontSize: 18 }}>
             кг
           </span>
         </div>
-        {ins.lastScale && (
+        {ins.weight != null && (
           <div className="faint" style={{ fontSize: 13, marginTop: 6 }}>
-            Весы: {fmtKg(ins.lastScale.weight_kg)} кг · {fmt(ins.lastScale.day, "d MMMM")}
+            {!ins.trendShown
+              ? `Тренд появится после ${TREND_MIN_WEIGHINS} взвешиваний — осталось ${TREND_MIN_WEIGHINS - ins.weighIns}`
+              : Math.abs(trendGap) >= 0.1 && ins.current != null
+                ? `Тренд ${fmtKg(ins.current)} кг — без скачков воды${trendGap < 0 ? " · взвешивание выше обычного, часто это вода" : ""}`
+                : "Совпадает с трендом — без скачков воды"}
           </div>
         )}
         <div style={{ marginTop: 22 }}>
@@ -71,11 +80,11 @@ export function WeightScreen() {
                     {fmt(p.day, "d MMMM")}
                   </div>
                   <div className="num" style={{ fontWeight: 700, fontSize: 16 }}>
-                    {fmtKg(p.value)} кг
+                    {fmtKg(p.dot ?? p.value)} кг
                   </div>
-                  {p.dot != null && (
+                  {ins.trendShown && (
                     <div className="faint num" style={{ fontSize: 12 }}>
-                      весы {fmtKg(p.dot)}
+                      {p.dot != null ? `тренд ${fmtKg(p.value)}` : "тренд, без взвешивания"}
                     </div>
                   )}
                 </>
@@ -83,7 +92,7 @@ export function WeightScreen() {
             />
           ) : (
             <div className="empty" style={{ height: 210, display: "grid", placeItems: "center" }}>
-              {points.length <= 1 ? "Запиши вес ещё пару раз — появится график" : ""}
+              {points.length <= 1 ? "Запиши вес ещё раз — появится график" : ""}
             </div>
           )}
         </div>
@@ -104,7 +113,7 @@ export function WeightScreen() {
 
       <div className="kv" style={{ marginTop: 12 }}>
         <div>
-          <div className="k">Изменение</div>
+          <div className="k">{range ? "За период" : "За всё время"}</div>
           <div className="v num">{change != null ? `${change > 0 ? "+" : change < 0 ? "−" : ""}${fmtKg(Math.abs(change))}` : "—"}</div>
         </div>
         <div>
@@ -118,7 +127,14 @@ export function WeightScreen() {
       </div>
 
       <p className="explain" style={{ margin: "16px 4px 0" }}>
-        <b>Тренд</b> — сглаженный вес: он убирает скачки из‑за воды, соли и еды, и показывает, как ты меняешься на самом деле. Точки — показания весов.
+        <b>Вес</b> — твоё последнее взвешивание, изменения считаются по взвешиваниям из истории.{" "}
+        {ins.trendShown ? (
+          <>
+            <b>Линия — тренд</b>: сглаженный вес без скачков воды и соли. По нему считаем расход калорий и корректируем норму, точки — взвешивания.
+          </>
+        ) : (
+          <>Когда взвешиваний будет {TREND_MIN_WEIGHINS}+, появится тренд — сглаженный вес без скачков воды, по нему считаем расход калорий.</>
+        )}
       </p>
 
       <div className="section-title">История</div>

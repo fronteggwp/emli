@@ -1,5 +1,5 @@
 import type { DayTotal, GoalKind, Macros, Sex, Targets, Weight } from "./types";
-import { shiftKey, todayKey } from "./dates";
+import { daysBetween, shiftKey, todayKey } from "./dates";
 
 export const KCAL_PER_KG = 7700;
 
@@ -169,6 +169,29 @@ export function trendSeries(weights: Weight[] | undefined, until = todayKey()): 
     out.push({ day: d, scale: s, trend: Math.round(level * 100) / 100, slope });
   }
   return out;
+}
+
+/**
+ * Что показываем человеку как «вес» — последнее взвешивание: ровно то число, что он ввёл.
+ * Тренд (выше) — для расчётов (расход, корректировка нормы, прогноз даты) и линии на графике.
+ */
+export const TREND_MIN_WEIGHINS = 5;
+
+/**
+ * Изменение веса по взвешиваниям — то, что можно проверить по истории:
+ * последнее взвешивание минус взвешивание на начало периода (последнее перед ним, иначе первое внутри).
+ * days = null — за всё время.
+ */
+export function scaleChange(weights: Weight[] | undefined, days: number | null, today = todayKey()) {
+  const list = [...(weights ?? [])].filter((w) => w.day <= today).sort((a, b) => a.day.localeCompare(b.day));
+  if (list.length < 2) return null;
+  const to = list[list.length - 1];
+  const start = days == null ? "0000" : shiftKey(today, -days);
+  const before = list.filter((w) => w.day <= start);
+  const from = before.length ? before[before.length - 1] : list.find((w) => w.day > start && w.day < to.day);
+  if (!from || from.day === to.day) return null;
+  const change = Math.round((Number(to.weight_kg) - Number(from.weight_kg)) * 10) / 10;
+  return { change, from, to, days: daysBetween(from.day, to.day) };
 }
 
 function regressionSlopeXY(pts: { x: number; y: number }[]) {
