@@ -157,7 +157,7 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
     if (!rows.length) return;
     try {
       await log.mutateAsync({
-        items: rows.map((r) => ({ food_id: r.food_id, name: sentence(r.name), brand: null, grams: r.grams, kcal: r.kcal, protein: r.protein, fat: r.fat, carbs: r.carbs })),
+        items: rows.map((r) => ({ food_id: r.food_id, name: sentence(r.name), brand: r.brand ?? null, grams: r.grams, kcal: r.kcal, protein: r.protein, fat: r.fat, carbs: r.carbs })),
         day,
         meal,
       });
@@ -466,9 +466,10 @@ function ItemRow({ r, index, onGrams, onRemove }: { r: Row; index: number; onGra
             </span>
           ) : (
             <span className="pf-src db">
-              <Check size={11} strokeWidth={3} /> {r.source === "recipe" ? "рецепт Emli" : "база Emli"}
+              <Check size={11} strokeWidth={3} /> {r.source === "product" ? (r.brand ?? "база товаров") : r.source === "recipe" ? "рецепт Emli" : "база Emli"}
             </span>
           )}
+          {r.separate && <span className="pf-src side">рядом</span>}
           {low && <span className="pf-src warn">проверь</span>}
           <span className="num">
             {fmtNum(r.kcal)} ккал · Б {fmtNum(r.protein)} Ж {fmtNum(r.fat)} У {fmtNum(r.carbs)}

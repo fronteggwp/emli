@@ -44,7 +44,7 @@ for (const id of ids) {
   }
   console.log(`  ИИ: «${j.dish}» — ${j.comment ?? ""}`);
   for (const it of j.items) {
-    const src = it.source === "ai" ? "оценка ИИ" : `база: ${it.matched}`;
+    const src = it.source === "ai" ? "оценка ИИ" : it.source === "product" ? `товар: ${it.matched}${it.brand ? " (" + it.brand + ")" : ""}` : `база: ${it.matched}`;
     console.log(`   • ${it.name.padEnd(28)} ${String(it.grams).padStart(4)} г  ${String(it.kcal).padStart(4)} ккал  Б${it.protein} Ж${it.fat} У${it.carbs}  [${src}]`);
   }
   console.log(`  ИТОГО ${j.total.kcal} ккал · Б${j.total.protein} Ж${j.total.fat} У${j.total.carbs}   ⏱ ${(j.ms.total / 1000).toFixed(1)} с (фото ${(j.ms.see / 1000).toFixed(1)}, база ${(j.ms.search / 1000).toFixed(1)}, выбор ${(j.ms.pick / 1000).toFixed(1)})`);

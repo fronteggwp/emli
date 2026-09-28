@@ -566,9 +566,13 @@ export type AiFoodItem = Macros & {
   name: string;
   grams: number;
   confidence: number;
-  source: "food" | "recipe" | "ai";
+  /** food — базовый продукт Emli, product — товар из базы товаров (с брендом), ai — оценка модели */
+  source: "food" | "product" | "recipe" | "ai";
   food_id: string | null;
   matched: string | null;
+  brand?: string | null;
+  /** Подано рядом с блюдом (хлеб, соус в пиале, варенье) — легко убрать, если не ел */
+  separate?: boolean;
   per100: [number, number, number, number];
 };
 export type AiFoodResult = { dish: string | null; comment: string | null; items: AiFoodItem[]; total: Macros; ms: Record<string, number> };

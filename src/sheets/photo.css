@@ -393,6 +393,10 @@
   background: rgba(179, 136, 255, 0.16);
   color: var(--kcal-2);
 }
+.pf-src.side {
+  background: color-mix(in srgb, var(--text-2) 14%, transparent);
+  color: var(--text-2);
+}
 .pf-src.warn {
   background: rgba(255, 194, 71, 0.16);
   color: var(--fat);
