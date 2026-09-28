@@ -104,16 +104,46 @@ async function gzipJson(value: unknown) {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
+/**
+ * Текст ответа модели. Обычно это один JSON, но некоторые продавцы на агрегаторе отдают поток
+ * (строки «data: {...}») даже при stream: false — тогда склеиваем кусочки.
+ */
+async function replyText(res: Response) {
+  const raw = await res.text();
+  if (raw.trimStart().startsWith("data:")) {
+    let out = "";
+    for (const line of raw.split("\n")) {
+      const t = line.trim();
+      if (!t.startsWith("data:") || t === "data: [DONE]") continue;
+      try {
+        const c = JSON.parse(t.slice(5));
+        out += c.choices?.[0]?.delta?.content ?? c.choices?.[0]?.message?.content ?? "";
+      } catch {
+        /* неполная строка */
+      }
+    }
+    return { ok: res.ok && out.length > 0, text: out, error: out ? null : raw.slice(0, 200) };
+  }
+  let j: { choices?: { message?: { content?: string } }[]; error?: { message?: string } } | null = null;
+  try {
+    j = JSON.parse(raw);
+  } catch {
+    /* не JSON */
+  }
+  const text = j?.choices?.[0]?.message?.content ?? "";
+  return { ok: res.ok && !!j?.choices, text, error: j?.error?.message ?? (j ? null : raw.slice(0, 200)) };
+}
+
 async function chat(messages: unknown[], maxTokens: number) {
   const res = await fetch(`${AI_BASE}/v1/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${AI_KEY}`, "Content-Type": "application/json", "Content-Encoding": "gzip" },
-    body: await gzipJson({ model: AI_MODEL, thinking: { type: "disabled" }, temperature: 0.1, max_tokens: maxTokens + REASONING_ROOM, enable_thinking: false, messages }),
+    body: await gzipJson({ model: AI_MODEL, stream: false, thinking: { type: "disabled" }, temperature: 0.1, max_tokens: maxTokens + REASONING_ROOM, enable_thinking: false, messages }),
     signal: AbortSignal.timeout(70_000),
   });
-  const j = await res.json().catch(() => null);
-  if (!res.ok || !j?.choices) throw new Error(`ai ${res.status}`);
-  const text: string = j.choices[0].message?.content ?? "";
+  const reply = await replyText(res);
+  if (!reply.ok) throw new Error(`ai ${res.status}: ${String(reply.error ?? "").slice(0, 200)}`);
+  const text = reply.text;
   const m = text.match(/\{[\s\S]*\}/);
   if (!m) throw new Error("ai: не JSON");
   return JSON.parse(m[0]);
