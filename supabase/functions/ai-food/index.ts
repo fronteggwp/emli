@@ -30,7 +30,7 @@ const DAILY_LIMIT = 40;
 
 type Per100 = [number, number, number, number];
 type Seen = { name: string; search: string; grams: number; per100: Per100; confidence?: number; separate?: boolean };
-type Candidate = { key: string; food_id: string | null; name: string; brand: string | null; per100: Per100; kind: "food" | "product" };
+type Candidate = { key: string; food_id: string | null; name: string; brand: string | null; per100: Per100; kind: "food" | "product"; by?: boolean };
 
 /** Рассуждения выключены (thinking: disabled); запас токенов — на случай, если модель всё же начнёт рассуждать */
 const REASONING_ROOM = 1000;
@@ -184,7 +184,7 @@ const DISH_CATEGORIES = new Set(["Готовые блюда", "Салаты"]);
 const DISH_NAME = /^(сырники|блины|оладьи|пирож|омлет|вареники|пельмени|котлет|голубц)/i;
 const PICK_ROUNDS = 3;
 
-type Food = { id?: string; name: string; brand: string | null; category?: string | null; kcal: number; protein: number; fat: number; carbs: number };
+type Food = { id?: string; name: string; brand: string | null; category?: string | null; kcal: number; protein: number; fat: number; carbs: number; by?: boolean };
 const per100Of = (f: Food): Per100 => [+f.kcal, +f.protein, +f.fat, +f.carbs];
 
 /**
@@ -211,7 +211,7 @@ async function searchBoth(q: string, userClient: ReturnType<typeof createClient>
         ? list
             .filter((f) => f.name && f.kcal > 0)
             .slice(0, 8)
-            .map((f): Candidate => ({ key: "", food_id: null, name: f.name, brand: f.brand, per100: per100Of(f), kind: "product" }))
+            .map((f): Candidate => ({ key: "", food_id: null, name: f.name, brand: f.brand, per100: per100Of(f), kind: "product", by: f.by === true }))
         : [],
     )
     .catch(() => [] as Candidate[]);
@@ -226,6 +226,7 @@ const PICK_PROMPT = `Ты подбираешь продукты из базы д
 - Тот же продукт и то же состояние. Готовое на тарелке (варёное, жареное, запечённое) — готовый вариант. Ингредиенты изделий из теста и фарша (сырники, котлеты, пельмени) — сырой вариант.
 - Если есть только сухой или сырой вариант готового продукта — бери его и укажи product_grams: сколько граммов этого продукта ушло на порцию. Варёные крупы и макароны ≈ 0,35–0,4 от готового веса (200 г варёной гречки ≈ 75 г сухой); мясо и рыба при варке и жарке теряют 25–35% (100 г жареной грудки ≈ 140 г сырой). Если брал вариант в том же состоянии — product_grams не пиши.
 - Не бери другой продукт (яйцо вместо курицы, огурец свежий вместо солёного), готовое блюдо или смесь вместо ингредиента (салат «Цезарь» вместо соуса), товар с явно ошибочными цифрами (25 ккал у мяса, белок у масла).
+- Пользователи в основном из Беларуси. Для того, что покупают готовым (творог, сметана, молоко, кефир, мука, масло, сыр, колбаса, хлеб, соусы), бери подходящий белорусский товар (🇧🇾), если он есть и цифры у него нормальные, — вместо базового продукта Emli и российского товара.
 - Из нескольких похожих бери типичный: цифры, как у большинства похожих; базовый продукт Emli или обычный магазинный, а не особый (не «лайт», не «протеиновый», если на фото обычный).
 - Сверяй цифры с оценкой по фото: вариант с пометкой ⚠ сильно расходится с ней по калориям, белку или жирам — это другой продукт или ошибка в базе, его не бери.
 - Нет подходящего — "search" с 1–3 новыми запросами: синоним или проще («куриная грудка» вместо «куриное филе», «рис» вместо «рис басмати варёный», «сметана 15» вместо «сметана домашняя»). Не повторяй прошлые запросы.
@@ -295,7 +296,7 @@ async function pickFromBase(items: Seen[], userClient: ReturnType<typeof createC
         const head = `Продукт ${i + 1}: «${it.name}», ${it.grams} г на тарелке; оценка по фото: ${it.per100.map((v) => Math.round(v)).join("/")}; искали: ${[...asked[i]].join(", ")}`;
         const rows = pools[i]
           .slice(0, 24)
-          .map((c) => `  ${c.key}) ${c.name}${c.brand ? ` [${c.brand}]` : ""}${c.kind === "food" ? " (база Emli)" : ""} — ${c.per100.map((v) => Math.round(v * 10) / 10).join("/")}${plausible(c.per100, it.per100) ? "" : " ⚠"}`);
+          .map((c) => `  ${c.key}) ${c.name}${c.brand ? ` [${c.brand}]` : ""}${c.kind === "food" ? " (база Emli)" : ""}${c.by ? " 🇧🇾" : ""} — ${c.per100.map((v) => Math.round(v * 10) / 10).join("/")}${plausible(c.per100, it.per100) ? "" : " ⚠"}`);
         return [head, ...(rows.length ? rows : ["  (ничего не найдено)"])].join("\n");
       })
       .join("\n\n");
