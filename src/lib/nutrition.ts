@@ -133,6 +133,8 @@ export type TrendPoint = { day: string; scale: number | null; trend: number; slo
  * • Скачки воды и соли гасятся, а реальное движение видно без запаздывания обычного среднего.
  * • Пропуски взвешиваний не «замораживают» тренд: он продолжает движение (не дольше 10 дней).
  * • Резкие выбросы (после солёного ужина, в одежде) учитываются лишь частично.
+ * • В начале (первые ~10 взвешиваний) тренд быстрее догоняет весы — сглаживание набирает силу постепенно.
+ * Тот же алгоритм — в базе (weight_trend), для публичного профиля: цифры везде совпадают.
  */
 export function trendSeries(weights: Weight[] | undefined, until = todayKey()): TrendPoint[] {
   if (!weights?.length) return [];
@@ -145,6 +147,7 @@ export function trendSeries(weights: Weight[] | undefined, until = todayKey()): 
   let level = byDay.get(first)!;
   let slope = 0;
   let sinceObs = 0;
+  let n = 1;
   for (let d = first; d <= until; d = shiftKey(d, 1)) {
     const s = byDay.get(d) ?? null;
     if (d !== first) {
@@ -155,8 +158,12 @@ export function trendSeries(weights: Weight[] | undefined, until = todayKey()): 
       let r = s - level;
       const lim = Math.max(1, level * 0.012);
       if (Math.abs(r) > lim) r = Math.sign(r) * (lim + (Math.abs(r) - lim) * 0.3);
-      level += ALPHA * r;
-      slope = Math.max(-MAX_SLOPE, Math.min(MAX_SLOPE, slope + BETA * ALPHA * r));
+      // Пока взвешиваний мало, каждое новое весит больше (2/(n+1): второе — 67%, пятое — 33%),
+      // иначе после 2–3 взвешиваний тренд почти стоит на первом весе и правки «не видны»
+      n++;
+      const a = Math.max(ALPHA, 2 / (n + 1));
+      level += a * r;
+      slope = Math.max(-MAX_SLOPE, Math.min(MAX_SLOPE, slope + BETA * a * r));
       sinceObs = 0;
     }
     out.push({ day: d, scale: s, trend: Math.round(level * 100) / 100, slope });

@@ -16,12 +16,21 @@ const AI_MODEL = Deno.env.get("AI_MODEL") ?? "deepseek-v4.1-flash";
 const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false, autoRefreshToken: false } });
 const LIMITS: Record<string, number> = { plan: 12, swap: 80 };
 
+/** Рассуждения выключены (thinking: disabled); запас токенов — на случай, если модель всё же начнёт рассуждать */
+const REASONING_ROOM = 1000;
+
+/** Запрос к ИИ сжимаем gzip: несжатые запросы из Supabase к агрегатору идут до 20+ с, сжатые — 2–3 с */
+async function gzipJson(value: unknown) {
+  const stream = new Blob([JSON.stringify(value)]).stream().pipeThrough(new CompressionStream("gzip"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
 async function chat(messages: unknown[], maxTokens: number, temperature: number) {
   const res = await fetch(`${AI_BASE}/v1/chat/completions`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${AI_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: AI_MODEL, thinking: { type: "disabled" }, temperature, max_tokens: maxTokens, messages }),
-    signal: AbortSignal.timeout(55_000),
+    headers: { Authorization: `Bearer ${AI_KEY}`, "Content-Type": "application/json", "Content-Encoding": "gzip" },
+    body: await gzipJson({ model: AI_MODEL, thinking: { type: "disabled" }, temperature, max_tokens: maxTokens + REASONING_ROOM, enable_thinking: false, messages }),
+    signal: AbortSignal.timeout(110_000),
   });
   const j = await res.json().catch(() => null);
   if (!res.ok || !j?.choices) throw new Error(`ai ${res.status}: ${JSON.stringify(j?.error?.message ?? j).slice(0, 200)}`);

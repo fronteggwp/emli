@@ -24,12 +24,39 @@ type Per100 = [number, number, number, number];
 type Seen = { name: string; search: string; grams: number; per100: Per100; confidence?: number };
 type Candidate = { key: string; food_id: string | null; name: string; brand: string | null; per100: Per100; kind: "food" | "recipe" };
 
+/** Рассуждения выключены (thinking: disabled); запас токенов — на случай, если модель всё же начнёт рассуждать */
+const REASONING_ROOM = 1000;
+
+/**
+ * Фото для модели — ссылкой, а не внутри запроса: большие запросы из Supabase к агрегатору идут
+ * десятки секунд, а подписанную ссылку провайдер скачивает сам за доли секунды.
+ */
+async function imageLink(dataUrl: string, uid: string) {
+  const m = dataUrl.match(/^data:(image\/(jpeg|png|webp));base64,(.+)$/);
+  if (!m) return { url: dataUrl, done: async () => {} };
+  const bin = atob(m[3]);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const path = `${uid}/${crypto.randomUUID()}.${m[2] === "jpeg" ? "jpg" : m[2]}`;
+  const up = await admin.storage.from("ai-tmp").upload(path, bytes, { contentType: m[1] });
+  if (up.error) return { url: dataUrl, done: async () => {} };
+  const { data } = await admin.storage.from("ai-tmp").createSignedUrl(path, 600);
+  if (!data?.signedUrl) return { url: dataUrl, done: async () => void (await admin.storage.from("ai-tmp").remove([path])) };
+  return { url: data.signedUrl, done: async () => void (await admin.storage.from("ai-tmp").remove([path])) };
+}
+
+/** Запрос к ИИ сжимаем gzip: несжатые запросы из Supabase к агрегатору идут до 20+ с, сжатые — 2–3 с */
+async function gzipJson(value: unknown) {
+  const stream = new Blob([JSON.stringify(value)]).stream().pipeThrough(new CompressionStream("gzip"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
 async function chat(messages: unknown[], maxTokens: number) {
   const res = await fetch(`${AI_BASE}/v1/chat/completions`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${AI_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: AI_MODEL, thinking: { type: "disabled" }, temperature: 0.1, max_tokens: maxTokens, messages }),
-    signal: AbortSignal.timeout(45_000),
+    headers: { Authorization: `Bearer ${AI_KEY}`, "Content-Type": "application/json", "Content-Encoding": "gzip" },
+    body: await gzipJson({ model: AI_MODEL, thinking: { type: "disabled" }, temperature: 0.1, max_tokens: maxTokens + REASONING_ROOM, enable_thinking: false, messages }),
+    signal: AbortSignal.timeout(80_000),
   });
   const j = await res.json().catch(() => null);
   if (!res.ok || !j?.choices) throw new Error(`ai ${res.status}: ${JSON.stringify(j?.error?.message ?? j).slice(0, 200)}`);
@@ -119,6 +146,7 @@ Deno.serve(async (req) => {
   if (!/^data:image\/(jpeg|png|webp);base64,/.test(image) || image.length > 2_500_000) return json({ error: "bad_image" }, 400);
   const hint = typeof body.hint === "string" ? body.hint.slice(0, 200) : "";
 
+  const link = await imageLink(image, uid);
   const log = (ok: boolean) => admin.from("ai_usage").insert({ user_id: uid, kind: "food-photo", ms: Date.now() - t0, ok });
   try {
     // 1) Что на фото
@@ -137,12 +165,12 @@ Deno.serve(async (req) => {
                     `используй именно их; по фото уточняй только то, чего в подсказке нет.\nПодсказка: «${hint}»`
                   : ""),
             },
-            { type: "image_url", image_url: { url: image } },
+            { type: "image_url", image_url: { url: link.url } },
           ],
         },
       ],
       900,
-    );
+    ).finally(() => link.done());
     const items: Seen[] = (Array.isArray(seen.items) ? seen.items : [])
       .filter((i: Seen) => i && i.name && Number(i.grams) > 0)
       .slice(0, 10)

@@ -77,12 +77,39 @@ function variants(code: string) {
 
 // ───────────── ИИ
 
+/** Рассуждения выключены (thinking: disabled); запас токенов — на случай, если модель всё же начнёт рассуждать */
+const REASONING_ROOM = 1000;
+
+/**
+ * Фото для модели — ссылкой, а не внутри запроса: большие запросы из Supabase к агрегатору идут
+ * десятки секунд, а подписанную ссылку провайдер скачивает сам за доли секунды.
+ */
+async function imageLink(dataUrl: string, uid: string) {
+  const m = dataUrl.match(/^data:(image\/(jpeg|png|webp));base64,(.+)$/);
+  if (!m) return { url: dataUrl, done: async () => {} };
+  const bin = atob(m[3]);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const path = `${uid}/${crypto.randomUUID()}.${m[2] === "jpeg" ? "jpg" : m[2]}`;
+  const up = await admin.storage.from("ai-tmp").upload(path, bytes, { contentType: m[1] });
+  if (up.error) return { url: dataUrl, done: async () => {} };
+  const { data } = await admin.storage.from("ai-tmp").createSignedUrl(path, 600);
+  if (!data?.signedUrl) return { url: dataUrl, done: async () => void (await admin.storage.from("ai-tmp").remove([path])) };
+  return { url: data.signedUrl, done: async () => void (await admin.storage.from("ai-tmp").remove([path])) };
+}
+
+/** Запрос к ИИ сжимаем gzip: несжатые запросы из Supabase к агрегатору идут до 20+ с, сжатые — 2–3 с */
+async function gzipJson(value: unknown) {
+  const stream = new Blob([JSON.stringify(value)]).stream().pipeThrough(new CompressionStream("gzip"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
 async function chat(messages: unknown[], maxTokens: number) {
   const res = await fetch(`${AI_BASE}/v1/chat/completions`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${AI_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: AI_MODEL, thinking: { type: "disabled" }, temperature: 0.1, max_tokens: maxTokens, messages }),
-    signal: AbortSignal.timeout(40_000),
+    headers: { Authorization: `Bearer ${AI_KEY}`, "Content-Type": "application/json", "Content-Encoding": "gzip" },
+    body: await gzipJson({ model: AI_MODEL, thinking: { type: "disabled" }, temperature: 0.1, max_tokens: maxTokens + REASONING_ROOM, enable_thinking: false, messages }),
+    signal: AbortSignal.timeout(70_000),
   });
   const j = await res.json().catch(() => null);
   if (!res.ok || !j?.choices) throw new Error(`ai ${res.status}`);
@@ -132,15 +159,6 @@ function fromAi(o: Record<string, unknown>) {
   };
 }
 
-async function toDataUrl(url: string) {
-  const res = await fetch(url, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(8000) });
-  if (!res.ok) throw new Error("img");
-  const buf = new Uint8Array(await res.arrayBuffer());
-  if (buf.length > 3_000_000) throw new Error("img big");
-  let bin = "";
-  for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-  return `data:${res.headers.get("content-type") ?? "image/jpeg"};base64,${btoa(bin)}`;
-}
 
 async function readLabel(image: string, hint?: string) {
   const out = await chat(
@@ -378,7 +396,8 @@ async function lookup(raw: string, uid: string) {
     if (off.image_nutrition_url && AI_KEY && (await aiAllowed(uid))) {
       const ta = Date.now();
       try {
-        const lab = await readLabel(await toDataUrl(off.image_nutrition_url), name ?? undefined);
+        // Фото этикетки из OFF уже лежит по ссылке — модель скачает сама
+        const lab = await readLabel(off.image_nutrition_url, name ?? undefined);
         await logAi(uid, "barcode-ai", Date.now() - ta, !!lab);
         if (lab) {
           tried.push("off_label");
@@ -529,7 +548,9 @@ Deno.serve(async (req) => {
       if (!/^data:image\/(jpeg|png|webp);base64,/.test(image) || image.length > 2_500_000) return json({ error: "bad_image" }, 400);
       if (!(await aiAllowed(uid))) return json({ error: "limit" }, 429);
       const t0 = Date.now();
-      const lab = await readLabel(image, typeof body.hint === "string" ? body.hint : undefined).catch(() => null);
+      const link = await imageLink(image, uid);
+      const lab = await readLabel(link.url, typeof body.hint === "string" ? body.hint : undefined).catch(() => null);
+      await link.done();
       await logAi(uid, "label", Date.now() - t0, !!lab);
       return lab ? json({ ok: true, label: lab }) : json({ ok: false, error: "no_label" });
     }

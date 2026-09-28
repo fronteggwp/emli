@@ -112,6 +112,22 @@ test("тренд гасит выброс", () => {
   const t = trendSeries(w, days[49]);
   assert.ok(Math.abs(t[30].trend - 80) < 0.5);
 });
+test("мало взвешиваний: правка веса сразу видна в тренде (53,5 → 53,1)", () => {
+  const t = trendSeries(
+    [
+      { day: "2026-09-26", weight_kg: 53.5, body_fat: null },
+      { day: "2026-09-28", weight_kg: 53.1, body_fat: null },
+    ],
+    "2026-09-28",
+  );
+  const now = t[t.length - 1].trend;
+  assert.ok(now <= 53.25 && now >= 53.1, `тренд ${now}`);
+});
+test("выброс в самом начале тоже гасится (2-е взвешивание +3 кг)", () => {
+  const w = days.slice(0, 20).map((d, i) => ({ day: d, weight_kg: 80 + (i === 1 ? 3 : 0), body_fat: null }));
+  const t = trendSeries(w, days[19]);
+  assert.ok(Math.abs(t[19].trend - 80) < 0.4, `тренд ${t[19].trend}`);
+});
 test("расход: регулярные данные → ≈2500 (±3%)", () => {
   const weights = days.map((d, i) => ({ day: d, weight_kg: 80 - (0.5 / 7) * i + noise(i), body_fat: null })).filter((_, i) => i % 3 !== 1);
   const trend = trendSeries(weights, days[49]);
