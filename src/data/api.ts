@@ -15,6 +15,7 @@ import type {
   RecentFood,
   Settings,
   Targets,
+  Waist,
   Weight,
 } from "@/lib/types";
 
@@ -36,6 +37,7 @@ export const qk = {
   entries: (day: string) => ["entries", day] as const,
   totals: ["totals"] as const,
   weights: ["weights"] as const,
+  waists: ["waists"] as const,
   targets: ["targets"] as const,
   goal: ["goal"] as const,
   recents: ["recents"] as const,
@@ -294,6 +296,46 @@ export function useDeleteWeight() {
     },
     onError: (_e, _d, ctx) => ctx && qc.setQueryData(qk.weights, ctx.prev),
     onSettled: () => qc.invalidateQueries({ queryKey: qk.weights }),
+  });
+}
+
+// ───────────── Талия (как вес: один замер в день)
+
+export function useWaists() {
+  return useQuery({
+    queryKey: qk.waists,
+    queryFn: async () =>
+      unwrap<Waist[]>(await supabase.from("waists").select("day,waist_cm").order("day")).map((w) => numify(w, ["waist_cm"])),
+  });
+}
+
+export function useSaveWaist() {
+  const qc = useQueryClient();
+  const uid = useUid();
+  return useMutation({
+    mutationFn: async (w: Waist) => unwrap(await supabase.from("waists").upsert({ user_id: uid, ...w })),
+    onMutate: async (w) => {
+      await qc.cancelQueries({ queryKey: qk.waists });
+      const prev = qc.getQueryData<Waist[]>(qk.waists);
+      qc.setQueryData<Waist[]>(qk.waists, (old) => [...(old ?? []).filter((x) => x.day !== w.day), w].sort((a, b) => a.day.localeCompare(b.day)));
+      return { prev };
+    },
+    onError: (_e, _w, ctx) => ctx && qc.setQueryData(qk.waists, ctx.prev),
+    onSettled: () => qc.invalidateQueries({ queryKey: qk.waists }),
+  });
+}
+
+export function useDeleteWaist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (day: string) => unwrap(await supabase.from("waists").delete().eq("day", day)),
+    onMutate: (day) => {
+      const prev = qc.getQueryData<Waist[]>(qk.waists);
+      qc.setQueryData<Waist[]>(qk.waists, (old) => old?.filter((x) => x.day !== day));
+      return { prev };
+    },
+    onError: (_e, _d, ctx) => ctx && qc.setQueryData(qk.waists, ctx.prev),
+    onSettled: () => qc.invalidateQueries({ queryKey: qk.waists }),
   });
 }
 

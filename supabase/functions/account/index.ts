@@ -21,6 +21,7 @@ const TABLES: [string, string][] = [
   ["goals", "user_id"],
   ["targets", "user_id"],
   ["weights", "user_id"],
+  ["waists", "user_id"],
   ["food_entries", "user_id"],
   ["foods", "owner_id"],
   ["cheat_plans", "user_id"],
@@ -140,6 +141,8 @@ Deno.serve(async (req) => {
     );
     const weights = (data.weights as Record<string, unknown>[]).sort((a, b) => String(a.day).localeCompare(String(b.day)));
     results.push(await sendDoc(me.tg_id, `emli-вес-${day}.csv`, csv(weights, [["day", "Дата"], ["weight_kg", "Вес, кг"], ["body_fat", "Жир, %"]]), "text/csv"));
+    const waists = ((data.waists ?? []) as Record<string, unknown>[]).sort((a, b) => String(a.day).localeCompare(String(b.day)));
+    if (waists.length) results.push(await sendDoc(me.tg_id, `emli-талия-${day}.csv`, csv(waists, [["day", "Дата"], ["waist_cm", "Талия, см"]]), "text/csv"));
     results.push(await sendDoc(me.tg_id, `emli-архив-${day}.json`, JSON.stringify(data, null, 2), "application/json"));
     // Успех — только если дошли все файлы
     return json({ ok: results.every(Boolean), sent: results.filter(Boolean).length, total: results.length });

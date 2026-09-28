@@ -457,3 +457,21 @@
   object-fit: cover;
   background: var(--card-2);
 }
+
+/* Как мерить талию */
+.waist-how {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--card-2);
+  font-size: 13.5px;
+  color: var(--text-2);
+}
+.waist-how b {
+  color: var(--text);
+  font-size: 14px;
+  margin-bottom: 2px;
+}

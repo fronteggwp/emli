@@ -2,7 +2,7 @@
 // Каждый тест проверяет конкретное правило; при ошибке процесс завершается с кодом 1.
 import assert from "node:assert/strict";
 import { planFor, historyFor, roleOf, sessionSuccess, type Session } from "../src/lib/progression";
-import { estimateTdee, trendSeries, scaleChange, macrosFor, checkinPlan, isCompleteDay, completeDays, caloriesFor } from "../src/lib/nutrition";
+import { estimateTdee, trendSeries, scaleChange, measureChange, waistToHeight, rfmBodyFat, macrosFor, checkinPlan, isCompleteDay, completeDays, caloriesFor } from "../src/lib/nutrition";
 import { burnedKcal, e1rm, type Exercise } from "../src/lib/exercise";
 import { planSplit, withPlans, type CheatPlan } from "../src/lib/cheat";
 import { buildPlan, cookSessions, shoppingList, qtyText, removeItem, replaceItem, sumItems, type Dish, type PlanPrefs, type Dict } from "../src/lib/mealplan";
@@ -147,6 +147,20 @@ test("изменение за неделю берёт взвешивание н�
   ];
   assert.equal(scaleChange(w, 7, "2026-09-28")?.change, -0.5); // 58 (20 сент) → 57,5
   assert.equal(scaleChange(w, null, "2026-09-28")?.change, -2.5);
+});
+test("талия: изменение по замерам, отношение к росту и оценка жира", () => {
+  const w = [
+    { day: "2026-09-01", waist_cm: 86 },
+    { day: "2026-09-15", waist_cm: 84.5 },
+    { day: "2026-09-28", waist_cm: 83 },
+  ];
+  assert.equal(measureChange(w, (x) => x.waist_cm, 30, "2026-09-28")?.change, -3);
+  assert.equal(measureChange(w, (x) => x.waist_cm, 7, "2026-09-28")?.change, -1.5); // от 15 сент
+  assert.deepEqual(waistToHeight(83, 175), { ratio: 0.47, zone: "ok" });
+  assert.equal(waistToHeight(95, 170)?.zone, "raised");
+  assert.equal(rfmBodyFat(83, 175, "male"), 22); // 64 − 20·175/83 ≈ 21,8
+  assert.equal(rfmBodyFat(70, 165, "female"), 29); // 76 − 20·165/70 ≈ 28,9
+  assert.equal(rfmBodyFat(83, null, "male"), null);
 });
 test("расход: регулярные данные → ≈2500 (±3%)", () => {
   const weights = days.map((d, i) => ({ day: d, weight_kg: 80 - (0.5 / 7) * i + noise(i), body_fat: null })).filter((_, i) => i % 3 !== 1);

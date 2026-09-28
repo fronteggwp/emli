@@ -107,6 +107,8 @@ export type Settings = {
   active_program?: string | null;
   program_started?: string | null;
   last_checkin?: string | null;
+  /** Следить за талией: null — ещё не спрашивали */
+  track_waist?: boolean | null;
   onboarded: boolean;
 };
 
@@ -150,6 +152,7 @@ export type Entry = Macros & {
 };
 
 export type Weight = { day: string; weight_kg: number; body_fat: number | null };
+export type Waist = { day: string; waist_cm: number };
 
 export type GoalKind = "lose" | "maintain" | "gain";
 

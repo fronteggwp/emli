@@ -4,9 +4,9 @@ import { ChevronLeft, ChevronRight, ChevronRight as Chevron, Flame, Plus } from 
 import { useNav } from "@/nav/Nav";
 import { useDay } from "@/state/day";
 import { useInsights } from "@/data/insights";
-import { useDayTargets } from "@/data/api";
+import { useDayTargets, useSaveSettings, useSettings, useWaists } from "@/data/api";
 import { fmt, shiftKey, todayKey, weekStart, WEEKDAYS_SHORT } from "@/lib/dates";
-import { fmtKg, fmtNum } from "@/lib/nutrition";
+import { fmtKg, fmtNum, measureChange, waistToHeight } from "@/lib/nutrition";
 import { haptic } from "@/lib/telegram";
 import { Bars, Heatmap, Sparkline } from "@/ui/Charts";
 import { NumberTicker } from "@/ui/NumberTicker";
@@ -17,6 +17,9 @@ import { WeightScreen } from "./Weight";
 import { GoalScreen } from "./Goal";
 import { ExpenditureScreen } from "./Expenditure";
 import { LogWeightSheet } from "@/sheets/LogWeight";
+import { LogWaistSheet } from "@/sheets/LogWaist";
+import { WaistScreen, ZONE_TEXT } from "./Waist";
+import { useToast } from "@/ui/Toast";
 import { HeaderAvatar } from "@/ui/HeaderAvatar";
 import { WeekReportScreen } from "./WeekReport";
 import "./stats.css";
@@ -94,6 +97,8 @@ export function StatsPage() {
       </div>
 
       <GoalCard onOpen={() => nav.push(<GoalScreen />)} />
+
+      <WaistBlock />
 
       <div className="section-title">Привычки</div>
       <div className="grid-2">
@@ -268,6 +273,95 @@ function GoalCard({ onOpen }: { onOpen: () => void }) {
       ) : (
         <div className="muted" style={{ fontSize: 14, marginTop: 10 }}>
           Держим вес около {ins.weight != null ? fmtKg(ins.weight) : "—"} кг
+        </div>
+      )}
+    </Tap>
+  );
+}
+
+// ───────────── Талия: карточка, если следим; разовое предложение, если ещё не спрашивали
+
+const cmText = (n: number) => fmtNum(n, n % 1 ? 1 : 0);
+
+function WaistBlock() {
+  const nav = useNav();
+  const toast = useToast();
+  const settings = useSettings();
+  const saveSettings = useSaveSettings();
+  const waists = useWaists();
+  const s = settings.data;
+  if (!s) return null;
+
+  if (s.track_waist == null) {
+    const answer = (yes: boolean) => {
+      haptic.tap();
+      saveSettings.mutate({ track_waist: yes });
+      if (yes) nav.sheet(<LogWaistSheet initial={s.sex === "female" ? 78 : 90} />);
+      else toast("Хорошо. Включить можно в настройках");
+    };
+    return (
+      <motion.div className="waist-offer" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+        <span className="waist-offer-ico">📏</span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <b>Следить за талией?</b>
+          <p>Талия показывает, что уходит именно жир — даже когда весы стоят. Хватит замера раз в неделю.</p>
+          <span className="row" style={{ gap: 8 }}>
+            <Tap className="chip on" onClick={() => answer(true)}>
+              Да, буду мерить
+            </Tap>
+            <Tap className="chip" onClick={() => answer(false)}>
+              Не надо
+            </Tap>
+          </span>
+        </span>
+      </motion.div>
+    );
+  }
+  if (!s.track_waist) return null;
+
+  const list = waists.data ?? [];
+  const last = list[list.length - 1];
+  const month = measureChange(list, (w) => w.waist_cm, 30);
+  const whtr = last ? waistToHeight(last.waist_cm, s.height_cm) : null;
+  return (
+    <Tap
+      className="card stat-card"
+      scale={0.98}
+      style={{ marginTop: 12, display: "block", width: "100%", textAlign: "left" }}
+      onClick={() => (last ? nav.push(<WaistScreen />) : nav.sheet(<LogWaistSheet initial={s.sex === "female" ? 78 : 90} />))}
+    >
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <div>
+          <div className="card-title">Талия</div>
+          <div className="card-sub">{last ? fmt(last.day, "d MMMM") : "ещё нет замеров"}</div>
+        </div>
+        <Chevron size={18} className="faint" />
+      </div>
+      {last ? (
+        <>
+          {list.length > 1 && (
+            <div style={{ margin: "12px 0 8px" }}>
+              <Sparkline values={list.slice(-12).map((w) => w.waist_cm)} color="var(--waist)" height={36} />
+            </div>
+          )}
+          <div className="row" style={{ alignItems: "baseline", gap: 10, marginTop: list.length > 1 ? 0 : 10, flexWrap: "wrap" }}>
+            <span className="stat-value num">{cmText(last.waist_cm)}</span>
+            <span className="muted">см</span>
+            {month && (
+              <span className="stat-delta" style={{ margin: 0, color: month.change <= 0 ? "var(--good)" : "var(--protein)" }}>
+                {month.change > 0 ? "▲" : "▼"} {cmText(Math.abs(month.change))} см за месяц
+              </span>
+            )}
+          </div>
+          {whtr && (
+            <span className="waist-chip">
+              талия/рост {whtr.ratio.toFixed(2).replace(".", ",")} · <span style={{ color: ZONE_TEXT[whtr.zone].color }}>{ZONE_TEXT[whtr.zone].title}</span>
+            </span>
+          )}
+        </>
+      ) : (
+        <div className="muted" style={{ fontSize: 14, marginTop: 10 }}>
+          📏 Сделай первый замер — займёт 30 секунд
         </div>
       )}
     </Tap>

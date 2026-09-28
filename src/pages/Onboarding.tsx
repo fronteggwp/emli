@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronLeft } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useProfile, useSaveGoal, useSaveSettings, useSaveTargets, useSaveWeight } from "@/data/api";
+import { useProfile, useSaveGoal, useSaveSettings, useSaveTargets, useSaveWaist, useSaveWeight } from "@/data/api";
 import { fmt, shiftKey, todayKey } from "@/lib/dates";
 import { ACTIVITY, RATES, caloriesFor, etaDays, fmtKg, macrosFor, tdeeFrom } from "@/lib/nutrition";
 import { haptic } from "@/lib/telegram";
@@ -16,13 +16,14 @@ import { Tap } from "@/ui/Tap";
 import "./onboarding.css";
 import { visual } from "@/ui/Icon3D";
 
-type Step = "hello" | "sex" | "age" | "height" | "weight" | "activity" | "goal" | "target" | "rate" | "result";
+type Step = "hello" | "sex" | "age" | "height" | "weight" | "waist" | "activity" | "goal" | "target" | "rate" | "result";
 
 export function Onboarding({ onDone }: { onDone: () => void }) {
   const profile = useProfile();
   const qc = useQueryClient();
   const saveSettings = useSaveSettings();
   const saveWeight = useSaveWeight();
+  const saveWaist = useSaveWaist();
   const saveGoal = useSaveGoal();
   const saveTargets = useSaveTargets();
 
@@ -32,6 +33,9 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
   const [age, setAge] = useState(28);
   const [height, setHeight] = useState(175);
   const [weight, setWeight] = useState(80);
+  // Следить за талией: null — ещё не выбрал
+  const [trackWaist, setTrackWaist] = useState<boolean | null>(null);
+  const [waist, setWaist] = useState(90);
   const [activity, setActivity] = useState(1.375);
   const [kind, setKindRaw] = useState<GoalKind>("lose");
   const minor = age < 18;
@@ -44,7 +48,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
   const [pct, setPct] = useState(0.5);
   const [saving, setSaving] = useState(false);
 
-  const steps: Step[] = ["hello", "sex", "age", "height", "weight", "activity", "goal", ...(kind === "maintain" ? [] : (["target", "rate"] as Step[])), "result"];
+  const steps: Step[] = ["hello", "sex", "age", "height", "weight", "waist", "activity", "goal", ...(kind === "maintain" ? [] : (["target", "rate"] as Step[])), "result"];
   const idx = steps.indexOf(step);
   const progress = idx / (steps.length - 1);
 
@@ -71,6 +75,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
     try {
       const today = todayKey();
       await saveWeight.mutateAsync({ day: today, weight_kg: weight, body_fat: null });
+      if (trackWaist) await saveWaist.mutateAsync({ day: today, waist_cm: Math.round(waist * 10) / 10 });
       await saveGoal.mutateAsync({
         kind,
         start_date: today,
@@ -84,6 +89,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
         birth_date: shiftKey(today, -Math.round(age * 365.25)),
         height_cm: height,
         activity,
+        track_waist: trackWaist ?? false,
         onboarded: true,
       });
       await qc.invalidateQueries();
@@ -137,6 +143,34 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
           ruler={<Ruler min={35} max={250} step={0.1} value={weight} onChange={setWeight} majorEvery={10} color="var(--weight)" />}
         />
       ),
+    },
+    waist: {
+      title: "Следить за талией?",
+      sub: "Талия уходит, даже когда весы стоят, — лучший признак, что уходит именно жир. Хватит замера раз в неделю",
+      body: (
+        <div className="stack" style={{ gap: 10 }}>
+          <OptionCard
+            on={trackWaist === true}
+            onClick={() => {
+              if (trackWaist !== true) setWaist(sex === "female" ? 78 : 90);
+              setTrackWaist(true);
+            }}
+            emoji="📏"
+            title="Да, буду мерить"
+            desc="Покажу, как уходят сантиметры, и отношение талии к росту"
+          />
+          <OptionCard on={trackWaist === false} onClick={() => setTrackWaist(false)} emoji="⚖️" title="Нет, только вес" desc="Включить можно позже в настройках" />
+          {trackWaist && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} style={{ overflow: "hidden" }}>
+              <Picker value={waist} unit="см" digits={1} ruler={<Ruler min={50} max={160} step={0.5} value={waist} onChange={setWaist} majorEvery={10} color="var(--waist)" />} />
+              <div className="ob-note faint" style={{ marginTop: 12, fontSize: 12.5, textAlign: "center" }}>
+                Лента горизонтально на уровне пупка, на выдохе, живот не втягивать. Не знаешь сейчас — поставь примерно, потом поправишь
+              </div>
+            </motion.div>
+          )}
+        </div>
+      ),
+      disabled: trackWaist === null,
     },
     activity: {
       title: "Насколько ты активен?",

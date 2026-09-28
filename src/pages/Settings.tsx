@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Bell, Copy, Download, LogOut, Smartphone, Trash } from "lucide-react";
 import { useNav } from "@/nav/Nav";
-import { useSettings } from "@/data/api";
+import { useSaveSettings, useSettings } from "@/data/api";
+import { WaistScreen } from "./Waist";
 import { BOT_USERNAME } from "@/data/social";
 import { deleteAccount, exportData, hm, useReminders, useSaveReminders, type Reminders } from "@/data/engage";
 import { forgetSession, revokeThisDevice } from "@/lib/auth";
@@ -21,6 +22,7 @@ export function SettingsScreen() {
     <Screen title="Настройки">
       <ThemePicker />
       <FeelBlock />
+      <BodyBlock />
       <RemindersBlock />
       <HomeBlock />
       <DataBlock />
@@ -29,6 +31,36 @@ export function SettingsScreen() {
       </div>
       {!inTelegram && <ScreenInfo />}
     </Screen>
+  );
+}
+
+// ───────────── Замеры тела
+
+function BodyBlock() {
+  const nav = useNav();
+  const toast = useToast();
+  const settings = useSettings();
+  const save = useSaveSettings();
+  const on = !!settings.data?.track_waist;
+  return (
+    <>
+      <div className="section-title">Замеры тела</div>
+      <Switch
+        on={on}
+        onChange={(v) => {
+          haptic.select();
+          save.mutate({ track_waist: v });
+          toast(v ? "Талия появится в «Прогрессе» и в меню «+»" : "Замеры талии скрыты — история сохранится");
+        }}
+        label="Следить за талией"
+        hint="Замеры раз в неделю: видно, что уходит именно жир, даже когда весы стоят"
+      />
+      {on && (
+        <Tap className="btn btn-block btn-sm" style={{ marginTop: 8 }} onClick={() => nav.push(<WaistScreen />)}>
+          📏 Открыть замеры талии
+        </Tap>
+      )}
+    </>
   );
 }
 

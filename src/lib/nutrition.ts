@@ -183,15 +183,41 @@ export const TREND_MIN_WEIGHINS = 5;
  * days = null — за всё время.
  */
 export function scaleChange(weights: Weight[] | undefined, days: number | null, today = todayKey()) {
-  const list = [...(weights ?? [])].filter((w) => w.day <= today).sort((a, b) => a.day.localeCompare(b.day));
-  if (list.length < 2) return null;
-  const to = list[list.length - 1];
+  return measureChange(weights, (w) => w.weight_kg, days, today);
+}
+
+/** То же правило для любых замеров (вес, талия): последний минус замер на начало периода */
+export function measureChange<T extends { day: string }>(list: T[] | undefined, value: (x: T) => number, days: number | null, today = todayKey()) {
+  const sorted = [...(list ?? [])].filter((w) => w.day <= today).sort((a, b) => a.day.localeCompare(b.day));
+  if (sorted.length < 2) return null;
+  const to = sorted[sorted.length - 1];
   const start = days == null ? "0000" : shiftKey(today, -days);
-  const before = list.filter((w) => w.day <= start);
-  const from = before.length ? before[before.length - 1] : list.find((w) => w.day > start && w.day < to.day);
+  const before = sorted.filter((w) => w.day <= start);
+  const from = before.length ? before[before.length - 1] : sorted.find((w) => w.day > start && w.day < to.day);
   if (!from || from.day === to.day) return null;
-  const change = Math.round((Number(to.weight_kg) - Number(from.weight_kg)) * 10) / 10;
+  const change = Math.round((Number(value(to)) - Number(value(from))) * 10) / 10;
   return { change, from, to, days: daysBetween(from.day, to.day) };
+}
+
+/**
+ * Отношение талии к росту: главный простой показатель «опасного» жира на животе.
+ * До 0,5 — норма, 0,5–0,6 — повышенный риск, от 0,6 — высокий (Ashwell).
+ */
+export function waistToHeight(waistCm: number, heightCm: number | null | undefined) {
+  if (!heightCm || heightCm < 100) return null;
+  const r = Math.round((waistCm / heightCm) * 100) / 100;
+  const zone = r < 0.4 ? "low" : r < 0.5 ? "ok" : r < 0.6 ? "raised" : "high";
+  return { ratio: r, zone } as const;
+}
+
+/**
+ * Оценка процента жира по талии и росту — формула RFM (Woolcott, 2018):
+ * мужчины 64 − 20·рост/талия, женщины 76 − 20·рост/талия. Точность ±3–5%, как у «умных» весов.
+ */
+export function rfmBodyFat(waistCm: number, heightCm: number | null | undefined, sex: Sex | null | undefined) {
+  if (!heightCm || !sex || waistCm < 40) return null;
+  const v = (sex === "female" ? 76 : 64) - (20 * heightCm) / waistCm;
+  return v > 3 && v < 60 ? Math.round(v) : null;
 }
 
 function regressionSlopeXY(pts: { x: number; y: number }[]) {

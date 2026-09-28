@@ -103,3 +103,78 @@
     var(--card);
   border: 1px solid var(--line);
 }
+
+/* ───────── Талия */
+.whtr-bar {
+  position: relative;
+  height: 10px;
+  margin-top: 14px;
+  border-radius: 10px;
+  /* 0,35 … 0,7: до 0,5 — норма, 0,5–0,6 — повышенный риск, выше — высокий */
+  background: linear-gradient(90deg, var(--fat) 0%, var(--good) 14%, var(--good) 43%, var(--fat) 57%, var(--fat) 71%, var(--danger) 86%);
+}
+.whtr-dot {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 50%;
+  background: var(--text);
+  border: 3px solid var(--card);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.whtr-scale {
+  position: relative;
+  height: 16px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.whtr-scale span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+.whtr-scale span:nth-child(1) {
+  left: 14.3%;
+}
+.whtr-scale span:nth-child(2) {
+  left: 42.9%;
+}
+.whtr-scale span:nth-child(3) {
+  left: 71.4%;
+}
+.waist-offer {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-top: 12px;
+  padding: 16px;
+  border-radius: var(--r-lg);
+  background: radial-gradient(120% 120% at 100% 0%, color-mix(in srgb, var(--waist) 22%, transparent), transparent 60%), var(--card);
+  border: 1px solid color-mix(in srgb, var(--waist) 30%, var(--line));
+}
+.waist-offer-ico {
+  font-size: 34px;
+}
+.waist-offer b {
+  display: block;
+  font-size: 16px;
+}
+.waist-offer p {
+  margin: 4px 0 10px;
+  font-size: 13.5px;
+  color: var(--text-2);
+  line-height: 1.35;
+}
+.waist-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 650;
+  background: var(--soft);
+}

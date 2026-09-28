@@ -3,7 +3,7 @@ import { Copy, PackagePlus, Zap } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDay } from "@/state/day";
 import { useLayer, useNav } from "@/nav/Nav";
-import { qk } from "@/data/api";
+import { qk, useSettings } from "@/data/api";
 import { supabase } from "@/lib/supabase";
 import { dayTitle, shiftKey } from "@/lib/dates";
 import { haptic } from "@/lib/telegram";
@@ -15,6 +15,7 @@ import { ScannerSheet } from "./Scanner";
 import { QuickAddSheet } from "./QuickAdd";
 import { CreateFoodSheet } from "./CreateFood";
 import { LogWeightSheet } from "./LogWeight";
+import { LogWaistSheet } from "./LogWaist";
 import { CheatMealSheet } from "./CheatMeal";
 import { loadDetector } from "@/lib/barcode";
 import "./sheets.css";
@@ -31,6 +32,7 @@ export function QuickActions() {
     return () => clearTimeout(t);
   }, []);
   const layer = useLayer();
+  const trackWaist = !!useSettings().data?.track_waist;
   const { day } = useDay();
   const toast = useToast();
   const qc = useQueryClient();
@@ -102,6 +104,17 @@ export function QuickActions() {
             </span>
             <span className="mp-ai-pill">ИИ</span>
           </button>
+          {trackWaist && (
+            <button className="list-item press" onClick={() => open(<LogWaistSheet />)}>
+              <span className="li-icon" style={{ fontSize: 20 }}>
+                📏
+              </span>
+              <span style={{ flex: 1 }}>
+                <div className="li-title">Замер талии</div>
+                <div className="li-sub">Раз в неделю — видно, что уходит жир</div>
+              </span>
+            </button>
+          )}
           <button className="list-item press" onClick={() => open(<QuickAddSheet />)}>
             <span className="li-icon">
               <Zap size={20} />
