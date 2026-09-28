@@ -15,6 +15,14 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const AI_KEY = Deno.env.get("AI_API_KEY") ?? "";
 const AI_BASE = Deno.env.get("AI_BASE_URL") ?? "";
 const AI_MODEL = Deno.env.get("AI_MODEL") ?? "deepseek-v4.1-flash";
+// Фото распознаёт отдельная модель: в сравнении на 10 блюдах gemini-3.8-flash без рассуждений — стабильная точность
+// (ошибка ~13%, от прогона к прогону почти не меняется) и 5–11 с. Запасная (AI_VISION_BACKUP) подключается,
+// если основная молчит дольше HEDGE_MS или упала; пустая строка — без запасной.
+const VISION_MODEL = Deno.env.get("AI_VISION_MODEL") ?? "gemini-3.8-flash";
+const VISION_BACKUP = Deno.env.get("AI_VISION_BACKUP") ?? "";
+const HEDGE_MS = 10_000;
+/** Поставщик gemini на агрегаторе не скачивает фото по ссылке (модель не видит картинку и выдумывает блюдо) — ей фото внутри запроса */
+const inlineImage = (model: string) => model.startsWith("gemini");
 const APP_URL = Deno.env.get("APP_URL") ?? "https://fronteggwp.github.io/emli/";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const admin = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -81,19 +89,67 @@ async function replyText(res: Response) {
   return { ok: res.ok && !!j?.choices, text, error: j?.error?.message ?? (j ? null : raw.slice(0, 200)) };
 }
 
-async function chat(messages: unknown[], maxTokens: number) {
+/**
+ * Как выключить рассуждения, у каждой модели по-своему. Gemini понимает только reasoning_effort: "none"
+ * (thinking/enable_thinking игнорирует и думает ~1000 токенов). Остальным reasoning_effort, наоборот, включает рассуждения.
+ */
+const noThinking = (model: string) => (model.startsWith("gemini") ? { reasoning_effort: "none" } : { thinking: { type: "disabled" }, enable_thinking: false });
+
+async function chat(messages: unknown[], maxTokens: number, model = AI_MODEL, signal?: AbortSignal) {
+  const timeout = AbortSignal.timeout(80_000);
   const res = await fetch(`${AI_BASE}/v1/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${AI_KEY}`, "Content-Type": "application/json", "Content-Encoding": "gzip" },
-    body: await gzipJson({ model: AI_MODEL, stream: false, thinking: { type: "disabled" }, temperature: 0.1, max_tokens: maxTokens + REASONING_ROOM, enable_thinking: false, messages }),
-    signal: AbortSignal.timeout(80_000),
+    body: await gzipJson({ model, stream: false, ...noThinking(model), temperature: 0.1, max_tokens: maxTokens + REASONING_ROOM, messages }),
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
   });
   const reply = await replyText(res);
-  if (!reply.ok) throw new Error(`ai ${res.status}: ${String(reply.error ?? "").slice(0, 200)}`);
+  if (!reply.ok) throw new Error(`ai ${model} ${res.status}: ${String(reply.error ?? "").slice(0, 200)}`);
   const text = reply.text;
   const m = text.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error("ai: не JSON");
+  if (!m) throw new Error(`ai ${model}: не JSON`);
   return JSON.parse(m[0]);
+}
+
+/** Основная модель; если молчит дольше HEDGE_MS или упала — параллельно запасная. Побеждает первый успешный ответ. */
+function hedged<T>(run: (model: string, signal: AbortSignal) => Promise<T>) {
+  return new Promise<{ value: T; model: string }>((resolve, reject) => {
+    const ctrls: AbortController[] = [];
+    let pending = 0;
+    let backupStarted = false;
+    let lastErr: unknown = null;
+    let done = false;
+    const timer = setTimeout(() => startBackup(), HEDGE_MS);
+    const launch = (model: string) => {
+      const c = new AbortController();
+      ctrls.push(c);
+      pending++;
+      run(model, c.signal).then(
+        (value) => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          ctrls.forEach((x) => x !== c && x.abort());
+          resolve({ value, model });
+        },
+        (e) => {
+          pending--;
+          lastErr = e;
+          if (done) return;
+          if (!backupStarted) startBackup();
+          else if (pending === 0) (done = true), reject(lastErr);
+        },
+      );
+    };
+    function startBackup() {
+      clearTimeout(timer);
+      if (done || backupStarted) return;
+      backupStarted = true;
+      if (VISION_BACKUP && VISION_BACKUP !== VISION_MODEL) launch(VISION_BACKUP);
+      else if (pending === 0) (done = true), reject(lastErr);
+    }
+    launch(VISION_MODEL);
+  });
 }
 
 const SYSTEM = "Ты опытный нутрициолог и эксперт по распознаванию еды на фото. Всегда отвечай строго на русском языке и только JSON без пояснений.";
@@ -176,11 +232,12 @@ Deno.serve(async (req) => {
   if (!/^data:image\/(jpeg|png|webp);base64,/.test(image) || image.length > 2_500_000) return json({ error: "bad_image" }, 400);
   const hint = typeof body.hint === "string" ? body.hint.slice(0, 200) : "";
 
-  const link = await imageLink(image, uid);
+  // Ссылку на фото делаем, только если она нужна хоть одной из моделей
+  const link = [VISION_MODEL, VISION_BACKUP].some((m) => m && !inlineImage(m)) ? await imageLink(image, uid) : { url: image, done: async () => {} };
   const log = (ok: boolean) => admin.from("ai_usage").insert({ user_id: uid, kind: "food-photo", ms: Date.now() - t0, ok });
   try {
     // 1) Что на фото
-    const seen = await chat(
+    const { value: seen, model: seenBy } = await hedged((model, signal) => chat(
       [
         { role: "system", content: SYSTEM },
         {
@@ -195,12 +252,14 @@ Deno.serve(async (req) => {
                     `используй именно их; по фото уточняй только то, чего в подсказке нет.\nПодсказка: «${hint}»`
                   : ""),
             },
-            { type: "image_url", image_url: { url: link.url } },
+            { type: "image_url", image_url: { url: inlineImage(model) ? image : link.url } },
           ],
         },
       ],
       900,
-    ).finally(() => link.done());
+      model,
+      signal,
+    )).finally(() => link.done());
     const items: Seen[] = (Array.isArray(seen.items) ? seen.items : [])
       .filter((i: Seen) => i && i.name && Number(i.grams) > 0)
       .slice(0, 10)
@@ -214,7 +273,7 @@ Deno.serve(async (req) => {
     const tSee = Date.now() - t0;
     if (!items.length) {
       await log(true);
-      return json({ dish: seen.dish ?? null, comment: seen.comment ?? "Еды на фото не видно", items: [], total: { kcal: 0, protein: 0, fat: 0, carbs: 0 }, ms: { see: tSee, total: Date.now() - t0 } });
+      return json({ dish: seen.dish ?? null, comment: seen.comment ?? "Еды на фото не видно", items: [], total: { kcal: 0, protein: 0, fat: 0, carbs: 0 }, ms: { see: tSee, total: Date.now() - t0 }, model: seenBy });
     }
 
     // 2) Кандидаты из базы
@@ -286,6 +345,7 @@ Deno.serve(async (req) => {
       items: result,
       total: { kcal: Math.round(total.kcal), protein: Math.round(total.protein), fat: Math.round(total.fat), carbs: Math.round(total.carbs) },
       ms: { see: tSee, search: tSearch - tSee, pick: Date.now() - tSearchAt, total: Date.now() - t0 },
+      model: seenBy,
     });
   } catch (e) {
     await log(false);
