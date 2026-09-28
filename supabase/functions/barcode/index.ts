@@ -1,9 +1,10 @@
-// Поиск продукта по штрихкоду — цепочка источников, всё найденное копится в общей базе Emli:
-//  1) barcode_products — уже найденное раньше (у всех пользователей);
-//  2) Open Food Facts — открытая база (КБЖУ; если КБЖУ нет, но есть фото этикетки — читаем его ИИ);
-//  3) USDA FoodData Central — для американских кодов (протеин, батончики), если задан FDC_API_KEY;
-//  4) barcode-list.ru — только название (КБЖУ там нет) → оценка КБЖУ ИИ по названию с пометкой «оценка».
-// Плюс: чтение этикетки с фото пользователя и добавление продукта в общую базу.
+// Поиск продукта по штрихкоду — цепочка источников:
+//  1) Open Food Facts — живой запрос в момент скана (открытая мировая база);
+//  2) база Emli (barcode_products) — то, что уже находили, прочитали с этикеток и добавили пользователи;
+//  3) в OFF есть фото этикетки без КБЖУ — читаем его ИИ;
+//  4) USDA FoodData Central — для американских кодов (протеин, батончики), если задан FDC_API_KEY;
+//  5) barcode-list.ru — только название (КБЖУ там нет) → оценка КБЖУ ИИ по названию с пометкой «оценка».
+// Всё найденное сохраняется в базу Emli; пользователи дополняют её фото этикеток и ручным вводом.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const CORS = {
@@ -240,19 +241,10 @@ function offNutrition(p: Off) {
 async function fromOff(code: string) {
   const fields =
     "product_name,product_name_ru,generic_name_ru,brands,nutriments,serving_quantity,serving_quantity_unit,product_quantity,product_quantity_unit,image_nutrition_url,image_front_small_url,image_url";
-  for (const host of ["world.openfoodfacts.org", "ru.openfoodfacts.org"]) {
-    try {
-      const res = await fetch(`https://${host}/api/v2/product/${code}.json?fields=${fields}`, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(7000) });
-      if (res.status === 404) return null;
-      if (!res.ok) continue;
-      const d = await res.json();
-      if (d.status !== 1 || !d.product) return null;
-      return d.product as Off;
-    } catch {
-      /* пробуем зеркало */
-    }
-  }
-  return null;
+  const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=${fields}`, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(4000) });
+  if (!res.ok) return null;
+  const d = await res.json();
+  return d.status === 1 && d.product ? (d.product as Off) : null;
 }
 
 async function fromUsda(code: string) {
@@ -330,31 +322,51 @@ async function lookup(raw: string, uid: string) {
   const codes = variants(code);
   const tried: string[] = [];
 
-  // 1) Общая база Emli
-  const { data: rows } = await admin.from("barcode_products").select("*").in("barcode", codes);
-  const known = ((rows ?? []) as (Product & { checked_at: string })[]).sort((a, b) => b.trust - a.trust)[0];
-  const age = known ? (Date.now() - new Date(known.checked_at).getTime()) / 86400_000 : Infinity;
-  if (known && known.kcal != null && known.source !== "estimate") return { status: "found", product: known, tried: ["emli"], ms: Date.now() - t0 };
-  if (known && age < 5) return { status: known.source === "estimate" ? "estimate" : "miss", product: known.kcal != null || known.name ? known : null, tried: ["emli"], ms: Date.now() - t0 };
-  tried.push("emli");
-
-  let name = known?.name ?? null;
-  let brand = known?.brand ?? null;
+  let name: string | null = null;
+  let brand: string | null = null;
   let image: string | null = null;
   let net: number | null = null;
   let liquid = false;
 
-  // 2) Open Food Facts
-  for (const c of codes) {
-    const off = await fromOff(c).catch(() => null);
-    if (!off) continue;
-    tried.push("off");
-    name = realName(off.product_name_ru) ?? realName(off.product_name) ?? realName(off.generic_name_ru) ?? name;
-    brand = clip(off.brands?.split(",")[0], 80) || brand;
+  // 1) Open Food Facts — живой запрос; 2) база Emli — параллельно, чтобы не ждать, если OFF тормозит
+  const offTask = (async () => {
+    for (const c of codes) {
+      const o = await fromOff(c).catch(() => null);
+      if (o) return o;
+    }
+    return null;
+  })();
+  const { data: rows } = await admin.from("barcode_products").select("*").in("barcode", codes);
+  const known = ((rows ?? []) as (Product & { checked_at: string })[]).sort((a, b) => b.trust - a.trust)[0];
+  const haveOwn = !!known && known.kcal != null && known.source !== "estimate";
+  // Свой ответ есть — даём OFF 2,5 с на свежие данные; своего нет — ждём OFF до конца (до 4 с на код)
+  const off = haveOwn ? await Promise.race([offTask, new Promise<null>((r) => setTimeout(() => r(null), 2500))]) : await offTask;
+  tried.push("off");
+  const age = known ? (Date.now() - new Date(known.checked_at).getTime()) / 86400_000 : Infinity;
+
+  if (off) {
+    name = realName(off.product_name_ru) ?? realName(off.product_name) ?? realName(off.generic_name_ru);
+    brand = clip(off.brands?.split(",")[0], 80) || null;
     image = off.image_front_small_url ?? off.image_url ?? null;
     const unit = String(off.product_quantity_unit ?? "").toLowerCase();
     net = num(off.product_quantity) > 0 ? r1(num(off.product_quantity)) : null;
     liquid = unit === "ml" || unit === "l";
+  }
+  const offFull = off ? offNutrition(off) : null;
+  // В OFF нет КБЖУ, а у нас есть (с этикетки, от пользователей) — берём своё
+  if (!(offFull && name) && known && known.kcal != null && known.source !== "estimate") {
+    tried.push("emli");
+    return { status: "found", product: { ...known, name: known.name ?? name, brand: known.brand ?? brand, image_url: known.image_url ?? image }, tried, ms: Date.now() - t0 };
+  }
+  // Недавно уже искали везде и не нашли — не тратим ИИ повторно
+  if (!off && known && age < 5) {
+    tried.push("emli");
+    return { status: known.source === "estimate" ? "estimate" : "miss", product: known.kcal != null || known.name ? known : null, tried, ms: Date.now() - t0 };
+  }
+  name = name ?? known?.name ?? null;
+  brand = brand ?? known?.brand ?? null;
+
+  if (off) {
     const nut = offNutrition(off);
     const serving = String(off.serving_quantity_unit ?? "g").toLowerCase() === "g" && num(off.serving_quantity) > 0 && num(off.serving_quantity) < 2000 ? r1(num(off.serving_quantity)) : null;
     if (nut && name) {
@@ -370,7 +382,6 @@ async function lookup(raw: string, uid: string) {
         await logAi(uid, "barcode-ai", Date.now() - ta, !!lab);
         if (lab) {
           tried.push("off_label");
-          // С фото таблицы КБЖУ название обычно не видно — берём из каталога штрихкодов
           // С фото таблицы видно только общее «Майонез» — полное название берём из каталога, если его нет в OFF
           if (!name) {
             const raw = await nameFromBarcodeList(code).catch(() => null);
@@ -403,9 +414,7 @@ async function lookup(raw: string, uid: string) {
         await logAi(uid, "barcode-ai", Date.now() - ta, false);
       }
     }
-    break;
   }
-  if (!tried.includes("off")) tried.push("off");
 
   // 3) USDA (американские коды)
   if (FDC_KEY && /^0/.test(code.padStart(13, "0"))) {
@@ -507,14 +516,6 @@ Deno.serve(async (req) => {
     await admin.from("barcode_products").delete().in("barcode", codes);
     return json({ ok: true });
   }
-  // Пакетная загрузка открытых данных (только администратор)
-  if (body.action === "import") {
-    if (!ADMIN || req.headers.get("x-admin-secret") !== ADMIN) return json({ error: "forbidden" }, 403);
-    const items = (Array.isArray(body.items) ? body.items : []).slice(0, 1000).filter((p: Product) => checksumOk(String(p.barcode)));
-    const { error } = await admin.from("barcode_products").upsert(items, { onConflict: "barcode", ignoreDuplicates: true });
-    return json({ ok: !error, n: items.length, error: error?.message });
-  }
-
   const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
   const { data: auth } = await admin.auth.getUser(token);
   const uid = auth?.user?.id;
