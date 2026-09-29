@@ -130,14 +130,19 @@ export const metOf = (ex: Pick<Exercise, "c">) => MET[ex.c] ?? 5;
 /**
  * Сожжённые на тренировке калории — «чистые»: Σ (MET − 1) × вес тела × время работы.
  * • Время — по выполненной работе: подход (≈40 с или вписанные секунды) + отдых после него,
- *   а не время, пока тренировка была открыта. Сумма не больше реальной длительности.
+ *   а не время, пока тренировка была открыта.
+ * • Таймер ограничивает оценку сверху (открыл тренировку на 5 минут — калорий за час не будет),
+ *   но только если за это время отмеченные подходы вообще можно было сделать (≥ 25 с на подход).
+ *   Меньше — тренировку записали после, таймер про её длительность ничего не знает: считаем по подходам.
  * • Единицу вычитаем: базовый обмен за это время уже входит в дневной расход.
  * Это приблизительная оценка (Compendium of Physical Activities даёт средние значения).
  */
-export function burnedKcal(parts: { met: number; minutes: number }[], bodyKg: number, durationMin: number) {
+export const MIN_SET_MIN = 25 / 60;
+export function burnedKcal(parts: { met: number; minutes: number }[], bodyKg: number, durationMin: number, sets = 0) {
   const work = parts.reduce((s, p) => s + p.minutes, 0);
-  if (!work || !bodyKg || durationMin <= 0) return 0;
-  const k = Math.min(1, Math.min(durationMin, 180) / work);
+  if (!work || !bodyKg) return 0;
+  const timerTrusted = durationMin > 0 && durationMin >= sets * MIN_SET_MIN;
+  const k = Math.min(1, Math.min(timerTrusted ? durationMin : work, 180) / work);
   return Math.round(parts.reduce((s, p) => s + (Math.max(1.5, p.met) - 1) * bodyKg * (p.minutes * k) / 60, 0));
 }
 

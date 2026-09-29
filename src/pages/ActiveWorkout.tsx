@@ -11,7 +11,7 @@ import { planFor, historyFor, roleOf, type Plan, type Session } from "@/lib/prog
 import { useProgramState, useSaveProgramState } from "@/data/workouts";
 import { parseReps, programByKey } from "@/data/programs";
 import { exDraftFrom, fmtDuration, newSet, useNow, useWorkoutDraft, type Draft, type ExDraft, type SetDraft, type SetKind } from "@/state/workout";
-import { burnedKcal, e1rm, isTimed, metOf, usesWeight, weightStep, type Exercise, type Muscle } from "@/lib/exercise";
+import { burnedKcal, e1rm, isTimed, metOf, MIN_SET_MIN, usesWeight, weightStep, type Exercise, type Muscle } from "@/lib/exercise";
 import { parseNum } from "@/lib/hooks";
 import { confirmDialog, haptic, inTelegram, vibrate } from "@/lib/telegram";
 import { sfx } from "@/lib/sound";
@@ -118,9 +118,20 @@ export function ActiveWorkoutScreen() {
     }
     const undone = d.exercises.reduce((s, e) => s + e.sets.filter((x) => !x.done).length, 0);
     if (undone && !(await confirmDialog(`Завершить? Неотмеченные подходы (${undone}) не сохранятся.`))) return;
+    // За это время отмеченные подходы сделать нельзя — значит, тренировку записали после. Спросим, сколько она шла
+    const elapsedMin = (Date.now() - new Date(d.startedAt).getTime()) / 60000;
+    if (elapsedMin < doneSets * MIN_SET_MIN) {
+      nav.sheet(<DurationSheet elapsedMin={elapsedMin} estimate={estimateMinutes(d)} onPick={(min) => save_(min == null ? undefined : Math.round(min * 60))} />);
+      return;
+    }
+    await save_();
+  };
+
+  const save_ = async (durationS?: number) => {
+    if (!d) return;
     setSaving(true);
     try {
-      const payload = buildWorkout(d, catalog.byId, bests.data, ins.current ?? 75);
+      const payload = buildWorkout(d, catalog.byId, bests.data, ins.current ?? 75, durationS);
       await save.mutateAsync(payload);
       haptic.success();
       wd.discard();
@@ -892,11 +903,67 @@ function RenameSheet() {
   );
 }
 
+/** Тренировку записали после — спрашиваем реальную длительность (от неё зависят сожжённые калории) */
+function DurationSheet({ elapsedMin, estimate, onPick }: { elapsedMin: number; estimate: number; onPick: (min: number | null) => void }) {
+  const layer = useLayer();
+  const est = Math.max(10, Math.round(estimate / 5) * 5);
+  const options = [...new Set([est, 30, 45, 60, 90])].sort((a, b) => a - b);
+  const [min, setMin] = useState(est);
+  const pick = (v: number | null) => {
+    haptic.select();
+    layer.close();
+    onPick(v);
+  };
+  const label = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} ч${m % 60 ? ` ${m % 60} мин` : ""}` : `${m} мин`);
+  return (
+    <>
+      <SheetHeader title="Сколько длилась тренировка?" />
+      <div className="sheet-body">
+        <p className="muted" style={{ margin: "0 0 14px", fontSize: 14, lineHeight: 1.45 }}>
+          Таймер показывает {elapsedMin < 1 ? "меньше минуты" : fmtDuration(elapsedMin * 60)} — похоже, подходы отметили уже после тренировки. От длительности зависят
+          сожжённые калории. По подходам и отдыху выходит примерно {label(est)}.
+        </p>
+        <div className="chips-row" style={{ flexWrap: "wrap", gap: 8 }}>
+          {options.map((m) => (
+            <Tap key={m} className={`chip ${min === m ? "on" : ""}`} onClick={() => (haptic.select(), setMin(m))}>
+              {label(m)}
+              {m === est ? " · по подходам" : ""}
+            </Tap>
+          ))}
+        </div>
+      </div>
+      <div className="sheet-foot" style={{ display: "grid", gap: 8 }}>
+        <Tap className="btn btn-accent btn-block" onClick={() => pick(min)}>
+          Сохранить · {label(min)}
+        </Tap>
+        <Tap className="btn btn-block" onClick={() => pick(null)}>
+          Оставить по таймеру
+        </Tap>
+      </div>
+    </>
+  );
+}
+
 // ───────────────────────── Подсчёт итогов
 
-export function buildWorkout(d: Draft, byId: Map<string, Exercise>, bests: Map<string, Best> | undefined, bodyKg: number) {
+/** Длительность по отмеченным подходам (подход + отдых), минуты — для оценки, если тренировку записали после */
+export function estimateMinutes(d: Draft) {
+  let min = 0;
+  for (const x of d.exercises) {
+    const done = x.sets.filter((s) => s.done);
+    done.forEach((s, i) => {
+      const seconds = parseNum(s.seconds) || 0;
+      min += (seconds ? seconds / 60 : 0.67) + (i < done.length - 1 ? Math.min(x.rest, 180) / 60 : 0);
+    });
+  }
+  // Переходы между упражнениями — ≈2 минуты
+  return min + Math.max(0, d.exercises.filter((x) => x.sets.some((s) => s.done)).length - 1) * 2;
+}
+
+/** durationS — длительность, которую указал человек (тренировку записали после); иначе — по таймеру */
+export function buildWorkout(d: Draft, byId: Map<string, Exercise>, bests: Map<string, Best> | undefined, bodyKg: number, durationS?: number) {
   const finishedAt = new Date();
-  const duration = Math.max(60, Math.round((finishedAt.getTime() - new Date(d.startedAt).getTime()) / 1000));
+  const duration = durationS ?? Math.max(60, Math.round((finishedAt.getTime() - new Date(d.startedAt).getTime()) / 1000));
   const sets: Omit<SetRow, "id" | "workout_id">[] = [];
   const muscles: Partial<Record<Muscle, number>> = {};
   const metParts: { met: number; minutes: number }[] = [];
@@ -957,7 +1024,7 @@ export function buildWorkout(d: Draft, byId: Map<string, Exercise>, bests: Map<s
     }
   });
 
-  const kcal = burnedKcal(metParts, bodyKg, duration / 60);
+  const kcal = burnedKcal(metParts, bodyKg, duration / 60, total);
   return {
     workout: {
       id: d.id,
@@ -965,7 +1032,7 @@ export function buildWorkout(d: Draft, byId: Map<string, Exercise>, bests: Map<s
       routine_id: d.routineId,
       program: d.program,
       program_day: d.programDay,
-      started_at: d.startedAt,
+      started_at: durationS ? new Date(finishedAt.getTime() - durationS * 1000).toISOString() : d.startedAt,
       finished_at: finishedAt.toISOString(),
       duration_s: duration,
       kcal,

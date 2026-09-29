@@ -101,6 +101,15 @@ test("калории: работа не больше реальной длите
   const kcal = burnedKcal([{ met: 5, minutes: 120 }], 80, 30);
   assert.equal(kcal, Math.round((4 * 80 * 30) / 60));
 });
+test("калории: тренировку записали после — таймеру не верим, считаем по подходам", () => {
+  // 14 подходов за 1,6 минуты сделать нельзя
+  const kcal = burnedKcal([{ met: 5, minutes: 28 }], 75, 1.6, 14);
+  assert.equal(kcal, Math.round((4 * 75 * 28) / 60));
+});
+test("калории: быстрая, но реальная тренировка — таймер ограничивает", () => {
+  const kcal = burnedKcal([{ met: 5, minutes: 28 }], 75, 15, 14);
+  assert.equal(kcal, Math.round((4 * 75 * 15) / 60));
+});
 
 console.log("\nПитание");
 const days: string[] = [];
