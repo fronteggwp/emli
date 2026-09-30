@@ -116,11 +116,22 @@ export function useTotals() {
 
 export type NewEntry = Omit<Entry, "id" | "user_id" | "created_at">;
 
+/**
+ * В базу — только колонки таблицы. Записи часто собираются из других объектов («частые», товар из поиска),
+ * и лишнее поле (uses, last_used, origin…) роняет вставку целиком.
+ */
+const ENTRY_COLS = ["day", "meal", "food_id", "name", "brand", "grams", "kcal", "protein", "fat", "carbs"] as const;
+const FOOD_COLS = ["name", "brand", "barcode", "category", "kcal", "protein", "fat", "carbs", "serving_g", "serving_name", "source"] as const;
+function pick<T extends object>(o: T, cols: readonly string[]) {
+  const src = o as Record<string, unknown>;
+  return Object.fromEntries(cols.filter((c) => src[c] !== undefined).map((c) => [c, src[c]]));
+}
+
 export function useAddEntry() {
   const qc = useQueryClient();
   return useMutation({
     meta: { achievements: true },
-    mutationFn: async (e: NewEntry) => unwrap<Entry>(await supabase.from("food_entries").insert(e).select().single()),
+    mutationFn: async (e: NewEntry) => unwrap<Entry>(await supabase.from("food_entries").insert(pick(e, ENTRY_COLS)).select().single()),
     onMutate: async (e) => {
       await qc.cancelQueries({ queryKey: qk.entries(e.day) });
       const prev = qc.getQueryData<Entry[]>(qk.entries(e.day));
@@ -141,7 +152,7 @@ export function useUpdateEntry() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, patch }: { id: string; day: string; patch: Partial<NewEntry> }) =>
-      unwrap<Entry>(await supabase.from("food_entries").update(patch).eq("id", id).select().single()),
+      unwrap<Entry>(await supabase.from("food_entries").update(pick(patch, ENTRY_COLS)).eq("id", id).select().single()),
     onMutate: async ({ id, day, patch }) => {
       await qc.cancelQueries({ queryKey: qk.entries(day) });
       const prev = qc.getQueryData<Entry[]>(qk.entries(day));
@@ -228,9 +239,8 @@ export function useSaveFood() {
   const uid = useUid();
   return useMutation({
     mutationFn: async (f: FoodDraft) => {
-      const { id, missing: _missing, ...rest } = f;
-      void _missing;
-      const row = { ...rest, owner_id: uid, source: rest.source === "system" ? "user" : rest.source };
+      const { id } = f;
+      const row = { ...pick(f, FOOD_COLS), owner_id: uid, source: f.source === "system" ? "user" : f.source };
       const res = id
         ? await supabase.from("foods").update(row).eq("id", id).select().single()
         : await supabase.from("foods").insert(row).select().single();
