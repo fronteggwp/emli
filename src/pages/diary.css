@@ -242,16 +242,24 @@
 .macro-label {
   font-size: 11.5px;
   color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .macro-val {
   font-size: 15px;
   font-weight: 800;
+  line-height: 1.15;
   white-space: nowrap;
 }
+/* «/ 135 г» — отдельной строкой: на узком экране рядом с трёхзначным числом не помещается */
 .macro-val span {
+  display: block;
   font-size: 10.5px;
   font-weight: 500;
   color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ───────── Баннер читмила */

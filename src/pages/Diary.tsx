@@ -403,7 +403,7 @@ function Hero({ sum, target, loading }: { sum: Macros; target: DayTarget; loadin
                 <div className="macro-label">{m.label}</div>
                 <div className="macro-val num">
                   {mode === "left" ? fmtNum(leftG) : fmtNum(m.value)}
-                  <span> {mode === "left" ? "г ост." : `/ ${m.max} г`}</span>
+                  <span>{mode === "left" ? "г осталось" : `из ${m.max} г`}</span>
                 </div>
               </div>
             </div>

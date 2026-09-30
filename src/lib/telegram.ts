@@ -33,6 +33,10 @@ interface TgWebApp {
   addToHomeScreen?(): void;
   close?(): void;
   checkHomeScreenStatus?(cb: (status: "unsupported" | "unknown" | "added" | "missed") => void): void;
+  CloudStorage?: {
+    getItem(key: string, cb: (err: string | null, value?: string) => void): void;
+    setItem(key: string, value: string, cb?: (err: string | null, ok?: boolean) => void): void;
+  };
 }
 
 declare global {
@@ -47,6 +51,33 @@ export const tg: TgWebApp | null = raw && raw.initData ? raw : null;
 export const inTelegram = !!tg;
 
 export const can = (v: string) => !!tg && tg.isVersionAtLeast(v);
+
+/** Облачное хранилище Telegram (общее для всех устройств человека); вне Telegram — только localStorage */
+export function cloudGet(key: string): Promise<string | null> {
+  const local = () => {
+    try {
+      return localStorage.getItem(`emli-cloud:${key}`);
+    } catch {
+      return null;
+    }
+  };
+  if (!tg?.CloudStorage || !can("6.9")) return Promise.resolve(local());
+  return new Promise((res) => {
+    const t = setTimeout(() => res(local()), 1500);
+    tg!.CloudStorage!.getItem(key, (err, value) => {
+      clearTimeout(t);
+      res(err ? local() : value || local());
+    });
+  });
+}
+export function cloudSet(key: string, value: string) {
+  try {
+    localStorage.setItem(`emli-cloud:${key}`, value);
+  } catch {
+    /* приватный режим — не страшно */
+  }
+  if (tg?.CloudStorage && can("6.9")) tg.CloudStorage.setItem(key, value);
+}
 
 export function initTelegram() {
   applySafeArea();

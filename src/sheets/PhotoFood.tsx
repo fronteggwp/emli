@@ -17,11 +17,13 @@ import { IngredientPickerSheet } from "./IngredientPicker";
 import "./sheets.css";
 import "./photo.css";
 
-type Mode = "quick" | "hint";
+type Mode = "quick" | "hint" | "receipt";
 type Stage = "pick" | "compose" | "analyzing" | "result" | "error";
-type Row = AiFoodItem & { key: string };
+/** picked — для чека: человек отмечает, что из купленного съел */
+type Row = AiFoodItem & { key: string; picked?: boolean };
 
 const STATUSES = ["Смотрю на тарелку…", "Разбираю, что где лежит…", "Оцениваю граммовку…", "Ищу продукты в базе Emli…", "Сверяю КБЖУ…"];
+const STATUSES_RECEIPT = ["Читаю чек…", "Расшифровываю сокращения…", "Отбрасываю пакеты и химию…", "Ищу товары в базе…", "Считаю КБЖУ…"];
 const ERRORS: Record<AiFoodError | "empty", { icon: string; title: string; text: string }> = {
   empty: { icon: "🤔", title: "Не вижу еды", text: "Попробуй снять тарелку сверху и поближе — или добавь подсказку, что на фото." },
   limit: { icon: "⏳", title: "Лимит на сегодня", text: "Распознавание по фото доступно 40 раз в сутки. Завтра снова можно — а пока добавь еду поиском." },
@@ -52,6 +54,7 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
   const { day } = useDay();
   const log = useLogItems();
   const [mode, setMode] = useState<Mode>(mode0);
+  const isReceipt = mode === "receipt";
   const [stage, setStage] = useState<Stage>("pick");
   const [photo, setPhoto] = useState<string | null>(null);
   const [hint, setHint] = useState("");
@@ -69,7 +72,7 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
     setStage("analyzing");
     haptic.soft();
     try {
-      const r = await recognizeFood(image, h.trim() || undefined);
+      const r = await recognizeFood(image, h.trim() || undefined, isReceipt ? "receipt" : undefined);
       if (id !== run.current) return;
       if (!r.items.length) {
         setError("empty");
@@ -78,7 +81,7 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
         return;
       }
       setResult(r);
-      setRows(r.items.map((it, i) => ({ ...it, key: `${id}-${i}` })));
+      setRows(r.items.map((it, i) => ({ ...it, key: `${id}-${i}`, picked: !isReceipt })));
       setStage("result");
       setRefine(false);
       haptic.success();
@@ -93,7 +96,8 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
   const onFile = async (f: File | undefined) => {
     if (!f) return;
     try {
-      const img = await photoToDataUrl(f);
+      // Чек — крупнее: мелкий шрифт кассы на 1024 px не читается
+      const img = await photoToDataUrl(f, isReceipt ? 2048 : 1024);
       setPhoto(img);
       if (mode === "hint") setStage("compose");
       else analyze(img, "");
@@ -114,12 +118,16 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
     el?.scrollTo({ top: 0, behavior: "smooth" });
   }, [stage]);
 
+  const eaten = useMemo(() => rows.filter((r) => r.picked !== false), [rows]);
+  const all = useMemo(() => rows.reduce((a, r) => a + r.kcal, 0), [rows]);
   const total = useMemo(
-    () => rows.reduce((a, r) => ({ kcal: a.kcal + r.kcal, protein: a.protein + r.protein, fat: a.fat + r.fat, carbs: a.carbs + r.carbs }), { kcal: 0, protein: 0, fat: 0, carbs: 0 }),
-    [rows],
+    () => eaten.reduce((a, r) => ({ kcal: a.kcal + r.kcal, protein: a.protein + r.protein, fat: a.fat + r.fat, carbs: a.carbs + r.carbs }), { kcal: 0, protein: 0, fat: 0, carbs: 0 }),
+    [eaten],
   );
 
-  const setGrams = (key: string, g: number) => setRows((l) => l.map((r) => (r.key === key ? { ...scale(r, Math.max(1, Math.min(3000, Math.round(g)))), key } : r)));
+  const toggle = (key: string) => (haptic.select(), setRows((l) => l.map((r) => (r.key === key ? { ...r, picked: !r.picked } : r))));
+  const setGrams = (key: string, g: number) =>
+    setRows((l) => l.map((r) => (r.key === key ? { ...scale(r, Math.max(1, Math.min(5000, Math.round(g)))), key, picked: true } : r)));
   const remove = (key: string) => {
     haptic.rigid();
     setRows((l) => l.filter((r) => r.key !== key));
@@ -135,6 +143,7 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
             ...l,
             {
               key: `m-${Date.now()}`,
+              picked: true,
               name: it.name,
               grams: g,
               confidence: 1,
@@ -154,10 +163,10 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
     );
 
   const save = async () => {
-    if (!rows.length) return;
+    if (!eaten.length) return;
     try {
       await log.mutateAsync({
-        items: rows.map((r) => ({ food_id: r.food_id, name: sentence(r.name), brand: r.brand ?? null, grams: r.grams, kcal: r.kcal, protein: r.protein, fat: r.fat, carbs: r.carbs })),
+        items: eaten.map((r) => ({ food_id: r.food_id, name: sentence(r.name), brand: r.brand ?? null, grams: r.grams, kcal: r.kcal, protein: r.protein, fat: r.fat, carbs: r.carbs })),
         day,
         meal,
       });
@@ -181,7 +190,7 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
     <>
       <span ref={top} hidden />
       <SheetHeader
-        title="Еда по фото"
+        title={isReceipt ? "Продукты из чека" : "Еда по фото"}
         left={
           stage !== "pick" && stage !== "analyzing" ? (
             <button className="icon-btn" onClick={reset} aria-label="Другое фото">
@@ -197,50 +206,76 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
         <AnimatePresence mode="wait" initial={false}>
           {stage === "pick" && (
             <motion.div key="pick" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }}>
-              <div className="pf-hero">
-                <div className="pf-orb">
-                  <motion.span className="pf-orb-ring" animate={{ rotate: 360 }} transition={{ duration: 14, repeat: Infinity, ease: "linear" }} />
-                  <Icon3D name="lunch" size={96} />
-                  <motion.span className="pf-spark s1" animate={{ scale: [0.6, 1.1, 0.6], opacity: [0.4, 1, 0.4] }} transition={{ duration: 2.4, repeat: Infinity }}>
-                    ✦
-                  </motion.span>
-                  <motion.span className="pf-spark s2" animate={{ scale: [1, 0.6, 1], opacity: [1, 0.4, 1] }} transition={{ duration: 2.4, repeat: Infinity }}>
-                    ✦
-                  </motion.span>
-                </div>
-                <div className="pf-title">Сфоткай тарелку — посчитаю сам</div>
-                <div className="pf-sub">Распознаю продукты и граммовку, найду их в базе Emli и сложу КБЖУ</div>
+              <div className="pf-kind">
+                <Tap className={`pf-kind-opt ${!isReceipt ? "on" : ""}`} onClick={() => (haptic.select(), setMode("quick"))}>
+                  🍽 Тарелка
+                </Tap>
+                <Tap className={`pf-kind-opt ${isReceipt ? "on" : ""}`} onClick={() => (haptic.select(), setMode("receipt"))}>
+                  🧾 Чек
+                </Tap>
               </div>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div key={isReceipt ? "r" : "p"} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
+                  <div className="pf-hero">
+                    <div className="pf-orb">
+                      <motion.span className="pf-orb-ring" animate={{ rotate: 360 }} transition={{ duration: 14, repeat: Infinity, ease: "linear" }} />
+                      {isReceipt ? <span className="pf-orb-emoji">🧾</span> : <Icon3D name="lunch" size={96} />}
+                      <motion.span className="pf-spark s1" animate={{ scale: [0.6, 1.1, 0.6], opacity: [0.4, 1, 0.4] }} transition={{ duration: 2.4, repeat: Infinity }}>
+                        ✦
+                      </motion.span>
+                      <motion.span className="pf-spark s2" animate={{ scale: [1, 0.6, 1], opacity: [1, 0.4, 1] }} transition={{ duration: 2.4, repeat: Infinity }}>
+                        ✦
+                      </motion.span>
+                    </div>
+                    <div className="pf-title">{isReceipt ? "Сфоткай чек — найду продукты" : "Сфоткай тарелку — посчитаю сам"}</div>
+                    <div className="pf-sub">
+                      {isReceipt
+                        ? "Прочитаю позиции, расшифрую сокращения кассы, найду товары в базе и посчитаю КБЖУ. Останется отметить, что съел"
+                        : "Распознаю продукты и граммовку, найду их в базе Emli и сложу КБЖУ"}
+                    </div>
+                  </div>
 
-              <div className="pf-modes">
-                <Tap className={`pf-mode ${mode === "quick" ? "on" : ""}`} scale={0.97} onClick={() => (haptic.select(), setMode("quick"))}>
-                  <span className="pf-mode-ico">
-                    <Camera size={20} />
-                  </span>
-                  <b>Просто фото</b>
-                  <span>Сфоткал — и сразу результат</span>
-                </Tap>
-                <Tap className={`pf-mode ${mode === "hint" ? "on" : ""}`} scale={0.97} onClick={() => (haptic.select(), setMode("hint"))}>
-                  <span className="pf-mode-ico">
-                    <PenLine size={20} />
-                  </span>
-                  <b>Фото + подсказка</b>
-                  <span>Допиши, что это и сколько — будет точнее</span>
-                </Tap>
-              </div>
+                  {!isReceipt && (
+                    <div className="pf-modes">
+                      <Tap className={`pf-mode ${mode === "quick" ? "on" : ""}`} scale={0.97} onClick={() => (haptic.select(), setMode("quick"))}>
+                        <span className="pf-mode-ico">
+                          <Camera size={20} />
+                        </span>
+                        <b>Просто фото</b>
+                        <span>Сфоткал — и сразу результат</span>
+                      </Tap>
+                      <Tap className={`pf-mode ${mode === "hint" ? "on" : ""}`} scale={0.97} onClick={() => (haptic.select(), setMode("hint"))}>
+                        <span className="pf-mode-ico">
+                          <PenLine size={20} />
+                        </span>
+                        <b>Фото + подсказка</b>
+                        <span>Допиши, что это и сколько — будет точнее</span>
+                      </Tap>
+                    </div>
+                  )}
+                </motion.div>
+              </AnimatePresence>
 
               <Tap className="btn btn-block btn-accent pf-main" onClick={() => camera.current?.click()}>
-                <Camera size={20} /> Сделать фото
+                <Camera size={20} /> {isReceipt ? "Сфоткать чек" : "Сделать фото"}
               </Tap>
               <Tap className="btn btn-block" style={{ marginTop: 8 }} onClick={() => gallery.current?.click()}>
                 <ImagePlus size={19} /> Выбрать из галереи
               </Tap>
 
-              <div className="pf-tips">
-                <div>📐 Снимай сверху — чтобы была видна вся тарелка</div>
-                <div>💡 При хорошем свете продукты распознаются точнее</div>
-                <div>✍️ Граммы — оценка по фото: проверь и поправь их</div>
-              </div>
+              {isReceipt ? (
+                <div className="pf-tips">
+                  <div>📏 Расправь чек и сними его целиком, строки — ровно</div>
+                  <div>💡 Без бликов: термобумага на свету выцветает на фото</div>
+                  <div>🧺 Длинный чек — сними по частям, каждую отдельно</div>
+                </div>
+              ) : (
+                <div className="pf-tips">
+                  <div>📐 Снимай сверху — чтобы была видна вся тарелка</div>
+                  <div>💡 При хорошем свете продукты распознаются точнее</div>
+                  <div>✍️ Граммы — оценка по фото: проверь и поправь их</div>
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -281,7 +316,7 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
                 <span className="pf-corner tr" />
                 <span className="pf-corner bl" />
                 <span className="pf-corner br" />
-                <Status />
+                <Status list={isReceipt ? STATUSES_RECEIPT : STATUSES} />
               </div>
               {hint.trim() && <div className="pf-hint-note">✍️ {hint.trim()}</div>}
               <div className="pf-skel">
@@ -299,15 +334,15 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
                   <img src={photo} alt="" />
                 </div>
               )}
-              <div className="pf-error-icon">{ERRORS[error].icon}</div>
-              <div className="pf-title">{ERRORS[error].title}</div>
-              <div className="pf-sub">{ERRORS[error].text}</div>
+              <div className="pf-error-icon">{isReceipt && error === "empty" ? "🧾" : ERRORS[error].icon}</div>
+              <div className="pf-title">{isReceipt && error === "empty" ? "Не нашёл продуктов" : ERRORS[error].title}</div>
+              <div className="pf-sub">{isReceipt && error === "empty" ? "Похоже, это не чек или в нём нет еды. Сними чек целиком, ровно и без бликов." : ERRORS[error].text}</div>
               {error !== "limit" && photo && (
                 <Tap className="btn btn-block btn-accent" style={{ marginTop: 18 }} onClick={() => analyze(photo, hint)}>
                   <RefreshCw size={18} /> Попробовать ещё раз
                 </Tap>
               )}
-              {error === "empty" && photo && (
+              {error === "empty" && photo && !isReceipt && (
                 <Tap className="btn btn-block" style={{ marginTop: 8 }} onClick={() => (setMode("hint"), setStage("compose"))}>
                   <PenLine size={18} /> Добавить подсказку
                 </Tap>
@@ -327,7 +362,7 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
                   <span className="pf-ai-badge">
                     <Sparkles size={12} /> Распознано за {((result.ms.total ?? 0) / 1000).toFixed(1)} с
                   </span>
-                  <div className="pf-dish">{result.dish ? sentence(result.dish) : "Твоя тарелка"}</div>
+                  <div className="pf-dish">{result.dish ? sentence(result.dish) : isReceipt ? "Продукты из чека" : "Твоя тарелка"}</div>
                   {result.comment && <div className="pf-comment">{result.comment}</div>}
                 </div>
               </div>
@@ -337,7 +372,8 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
                   <b className="num">
                     <NumberTicker value={Math.round(total.kcal)} duration={0.5} />
                   </b>
-                  <span>ккал</span>
+                  <span>{isReceipt ? (eaten.length ? "ккал съедено" : "отметь, что съел") : "ккал"}</span>
+                  {isReceipt && <em className="num">в чеке ≈ {fmtNum(Math.round(all))}</em>}
                 </div>
                 <div className="pf-total-macros">
                   {(
@@ -358,15 +394,17 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
               </motion.div>
 
               <div className="group-label row" style={{ justifyContent: "space-between" }}>
-                <span>Что на тарелке · {rows.length}</span>
+                <span>
+                  {isReceipt ? "Что в чеке" : "Что на тарелке"} · {rows.length}
+                </span>
                 <span className="faint" style={{ textTransform: "none", letterSpacing: 0 }}>
-                  граммы можно поправить
+                  {isReceipt ? "отметь съеденное" : "граммы можно поправить"}
                 </span>
               </div>
               <div className="pf-items">
                 <AnimatePresence initial>
                   {rows.map((r, i) => (
-                    <ItemRow key={r.key} r={r} index={i} onGrams={(g) => setGrams(r.key, g)} onRemove={() => remove(r.key)} />
+                    <ItemRow key={r.key} r={r} index={i} pickable={isReceipt} onToggle={() => toggle(r.key)} onGrams={(g) => setGrams(r.key, g)} onRemove={() => remove(r.key)} />
                   ))}
                 </AnimatePresence>
               </div>
@@ -375,7 +413,7 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
               </Tap>
 
               <AnimatePresence initial={false}>
-                {refine ? (
+                {isReceipt ? null : refine ? (
                   <motion.div key="refine" className="pf-refine" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
                     <AutoTextarea
                       className="input pf-hint"
@@ -405,8 +443,12 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
               </div>
 
               <div className="pf-bar">
-                <Tap className="btn btn-block btn-accent pf-main" disabled={!rows.length || log.isPending} onClick={save}>
-                  {log.isPending ? "Добавляю…" : `Добавить в «${MEALS[meal].name}» · ${fmtNum(total.kcal)} ккал`}
+                <Tap className="btn btn-block btn-accent pf-main" disabled={!eaten.length || log.isPending} onClick={save}>
+                  {log.isPending
+                    ? "Добавляю…"
+                    : isReceipt && !eaten.length
+                      ? "Отметь, что съел"
+                      : `Добавить в «${MEALS[meal].name}» · ${fmtNum(total.kcal)} ккал`}
                 </Tap>
               </div>
             </motion.div>
@@ -418,10 +460,10 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
 }
 
 /** Сменяющиеся статусы анализа */
-function Status() {
+function Status({ list }: { list: string[] }) {
   const [i, setI] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setI((x) => Math.min(x + 1, STATUSES.length - 1)), 1100);
+    const t = setInterval(() => setI((x) => Math.min(x + 1, list.length - 1)), 1100);
     return () => clearInterval(t);
   }, []);
   return (
@@ -433,14 +475,14 @@ function Status() {
       </span>
       <AnimatePresence mode="wait">
         <motion.span key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
-          {STATUSES[i]}
+          {list[i]}
         </motion.span>
       </AnimatePresence>
     </div>
   );
 }
 
-function ItemRow({ r, index, onGrams, onRemove }: { r: Row; index: number; onGrams: (g: number) => void; onRemove: () => void }) {
+function ItemRow({ r, index, pickable, onToggle, onGrams, onRemove }: { r: Row; index: number; pickable?: boolean; onToggle?: () => void; onGrams: (g: number) => void; onRemove: () => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(r.grams));
   const step = r.grams >= 100 ? 10 : 5;
@@ -452,13 +494,19 @@ function ItemRow({ r, index, onGrams, onRemove }: { r: Row; index: number; onGra
   return (
     <motion.div
       layout
-      className="pf-item"
+      className={`pf-item ${pickable ? "pickable" : ""} ${pickable && !r.picked ? "off" : ""}`}
       initial={{ opacity: 0, y: 14, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1, transition: { delay: 0.15 + index * 0.06, type: "spring", stiffness: 380, damping: 30 } }}
       exit={{ opacity: 0, x: -40, height: 0, marginBottom: 0, transition: { duration: 0.22 } }}
     >
-      <div className="pf-item-main">
+      {pickable && (
+        <button className={`pf-pick ${r.picked ? "on" : ""}`} onClick={onToggle} aria-label={r.picked ? "Не ел" : "Съел"}>
+          <Check size={14} strokeWidth={3} />
+        </button>
+      )}
+      <div className="pf-item-main" onClick={pickable ? onToggle : undefined}>
         <div className="pf-item-name">{sentence(r.name)}</div>
+        {r.line && <div className="pf-item-line">{r.line}</div>}
         <div className="pf-item-sub">
           {r.source === "ai" ? (
             <span className="pf-src ai">
@@ -471,7 +519,7 @@ function ItemRow({ r, index, onGrams, onRemove }: { r: Row; index: number; onGra
             </span>
           )}
           {r.separate && <span className="pf-src side">рядом</span>}
-          {low && <span className="pf-src warn">проверь</span>}
+          {low && <span className="pf-src warn">{r.weight_known === false ? "вес примерный" : "проверь"}</span>}
           <span className="num">
             {fmtNum(r.kcal)} ккал · Б {fmtNum(r.protein)} Ж {fmtNum(r.fat)} У {fmtNum(r.carbs)}
           </span>

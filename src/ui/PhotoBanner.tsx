@@ -5,7 +5,7 @@ import { Icon3D } from "./Icon3D";
 import { Tap } from "./Tap";
 
 /** Большая плитка «Еда по фото» с двумя режимами: просто фото и фото + подсказка */
-export function PhotoBanner({ onOpen }: { onOpen: (mode: "quick" | "hint") => void }) {
+export function PhotoBanner({ onOpen }: { onOpen: (mode: "quick" | "hint" | "receipt") => void }) {
   return (
     <div className="photo-banner">
       <Tap className="photo-banner-main" scale={0.98} onClick={() => (haptic.medium(), onOpen("quick"))}>
@@ -23,9 +23,14 @@ export function PhotoBanner({ onOpen }: { onOpen: (mode: "quick" | "hint") => vo
           </span>
         </motion.span>
       </Tap>
-      <Tap className="photo-banner-hint" scale={0.97} onClick={() => (haptic.tap(), onOpen("hint"))}>
-        <PenLine size={15} /> Фото + подсказка
-      </Tap>
+      <div className="photo-banner-pills">
+        <Tap className="photo-banner-hint" scale={0.97} onClick={() => (haptic.tap(), onOpen("hint"))}>
+          <PenLine size={15} /> Фото + подсказка
+        </Tap>
+        <Tap className="photo-banner-hint" scale={0.97} onClick={() => (haptic.tap(), onOpen("receipt"))}>
+          🧾 Чек
+        </Tap>
+      </div>
     </div>
   );
 }

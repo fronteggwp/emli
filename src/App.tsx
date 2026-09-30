@@ -18,6 +18,7 @@ import { Welcome } from "@/pages/Welcome";
 import { AchievementWatcher } from "@/pages/Achievements";
 import { CelebrationHost } from "@/ui/Celebration";
 import { useSyncTimezone } from "@/data/engage";
+import { WhatsNewWatcher } from "@/ui/WhatsNew";
 
 export function App() {
   const auth = useAuth();
@@ -49,7 +50,7 @@ function Main() {
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
       >
-        <NavProvider tabs={(tab) => <Tabs tab={tab} />} />
+        <NavProvider tabs={(tab) => <Tabs tab={tab} fresh={justOnboarded} />} />
       </motion.div>
       </WorkoutProvider>
     </DayProvider>
@@ -64,7 +65,7 @@ const PAGES: Record<Tab, () => React.ReactNode> = {
 };
 
 /** Вкладки остаются смонтированными — сохраняется прокрутка и не мигают данные */
-function Tabs({ tab }: { tab: Tab }) {
+function Tabs({ tab, fresh }: { tab: Tab; fresh: boolean }) {
   const [visited, setVisited] = useState<Tab[]>([tab]);
   if (!visited.includes(tab)) setVisited([...visited, tab]);
   return (
@@ -78,6 +79,7 @@ function Tabs({ tab }: { tab: Tab }) {
       <ActiveBar tab={tab} />
       <TabBar />
       <DeepLinks />
+      <WhatsNewWatcher fresh={fresh} />
       <Background />
     </>
   );

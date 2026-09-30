@@ -571,6 +571,9 @@ export type AiFoodItem = Macros & {
   food_id: string | null;
   matched: string | null;
   brand?: string | null;
+  /** Чек: строка кассы как есть и известна ли масса упаковки */
+  line?: string | null;
+  weight_known?: boolean;
   /** Подано рядом с блюдом (хлеб, соус в пиале, варенье) — легко убрать, если не ел */
   separate?: boolean;
   per100: [number, number, number, number];
@@ -579,8 +582,8 @@ export type AiFoodResult = { dish: string | null; comment: string | null; items:
 export type AiFoodError = "limit" | "bad_image" | "network" | "failed";
 
 /** Фото → продукты с граммовкой, найденные в базе Emli. Бросает Error с кодом AiFoodError */
-export async function recognizeFood(image: string, hint?: string): Promise<AiFoodResult> {
-  const { data, error } = await supabase.functions.invoke("ai-food", { body: { image, hint } });
+export async function recognizeFood(image: string, hint?: string, kind?: "receipt"): Promise<AiFoodResult> {
+  const { data, error } = await supabase.functions.invoke("ai-food", { body: { image, hint, kind } });
   if (error) {
     let code: AiFoodError = "failed";
     try {
@@ -598,10 +601,10 @@ export async function recognizeFood(image: string, hint?: string): Promise<AiFoo
   return data as AiFoodResult;
 }
 
-/** Файл с камеры → JPEG data URL до 1024 px (быстрее и дешевле для ИИ) */
-export async function photoToDataUrl(file: File) {
+/** Файл с камеры → JPEG data URL до 1024 px (быстрее и дешевле для ИИ); чек — крупнее, чтобы читался мелкий шрифт */
+export async function photoToDataUrl(file: File, max = 1024) {
   const { compressImage } = await import("./social");
-  const blob = await compressImage(file, 1024, 0.82);
+  const blob = await compressImage(file, max, max > 1024 ? 0.85 : 0.82);
   return await new Promise<string>((res, rej) => {
     const r = new FileReader();
     r.onload = () => res(String(r.result));

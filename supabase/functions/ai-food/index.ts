@@ -29,7 +29,7 @@ const admin = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY
 const DAILY_LIMIT = 40;
 
 type Per100 = [number, number, number, number];
-type Seen = { name: string; search: string; grams: number; per100: Per100; confidence?: number; separate?: boolean };
+type Seen = { name: string; search: string; grams: number; per100: Per100; confidence?: number; separate?: boolean; brand?: string | null; line?: string; weightKnown?: boolean };
 type Candidate = { key: string; food_id: string | null; name: string; brand: string | null; per100: Per100; kind: "food" | "product"; by?: boolean };
 
 /** Рассуждения выключены (thinking: disabled); запас токенов — на случай, если модель всё же начнёт рассуждать */
@@ -178,6 +178,22 @@ const SEE_PROMPT = `Ты оцениваешь еду на фото для дне
 - separate — true, если подано отдельно от блюда (хлеб рядом, соус или сметана в пиале, варенье, напиток).
 - confidence — уверенность 0–1.
 Если еды на фото нет: {"dish":null,"items":[],"comment":"..."}`;
+// Чек: читаем позиции, расшифровываем сокращения, оставляем только еду — дальше тот же поиск в базе
+const RECEIPT_PROMPT = `На фото — кассовый чек магазина (чаще всего из Беларуси: Евроопт, Гиппо, Санта, Корона, Соседи, Green, Алми, Виталюр, Белмаркет). Прочитай позиции и верни продукты питания.
+- Пропусти несъедобное: пакеты, бытовую химию, гигиену, сигареты, корм для животных, скидки, итоги, бонусы, тару и залог.
+- Расшифруй сокращения кассы: «ТВОР.САВУШК.5% 200Г» → name «творог 5%», brand «Савушкин продукт», net_g 200; «МОЛ.ПАСТ.3,2% 0,9Л» → «молоко пастеризованное 3,2%», net_g 900.
+- name — простое название продукта с жирностью или сортом, без бренда: «творог 5%», «сметана 20%», «хлеб ржано-пшеничный», «бананы».
+- brand — бренд или производитель, если он есть в строке (Савушкин продукт, Беллакт, Бабушкина крынка, Брест-Литовск, Молочный мир, Санта Бремор, Коммунарка, Слуцкий сыродельный и т. п.), иначе null.
+- net_g — масса одной упаковки в граммах (1 л ≈ 1000 г). Весовой товар («БАНАНЫ 1,234 кг», «0,856 x 3,49») — фактический вес в граммах.
+- count — сколько штук куплено («2 x 1,99», «2 шт»), по умолчанию 1. Для весового товара — 1.
+- Масса не указана — оцени обычную упаковку такого товара и поставь "weight_known": false.
+- search — 2–4 слова для поиска товара в базе: продукт, жирность и бренд («творог 5% савушкин», «кефир 2,5% брест-литовск»).
+- per100 — твоя оценка [ккал, белки, жиры, углеводы] на 100 г.
+- line — строка чека как есть.
+Ответ — только JSON:
+{"store":"магазин или null","items":[{"line":"","name":"","brand":null,"search":"","net_g":0,"count":1,"weight_known":true,"per100":[0,0,0,0]}]}
+Если это не чек или в нём нет еды: {"store":null,"items":[]}`;
+
 
 /** Готовые блюда в базе не ищем: блюдо модель раскладывает на продукты, КБЖУ берём по продуктам */
 const DISH_CATEGORIES = new Set(["Готовые блюда", "Салаты"]);
@@ -226,6 +242,7 @@ const PICK_PROMPT = `Ты подбираешь продукты из базы д
 - Тот же продукт и то же состояние. Готовое на тарелке (варёное, жареное, запечённое) — готовый вариант. Ингредиенты изделий из теста и фарша (сырники, котлеты, пельмени) — сырой вариант.
 - Если есть только сухой или сырой вариант готового продукта — бери его и укажи product_grams: сколько граммов этого продукта ушло на порцию. Варёные крупы и макароны ≈ 0,35–0,4 от готового веса (200 г варёной гречки ≈ 75 г сухой); мясо и рыба при варке и жарке теряют 25–35% (100 г жареной грудки ≈ 140 г сырой). Если брал вариант в том же состоянии — product_grams не пиши.
 - Не бери другой продукт (яйцо вместо курицы, огурец свежий вместо солёного), готовое блюдо или смесь вместо ингредиента (салат «Цезарь» вместо соуса), товар с явно ошибочными цифрами (25 ккал у мяса, белок у масла).
+- Если у продукта указан бренд (из чека) — бери товар этого бренда с той же жирностью; нет такого — похожий белорусский или базовый.
 - Пользователи в основном из Беларуси. Для того, что покупают готовым (творог, сметана, молоко, кефир, мука, масло, сыр, колбаса, хлеб, соусы), бери подходящий белорусский товар (🇧🇾), если он есть и цифры у него нормальные, — вместо базового продукта Emli и российского товара.
 - Из нескольких похожих бери типичный: цифры, как у большинства похожих; базовый продукт Emli или обычный магазинный, а не особый (не «лайт», не «протеиновый», если на фото обычный).
 - Сверяй цифры с оценкой по фото: вариант с пометкой ⚠ сильно расходится с ней по калориям, белку или жирам — это другой продукт или ошибка в базе, его не бери.
@@ -293,9 +310,9 @@ async function pickFromBase(items: Seen[], userClient: ReturnType<typeof createC
     const table = open
       .map((i) => {
         const it = items[i];
-        const head = `Продукт ${i + 1}: «${it.name}», ${it.grams} г на тарелке; оценка по фото: ${it.per100.map((v) => Math.round(v)).join("/")}; искали: ${[...asked[i]].join(", ")}`;
+        const head = `Продукт ${i + 1}: «${it.name}»${it.brand ? ` [бренд: ${it.brand}]` : ""}, ${it.grams} г${it.line ? "" : " на тарелке"}; оценка по фото: ${it.per100.map((v) => Math.round(v)).join("/")}; искали: ${[...asked[i]].join(", ")}`;
         const rows = pools[i]
-          .slice(0, 24)
+          .slice(0, items.length > 10 ? 12 : 24)
           .map((c) => `  ${c.key}) ${c.name}${c.brand ? ` [${c.brand}]` : ""}${c.kind === "food" ? " (база Emli)" : ""}${c.by ? " 🇧🇾" : ""} — ${c.per100.map((v) => Math.round(v * 10) / 10).join("/")}${plausible(c.per100, it.per100) ? "" : " ⚠"}`);
         return [head, ...(rows.length ? rows : ["  (ничего не найдено)"])].join("\n");
       })
@@ -344,8 +361,10 @@ async function pickFromBase(items: Seen[], userClient: ReturnType<typeof createC
     const per100 = ok ? eff! : it.per100;
     const k = it.grams / 100;
     return {
-      name: it.name,
+      name: it.brand ? `${it.name}, ${it.brand}` : it.name,
       grams: it.grams,
+      line: it.line ?? null,
+      weight_known: it.weightKnown ?? true,
       confidence: it.confidence,
       separate: it.separate ?? false,
       source: ok ? c!.kind : "ai",
@@ -381,7 +400,9 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => ({}));
   const image: string = body.image ?? "";
-  if (!/^data:image\/(jpeg|png|webp);base64,/.test(image) || image.length > 2_500_000) return json({ error: "bad_image" }, 400);
+  const receipt = body.kind === "receipt";
+  // Чек снимаем крупнее (мелкий шрифт) — допускаем фото побольше
+  if (!/^data:image\/(jpeg|png|webp);base64,/.test(image) || image.length > (receipt ? 4_000_000 : 2_500_000)) return json({ error: "bad_image" }, 400);
   const hint = typeof body.hint === "string" ? body.hint.slice(0, 200) : "";
 
   // Ссылку на фото делаем, только если она нужна хоть одной из моделей
@@ -398,8 +419,8 @@ Deno.serve(async (req) => {
             {
               type: "text",
               text:
-                SEE_PROMPT +
-                (hint
+                (receipt ? RECEIPT_PROMPT : SEE_PROMPT) +
+                (hint && !receipt
                   ? `\n\nПОДСКАЗКА ПОЛЬЗОВАТЕЛЯ — главный источник правды: если в ней названы продукты, их количество (штуки) или граммы, ` +
                     `используй именно их; по фото уточняй только то, чего в подсказке нет.\nПодсказка: «${hint}»`
                   : ""),
@@ -408,24 +429,41 @@ Deno.serve(async (req) => {
           ],
         },
       ],
-      1500,
+      receipt ? 3000 : 1500,
       model,
       signal,
     )).finally(() => link.done());
-    const items: Seen[] = (Array.isArray(seen.items) ? seen.items : [])
-      .filter((i: Seen) => i && i.name && Number(i.grams) > 0)
-      .slice(0, 10)
-      .map((i: Seen) => ({
-        name: String(i.name).slice(0, 80),
-        search: String(i.search || i.name).slice(0, 40),
-        grams: Math.round(Math.min(2000, Number(i.grams))),
-        per100: (Array.isArray(i.per100) ? i.per100 : [0, 0, 0, 0]).slice(0, 4).map((v: number) => Math.max(0, Number(v) || 0)) as Per100,
-        confidence: Number(i.confidence) || 0.5,
-        separate: i.separate === true,
-      }));
+    type ReceiptLine = { line?: string; name?: string; brand?: string | null; search?: string; net_g?: number; count?: number; weight_known?: boolean; per100?: number[] };
+    const per100In = (v: unknown) => (Array.isArray(v) ? v : [0, 0, 0, 0]).slice(0, 4).map((x: unknown) => Math.max(0, Number(x) || 0)) as Per100;
+    const items: Seen[] = receipt
+      ? ((Array.isArray(seen.items) ? seen.items : []) as ReceiptLine[])
+          .filter((i) => i && i.name && Number(i.net_g) > 0)
+          .slice(0, 25)
+          .map((i) => ({
+            name: String(i.name).slice(0, 80),
+            brand: i.brand ? String(i.brand).slice(0, 40) : null,
+            search: String(i.search || `${i.name} ${i.brand ?? ""}`).slice(0, 50),
+            grams: Math.round(Math.min(5000, Number(i.net_g) * Math.max(1, Math.min(20, Number(i.count) || 1)))),
+            per100: per100In(i.per100),
+            confidence: i.weight_known === false ? 0.4 : 0.9,
+            line: String(i.line ?? "").slice(0, 80),
+            weightKnown: i.weight_known !== false,
+          }))
+      : (Array.isArray(seen.items) ? seen.items : [])
+          .filter((i: Seen) => i && i.name && Number(i.grams) > 0)
+          .slice(0, 10)
+          .map((i: Seen) => ({
+            name: String(i.name).slice(0, 80),
+            search: String(i.search || i.name).slice(0, 40),
+            grams: Math.round(Math.min(2000, Number(i.grams))),
+            per100: per100In(i.per100),
+            confidence: Number(i.confidence) || 0.5,
+            separate: i.separate === true,
+          }));
     const tSee = Date.now() - t0;
     if (!items.length) {
       await log(true);
+      if (receipt) return json({ dish: null, comment: "В чеке не нашлось продуктов питания", items: [], total: { kcal: 0, protein: 0, fat: 0, carbs: 0 }, ms: { see: tSee, total: Date.now() - t0 }, model: seenBy, kind: "receipt" });
       return json({ dish: seen.dish ?? null, comment: seen.comment ?? "Еды на фото не видно", items: [], total: { kcal: 0, protein: 0, fat: 0, carbs: 0 }, ms: { see: tSee, total: Date.now() - t0 }, model: seenBy });
     }
 
@@ -441,9 +479,11 @@ Deno.serve(async (req) => {
       { kcal: 0, protein: 0, fat: 0, carbs: 0 },
     );
     await log(true);
+    const n = result.length;
     return json({
-      dish: seen.dish ?? null,
-      comment: seen.comment ?? null,
+      kind: receipt ? "receipt" : "plate",
+      dish: receipt ? (seen.store ? `Чек · ${String(seen.store).slice(0, 40)}` : "Продукты из чека") : (seen.dish ?? null),
+      comment: receipt ? `${n} ${n % 10 === 1 && n % 100 !== 11 ? "продукт" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? "продукта" : "продуктов"} питания` : (seen.comment ?? null),
       items: result,
       total: { kcal: Math.round(total.kcal), protein: Math.round(total.protein), fat: Math.round(total.fat), carbs: Math.round(total.carbs) },
       ms: { see: tSee, pick: Date.now() - tPickAt, total: Date.now() - t0 },
