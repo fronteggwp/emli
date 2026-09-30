@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
-import { motion } from "motion/react";
-import { Sparkles } from "lucide-react";
-import { useLayer, useNav } from "@/nav/Nav";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "motion/react";
+import { ChevronRight, X } from "lucide-react";
+import { useNav } from "@/nav/Nav";
 import { useUid } from "@/lib/auth";
 import { cloudGet, cloudSet, haptic } from "@/lib/telegram";
 import { LATEST, type Release, type ReleaseAction } from "@/data/releases";
@@ -11,111 +12,118 @@ import { Tap } from "./Tap";
 import "./whatsnew.css";
 
 const KEY = "seen_release";
+/** Уже показали в этом запуске — флаг ставим в момент показа, а не при монтировании (StrictMode монтирует дважды) */
+let shownThisRun = false;
 
 /**
- * После обновления один раз показывает «Что нового». Отметка «видел» — в облаке Telegram (общая для всех
- * устройств) и в localStorage. Новый пользователь (только что прошёл онбординг) видит всё впервые — ему не показываем.
+ * После обновления один раз показывает «Что нового» — небольшое окно по центру. Отметка «видел» — в облаке
+ * Telegram (общая для всех устройств) и в localStorage. Новый пользователь (только что прошёл онбординг) видит
+ * всё впервые — ему не показываем.
  */
 export function WhatsNewWatcher({ fresh }: { fresh: boolean }) {
   const nav = useNav();
   const uid = useUid();
-  const done = useRef(false);
+  const [open, setOpen] = useState(false);
+
   useEffect(() => {
-    if (done.current) return;
-    done.current = true;
+    if (shownThisRun) return;
     const key = `${KEY}_${uid.slice(0, 8)}`;
     if (fresh) {
+      shownThisRun = true;
       cloudSet(key, LATEST.id);
       return;
     }
     let alive = true;
     const t = setTimeout(async () => {
       const seen = await cloudGet(key);
-      if (!alive || seen === LATEST.id) return;
+      if (!alive || shownThisRun || seen === LATEST.id) return;
+      shownThisRun = true;
       cloudSet(key, LATEST.id);
-      nav.sheet(<WhatsNewSheet release={LATEST} />);
+      haptic.soft();
+      setOpen(true);
     }, 1200);
     return () => {
       alive = false;
       clearTimeout(t);
     };
-  }, [fresh, nav, uid]);
-  return null;
-}
+  }, [fresh, uid]);
 
-export function WhatsNewSheet({ release }: { release: Release }) {
-  const layer = useLayer();
-  const nav = useNav();
-  const [hero, ...rest] = release.items;
-
-  const open = (a: ReleaseAction) => {
+  const go = (a: ReleaseAction) => {
     haptic.medium();
-    layer.close();
+    setOpen(false);
     setTimeout(() => {
       if (a === "receipt") nav.sheet(<PhotoFoodSheet mode="receipt" />, { full: true });
       else if (a === "photo") nav.sheet(<PhotoFoodSheet mode="quick" />, { full: true });
       else if (a === "waist") nav.push(<WaistScreen />);
-    }, 250);
+    }, 220);
   };
 
-  return (
-    <div className="wn">
-      <div className="wn-glow" />
-      <motion.div className="wn-badge" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-        <Sparkles size={13} /> Новое в Emli · {release.date}
-      </motion.div>
+  return createPortal(
+    <AnimatePresence>{open && <WhatsNewModal release={LATEST} onClose={() => (haptic.soft(), setOpen(false))} onAction={go} />}</AnimatePresence>,
+    document.body,
+  );
+}
 
-      <motion.div className="wn-hero" initial={{ opacity: 0, y: 16, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.12, type: "spring", stiffness: 260, damping: 24 }}>
+function WhatsNewModal({ release, onClose, onAction }: { release: Release; onClose: () => void; onAction: (a: ReleaseAction) => void }) {
+  const [hero, ...rest] = release.items;
+  return (
+    <motion.div className="wn-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} onClick={onClose}>
+      <motion.div
+        className="wn-card"
+        role="dialog"
+        aria-label="Что нового"
+        initial={{ opacity: 0, scale: 0.86, y: 24 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.92, y: 12 }}
+        transition={{ type: "spring", stiffness: 380, damping: 28 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="wn-glow" />
+        <button className="wn-close" onClick={onClose} aria-label="Закрыть">
+          <X size={22} strokeWidth={2.6} />
+        </button>
+
+        <div className="wn-kicker">Новое в Emli</div>
         <motion.div
-          className="wn-hero-emoji"
-          initial={{ rotate: -12, scale: 0.6 }}
-          animate={{ rotate: [-12, 6, 0], scale: [0.6, 1.1, 1], y: [0, 0, 0] }}
-          transition={{ delay: 0.2, duration: 0.7, ease: "easeOut" }}
+          className="wn-emoji"
+          initial={{ scale: 0.4, rotate: -20 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ delay: 0.08, type: "spring", stiffness: 300, damping: 14 }}
         >
-          <motion.span animate={{ y: [0, -5, 0] }} transition={{ delay: 1, duration: 3, repeat: Infinity, ease: "easeInOut" }}>
+          <motion.span animate={{ y: [0, -4, 0] }} transition={{ delay: 0.8, duration: 2.8, repeat: Infinity, ease: "easeInOut" }}>
             {hero.emoji}
           </motion.span>
         </motion.div>
-        <div className="wn-hero-title">{hero.title}</div>
-        <div className="wn-hero-text">{hero.text}</div>
+        <div className="wn-title">{hero.title}</div>
+        <div className="wn-text">{hero.text}</div>
         {hero.action && (
-          <Tap className="btn btn-accent btn-block wn-hero-btn" onClick={() => open(hero.action!.open)}>
+          <Tap className="btn btn-accent btn-block wn-btn" onClick={() => onAction(hero.action!.open)}>
             {hero.action.label}
           </Tap>
         )}
+
+        {rest.length > 0 && (
+          <div className="wn-more">
+            {rest.map((it, i) => (
+              <motion.button
+                key={it.title}
+                className="wn-row"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.18 + i * 0.06 }}
+                onClick={() => it.action && onAction(it.action.open)}
+              >
+                <span className="wn-row-emoji">{it.emoji}</span>
+                <span className="wn-row-body">
+                  <b>{it.title}</b>
+                  <span>{it.text}</span>
+                </span>
+                {it.action && <ChevronRight size={16} className="wn-row-go" />}
+              </motion.button>
+            ))}
+          </div>
+        )}
       </motion.div>
-
-      {rest.length > 0 && (
-        <div className="wn-list">
-          <div className="wn-list-title">А ещё</div>
-          {rest.map((it, i) => (
-            <motion.div
-              key={it.title}
-              className="wn-item"
-              initial={{ opacity: 0, x: -14 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 + i * 0.08, type: "spring", stiffness: 320, damping: 28 }}
-            >
-              <span className="wn-item-emoji">{it.emoji}</span>
-              <span className="wn-item-body">
-                <b>{it.title}</b>
-                <span>{it.text}</span>
-                {it.action && (
-                  <Tap className="wn-item-link" onClick={() => open(it.action!.open)}>
-                    {it.action.label} →
-                  </Tap>
-                )}
-              </span>
-            </motion.div>
-          ))}
-        </div>
-      )}
-
-      <div className="sheet-foot">
-        <Tap className="btn btn-block" onClick={() => (haptic.soft(), layer.close())}>
-          Круто, понятно
-        </Tap>
-      </div>
-    </div>
+    </motion.div>
   );
 }

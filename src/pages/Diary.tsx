@@ -384,27 +384,14 @@ function Hero({ sum, target, loading }: { sum: Macros; target: DayTarget; loadin
           const leftG = Math.max(m.max - m.value, 0);
           return (
             <div key={m.key} className="macro-pill">
-              <svg viewBox="0 0 36 36" className="macro-ring">
-                <circle cx="18" cy="18" r="15" fill="none" stroke={m.color} strokeOpacity="0.18" strokeWidth="4" />
-                <circle
-                  cx="18"
-                  cy="18"
-                  r="15"
-                  fill="none"
-                  stroke={m.color}
-                  strokeWidth="4"
-                  strokeLinecap="round"
-                  strokeDasharray={`${ratio * 94.25} 94.25`}
-                  transform="rotate(-90 18 18)"
-                  style={{ transition: "stroke-dasharray .9s cubic-bezier(.16,1,.3,1)", opacity: ratio > 0.01 ? 1 : 0 }}
-                />
-              </svg>
-              <div style={{ minWidth: 0 }}>
-                <div className="macro-label">{m.label}</div>
-                <div className="macro-val num">
-                  {mode === "left" ? fmtNum(leftG) : fmtNum(m.value)}
-                  <span>{mode === "left" ? "г осталось" : `из ${m.max} г`}</span>
-                </div>
+              <div className="macro-label">{m.label}</div>
+              <div className="macro-val num">
+                {mode === "left" ? fmtNum(leftG) : fmtNum(m.value)}
+                <small> г</small>
+              </div>
+              <div className="macro-sub">{mode === "left" ? "осталось" : `из ${m.max} г`}</div>
+              <div className="macro-bar" style={{ background: `color-mix(in srgb, ${m.color} 18%, transparent)` }}>
+                <i style={{ width: `${ratio * 100}%`, background: m.color, opacity: ratio > 0.01 ? 1 : 0 }} />
               </div>
             </div>
           );
