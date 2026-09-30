@@ -574,6 +574,7 @@ export type AiFoodItem = Macros & {
   /** Чек: строка кассы как есть и известна ли масса упаковки */
   line?: string | null;
   weight_known?: boolean;
+  shop_key?: string | null;
   /** Подано рядом с блюдом (хлеб, соус в пиале, варенье) — легко убрать, если не ел */
   separate?: boolean;
   per100: [number, number, number, number];
@@ -582,8 +583,9 @@ export type AiFoodResult = { dish: string | null; comment: string | null; items:
 export type AiFoodError = "limit" | "bad_image" | "network" | "failed";
 
 /** Фото → продукты с граммовкой, найденные в базе Emli. Бросает Error с кодом AiFoodError */
-export async function recognizeFood(image: string, hint?: string, kind?: "receipt"): Promise<AiFoodResult> {
-  const { data, error } = await supabase.functions.invoke("ai-food", { body: { image, hint, kind } });
+/** shop — для чека: ещё не купленное из списка покупок меню; в ответе у товара shop_key — какой пункт он закрывает */
+export async function recognizeFood(image: string, hint?: string, kind?: "receipt", shop?: { key: string; name: string }[]): Promise<AiFoodResult> {
+  const { data, error } = await supabase.functions.invoke("ai-food", { body: { image, hint, kind, shop } });
   if (error) {
     let code: AiFoodError = "failed";
     try {

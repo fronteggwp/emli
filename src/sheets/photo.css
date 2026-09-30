@@ -650,3 +650,58 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Чек → список покупок меню: что отмечено купленным */
+.pf-shop {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--good) 10%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--good) 35%, var(--line));
+  overflow: hidden;
+}
+.pf-shop-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pf-shop-ico {
+  font-size: 24px;
+}
+.pf-shop-head > span:nth-child(2) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.pf-shop-head b {
+  font-size: 14.5px;
+}
+.pf-shop-head > span:nth-child(2) > span {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.pf-shop-undo {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-2);
+  padding: 6px 4px;
+}
+.pf-shop-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.pf-shop-list span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--good);
+  background: color-mix(in srgb, var(--good) 14%, transparent);
+}

@@ -14,6 +14,9 @@ import { useToast } from "@/ui/Toast";
 import { AutoTextarea } from "@/ui/AutoTextarea";
 import { Icon3D } from "@/ui/Icon3D";
 import { IngredientPickerSheet } from "./IngredientPicker";
+import { dishOfItem, planEnd, useActivePlan, useDishes, useSetMark, useSharedPlans, useShopMarks, type MealPlan } from "@/data/mealplan";
+import { shoppingList } from "@/lib/mealplan";
+import { todayKey } from "@/lib/dates";
 import "./sheets.css";
 import "./photo.css";
 
@@ -66,13 +69,17 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
   const camera = useRef<HTMLInputElement>(null);
   const gallery = useRef<HTMLInputElement>(null);
   const run = useRef(0);
+  // Чек + меню на неделю: список ещё не купленного — ИИ отметит, что из него куплено по чеку
+  const [shop, setShop] = useState<ShopCtx | null>(null);
+  const [marked, setMarked] = useState<{ key: string; name: string }[]>([]);
+  const setMark = useSetMark(shop?.planId ?? "");
 
   const analyze = async (image: string, h: string) => {
     const id = ++run.current;
     setStage("analyzing");
     haptic.soft();
     try {
-      const r = await recognizeFood(image, h.trim() || undefined, isReceipt ? "receipt" : undefined);
+      const r = await recognizeFood(image, h.trim() || undefined, isReceipt ? "receipt" : undefined, isReceipt ? shop?.todo : undefined);
       if (id !== run.current) return;
       if (!r.items.length) {
         setError("empty");
@@ -82,6 +89,13 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
       }
       setResult(r);
       setRows(r.items.map((it, i) => ({ ...it, key: `${id}-${i}`, picked: !isReceipt })));
+      // Купленное по чеку — сразу галочкой в списке покупок (общий список видят все участники меню)
+      if (isReceipt && shop) {
+        const keys = [...new Set(r.items.map((it) => it.shop_key).filter((k): k is string => !!k))];
+        const hit = shop.todo.filter((x) => keys.includes(x.key));
+        hit.forEach((x) => setMark.mutate({ key: x.key, checked: true }));
+        setMarked(hit);
+      } else setMarked([]);
       setStage("result");
       setRefine(false);
       haptic.success();
@@ -202,6 +216,7 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
       <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={(e) => (onFile(e.target.files?.[0]), (e.target.value = ""))} />
       <input ref={gallery} type="file" accept="image/*" hidden onChange={(e) => (onFile(e.target.files?.[0]), (e.target.value = ""))} />
 
+      {isReceipt && <ReceiptShop onReady={setShop} />}
       <div className="sheet-body pf">
         <AnimatePresence mode="wait" initial={false}>
           {stage === "pick" && (
@@ -393,6 +408,37 @@ export function PhotoFoodSheet({ meal: meal0, mode: mode0 = "quick" }: { meal?: 
                 </div>
               </motion.div>
 
+              <AnimatePresence initial={false}>
+                {isReceipt && marked.length > 0 && (
+                  <motion.div className="pf-shop" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0, marginTop: 0 }} transition={{ delay: 0.2 }}>
+                    <div className="pf-shop-head">
+                      <span className="pf-shop-ico">🛒</span>
+                      <span>
+                        <b>Отметил в списке покупок</b>
+                        <span>Меню на неделю · {marked.length} из чека</span>
+                      </span>
+                      <button
+                        className="pf-shop-undo"
+                        onClick={() => {
+                          haptic.tap();
+                          marked.forEach((x) => setMark.mutate({ key: x.key, checked: false }));
+                          setMarked([]);
+                        }}
+                      >
+                        Отменить
+                      </button>
+                    </div>
+                    <div className="pf-shop-list">
+                      {marked.map((x) => (
+                        <span key={x.key}>
+                          <Check size={11} strokeWidth={3} /> {x.name}
+                        </span>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <div className="group-label row" style={{ justifyContent: "space-between" }}>
                 <span>
                   {isReceipt ? "Что в чеке" : "Что на тарелке"} · {rows.length}
@@ -557,4 +603,38 @@ function ItemRow({ r, index, pickable, onToggle, onGrams, onRemove }: { r: Row; 
       </button>
     </motion.div>
   );
+}
+
+// ───────────────────────── Чек и список покупок меню на неделю
+
+type ShopCtx = { planId: string; todo: { key: string; name: string }[] };
+
+/** Активное меню: своё, а если своего нет — общее, к которому присоединился */
+function ReceiptShop({ onReady }: { onReady: (c: ShopCtx | null) => void }) {
+  const { plan } = useActivePlan();
+  const shared = useSharedPlans();
+  const today = todayKey();
+  const p = plan ?? shared.data?.find((x) => x.status === "joined" && !x.plan.archived && planEnd(x.plan) >= today)?.plan ?? null;
+  return p ? <ReceiptShopLines plan={p} onReady={onReady} /> : null;
+}
+
+/** Что из списка покупок ещё не куплено — с этим сверяем чек */
+function ReceiptShopLines({ plan, onReady }: { plan: MealPlan; onReady: (c: ShopCtx | null) => void }) {
+  const { map, dict } = useDishes();
+  const marks = useShopMarks(plan.id);
+  const todo = useMemo(() => {
+    if (!map || !dict || !marks.data) return null;
+    const byKey = new Map(marks.data.map((m) => [m.key, m]));
+    const lines = shoppingList(plan.items, (it) => dishOfItem(map, it), dict, plan.prefs.people)
+      .filter((l) => l.dept !== "pantry" && !byKey.get(l.key)?.checked && !byKey.get(l.key)?.have)
+      .map((l) => ({ key: l.key, name: l.name }));
+    const custom = marks.data.filter((m) => m.custom && !m.checked).map((m) => ({ key: m.key, name: m.custom!.name }));
+    return [...lines, ...custom];
+  }, [map, dict, marks.data, plan.items, plan.prefs.people]);
+  const sig = todo?.map((x) => x.key).join("|");
+  useEffect(() => {
+    if (todo) onReady(todo.length ? { planId: plan.id, todo } : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig, plan.id]);
+  return null;
 }

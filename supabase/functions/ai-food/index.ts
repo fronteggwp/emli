@@ -257,6 +257,30 @@ const PICK_PROMPT = `Ты подбираешь продукты из базы д
 
 type Decision = { item: number; action: "pick" | "search" | "none"; id?: string; product_grams?: number; queries?: string[]; why?: string };
 
+/**
+ * Чек → список покупок меню на неделю: какие пункты списка куплены по этому чеку.
+ * Модель понимает синонимы и сокращения («филе грудки цыплёнка» — это «куриное филе»).
+ */
+async function matchShop(items: Seen[], shop: { key: string; name: string }[]) {
+  if (!shop.length || !items.length) return items.map(() => null as string | null);
+  const prompt =
+    `Список покупок:\n${shop.map((x, i) => `${i + 1}) ${x.name}`).join("\n")}\n\n` +
+    `Купленные по чеку продукты:\n${items.map((it, i) => `${String.fromCharCode(65 + (i % 26))}${i >= 26 ? i : ""}) ${it.name}${it.brand ? `, ${it.brand}` : ""} (${it.line ?? ""})`).join("\n")}\n\n` +
+    `Для каждого купленного продукта укажи номер пункта списка, который этой покупкой закрыт: тот же продукт, можно другого бренда, жирности или вида ` +
+    `(«молоко 3,2%» закрывает «молоко», «филе грудки цыплёнка» — «куриное филе», «бананы» — «бананы»). Не связывай разные продукты (сметана ≠ сливки, йогурт ≠ кефир). ` +
+    `Если ничего не подходит — null.\nОтвет — только JSON: {"match":[номер или null, ...]} — ровно ${items.length} значений по порядку.`;
+  try {
+    const r = await chat([{ role: "system", content: SYSTEM }, { role: "user", content: prompt }], 60 + items.length * 8);
+    const m = Array.isArray(r.match) ? r.match : [];
+    return items.map((_, i) => {
+      const n = Number(m[i]);
+      return Number.isInteger(n) && n >= 1 && n <= shop.length ? shop[n - 1].key : null;
+    });
+  } catch {
+    return items.map(() => null as string | null);
+  }
+}
+
 /** КБЖУ на 100 г продукта с тарелки по выбранному варианту; product_grams — сколько граммов сухого/сырого ушло на порцию */
 function effective(c: Candidate, d: Decision, it: Seen): Per100 {
   const pg = Number(d.product_grams);
@@ -401,6 +425,11 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const image: string = body.image ?? "";
   const receipt = body.kind === "receipt";
+  // Список покупок активного меню на неделю — для чека отметим, что из него куплено
+  const shop = (receipt && Array.isArray(body.shop) ? body.shop : [])
+    .filter((x: { key?: unknown; name?: unknown }) => typeof x?.key === "string" && typeof x?.name === "string")
+    .slice(0, 80)
+    .map((x: { key: string; name: string }) => ({ key: x.key.slice(0, 80), name: x.name.slice(0, 60) }));
   // Чек снимаем крупнее (мелкий шрифт) — допускаем фото побольше
   if (!/^data:image\/(jpeg|png|webp);base64,/.test(image) || image.length > (receipt ? 4_000_000 : 2_500_000)) return json({ error: "bad_image" }, 400);
   const hint = typeof body.hint === "string" ? body.hint.slice(0, 200) : "";
@@ -473,7 +502,8 @@ Deno.serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const tPickAt = Date.now();
-    const { result, rounds, searches } = await pickFromBase(items, userClient, token);
+    const [{ result: picked, rounds, searches }, shopKeys] = await Promise.all([pickFromBase(items, userClient, token), matchShop(items, shop)]);
+    const result = picked.map((r, i) => ({ ...r, shop_key: shopKeys[i] }));
     const total = result.reduce(
       (a, r) => ({ kcal: a.kcal + r.kcal, protein: a.protein + r.protein, fat: a.fat + r.fat, carbs: a.carbs + r.carbs }),
       { kcal: 0, protein: 0, fat: 0, carbs: 0 },
