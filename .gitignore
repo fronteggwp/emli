@@ -8,7 +8,11 @@ supabase/.branches
 .DS_Store
 .env
 .env.*
-.claude/
+# Claude Code: общие настройки — в git, личные — нет
+.claude/*
+!.claude/launch.json
+!.claude/settings.json
+CLAUDE.local.md
 
 tools/recipes/.sheets/
 tools/recipes/.sheets_part*.json
