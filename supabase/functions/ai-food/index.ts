@@ -16,14 +16,21 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const AI_KEY = Deno.env.get("AI_API_KEY") ?? "";
 const AI_BASE = Deno.env.get("AI_BASE_URL") ?? "";
 const AI_MODEL = Deno.env.get("AI_MODEL") ?? "deepseek-v4.1-flash";
-// Фото распознаёт отдельная модель: в сравнении на 10 блюдах gemini-3.8-flash без рассуждений — стабильная точность
-// (ошибка ~13%, от прогона к прогону почти не меняется) и 5–11 с. Запасная (AI_VISION_BACKUP) подключается,
-// если основная молчит дольше HEDGE_MS или упала; пустая строка — без запасной.
-const VISION_MODEL = Deno.env.get("AI_VISION_MODEL") ?? "gemini-3.8-flash";
-const VISION_BACKUP = Deno.env.get("AI_VISION_BACKUP") ?? "";
-const HEDGE_MS = 10_000;
-/** Поставщик gemini на агрегаторе не скачивает фото по ссылке (модель не видит картинку и выдумывает блюдо) — ей фото внутри запроса */
-const inlineImage = (model: string) => model.startsWith("gemini");
+// Фото распознаёт отдельная модель. gemini-3.8-flash на агрегаторе в октябре сменил поставщика и перестал видеть
+// картинки (выдумывал блюдо) — поэтому kimi-k3: видит фото стабильно, ошибка по калориям ~10–20%.
+// Запасная (AI_VISION_BACKUP) подключается, если основная молчит дольше HEDGE_MS или упала; пустая строка — без запасной.
+const VISION_MODEL = Deno.env.get("AI_VISION_MODEL") ?? "kimi-k3";
+const VISION_BACKUP = Deno.env.get("AI_VISION_BACKUP") ?? "claude-sonnet-5";
+const HEDGE_MS = 15_000;
+// Выбор продуктов в базе и сверка чека со списком покупок — быстрая текстовая модель
+// (deepseek-v4.1-flash на агрегаторе стал отвечать 5–10 с даже на короткий запрос; v4-flash — 2–3 с)
+const PICK_MODEL = Deno.env.get("AI_PICK_MODEL") ?? "deepseek-v4-flash";
+/**
+ * Фото — внутри запроса (base64, запрос сжат gzip): так быстрее, а часть поставщиков (gemini, claude) по ссылке
+ * картинку не скачивает и молча выдумывает блюдо. Ссылкой — только если модель явно указана здесь.
+ */
+const URL_IMAGE_MODELS: string[] = [];
+const inlineImage = (model: string) => !URL_IMAGE_MODELS.includes(model);
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const admin = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false, autoRefreshToken: false } });
 const DAILY_LIMIT = 40;
@@ -270,7 +277,7 @@ async function matchShop(items: Seen[], shop: { key: string; name: string }[]) {
     `(«молоко 3,2%» закрывает «молоко», «филе грудки цыплёнка» — «куриное филе», «бананы» — «бананы»). Не связывай разные продукты (сметана ≠ сливки, йогурт ≠ кефир). ` +
     `Если ничего не подходит — null.\nОтвет — только JSON: {"match":[номер или null, ...]} — ровно ${items.length} значений по порядку.`;
   try {
-    const r = await chat([{ role: "system", content: SYSTEM }, { role: "user", content: prompt }], 60 + items.length * 8);
+    const r = await chat([{ role: "system", content: SYSTEM }, { role: "user", content: prompt }], 60 + items.length * 8, PICK_MODEL);
     const m = Array.isArray(r.match) ? r.match : [];
     return items.map((_, i) => {
       const n = Number(m[i]);
@@ -349,7 +356,7 @@ async function pickFromBase(items: Seen[], userClient: ReturnType<typeof createC
     const prompt = PICK_PROMPT.replace("{TABLE}", table).replace("{LAST}", rule);
     let decisions: Decision[] = [];
     try {
-      const reply = await chat([{ role: "system", content: SYSTEM }, { role: "user", content: prompt }], 250 * open.length);
+      const reply = await chat([{ role: "system", content: SYSTEM }, { role: "user", content: prompt }], 250 * open.length, PICK_MODEL);
       decisions = Array.isArray(reply.decisions) ? reply.decisions : [];
     } catch {
       break; // выбор не удался — останутся оценки модели по фото
