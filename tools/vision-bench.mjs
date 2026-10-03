@@ -45,7 +45,8 @@ const noThinking = (model, low) =>
   OPENROUTER
     ? { reasoning: low ? { effort: "low" } : { enabled: false }, usage: { include: true } }
     : model.startsWith("gemini") ? { reasoning_effort: "none" } : { thinking: { type: "disabled" }, enable_thinking: false };
-const mustThink = new Set();
+// Gemini на OpenRouter не даёт выключить рассуждения совсем («Reasoning is mandatory») — сразу минимальные
+const mustThink = new Set(OPENROUTER ? MODELS.filter((m) => m.includes("gemini")) : []);
 
 // 100 блюд из тестовой части Nutrition5k (фото сверху), равномерно от 30 до 1000+ ккал; вес и КБЖУ — по взвешиванию
 const IDS = [
@@ -119,7 +120,7 @@ async function run(model, dish) {
   let res = await ask(model, dish);
   if (!res.ok && OPENROUTER && !mustThink.has(model)) {
     const body = await res.clone().text();
-    if (res.status === 400 && /reason/i.test(body)) mustThink.add(model), (res = await ask(model, dish));
+    if (/reason/i.test(body)) mustThink.add(model), (res = await ask(model, dish));
   }
   return parse(res, t0, model);
 }
