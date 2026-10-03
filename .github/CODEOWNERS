@@ -1,0 +1,9 @@
+# Изменения здесь не мержатся без одобрения второго человека (автор PR сам себя одобрить не может).
+# Остальное мержится после зелёной проверки PR.
+
+# База: ошибку в миграции кнопкой не откатишь
+/supabase/migrations/ @fronteggwp @silvestrr
+# Вход и токены
+/supabase/functions/tg-auth/ @fronteggwp @silvestrr
+# Проверки, деплой и сами эти правила
+/.github/ @fronteggwp @silvestrr
