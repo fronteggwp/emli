@@ -10,20 +10,25 @@ import fs from "node:fs";
 import sharp from "sharp";
 
 const root = new URL("../", import.meta.url);
-const env = Object.fromEntries(
-  fs.readFileSync(new URL(".env.local", root), "utf8").split(/\r?\n/).filter((l) => l.includes("=")).map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1).trim()]),
-);
-const KEY = env.AI_API_KEY;
-const BASE = env.AI_BASE_URL;
-if (!KEY || !BASE) throw new Error("Нужны AI_API_KEY и AI_BASE_URL в .env.local");
+const envFile = new URL(".env.local", root);
+const env = fs.existsSync(envFile)
+  ? Object.fromEntries(fs.readFileSync(envFile, "utf8").split(/\r?\n/).filter((l) => l.includes("=")).map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1).trim()]))
+  : {};
+// Ключ можно передать и переменной окружения: AI_API_KEY=… AI_BASE_URL=https://openrouter.ai/api node tools/vision-bench.mjs
+const KEY = process.env.AI_API_KEY ?? env.AI_API_KEY;
+const BASE = (process.env.AI_BASE_URL ?? env.AI_BASE_URL)?.replace(/\/$/, "");
+if (!KEY || !BASE) throw new Error("Нужны AI_API_KEY и AI_BASE_URL (в .env.local или в окружении)");
+const OPENROUTER = BASE.includes("openrouter.ai");
 
 if (process.argv[2] === "--models") {
   const j = await (await fetch(`${BASE}/v1/models`, { headers: { Authorization: `Bearer ${KEY}` } })).json();
-  console.log((j.data ?? []).map((m) => m.id).sort().join("\n"));
+  const vision = (j.data ?? []).filter((m) => !m.architecture || m.architecture.input_modalities?.includes("image"));
+  const price = (m) => (m.pricing ? ` $${(m.pricing.prompt * 1e6).toFixed(2)}/$${(m.pricing.completion * 1e6).toFixed(2)} за 1М` : "");
+  console.log(vision.map((m) => m.id + price(m)).sort().join("\n"));
   process.exit(0);
 }
 
-const MODELS = process.argv[2]?.split(",") ?? ["kimi-k3", "claude-sonnet-5"];
+const MODELS = process.argv[2]?.split(",") ?? (OPENROUTER ? ["moonshotai/kimi-k3", "anthropic/claude-sonnet-5"] : ["kimi-k3", "claude-sonnet-5"]);
 const LIMIT = Number(process.env.N ?? 100);
 const PARALLEL = 4;
 // $ за 1 млн токенов [вход, выход] — заполнить по прайсу агрегатора, если он не присылает стоимость сам
@@ -35,7 +40,12 @@ const SYSTEM = grab("SYSTEM");
 const SEE_PROMPT = grab("SEE_PROMPT");
 if (!SYSTEM || !SEE_PROMPT) throw new Error("Не нашёл SYSTEM/SEE_PROMPT в ai-food");
 
-const noThinking = (model) => (model.startsWith("gemini") ? { reasoning_effort: "none" } : { thinking: { type: "disabled" }, enable_thinking: false });
+// Рассуждения выключаем, как в приложении. OpenRouter: reasoning.enabled=false; модели, где выключить нельзя, — минимальные рассуждения.
+const noThinking = (model, low) =>
+  OPENROUTER
+    ? { reasoning: low ? { effort: "low" } : { enabled: false }, usage: { include: true } }
+    : model.startsWith("gemini") ? { reasoning_effort: "none" } : { thinking: { type: "disabled" }, enable_thinking: false };
+const mustThink = new Set();
 
 // 100 блюд из тестовой части Nutrition5k (фото сверху), равномерно от 30 до 1000+ ккал; вес и КБЖУ — по взвешиванию
 const IDS = [
@@ -106,22 +116,34 @@ function replyText(raw) {
 
 async function run(model, dish) {
   const t0 = Date.now();
-  const res = await fetch(`${BASE}/v1/chat/completions`, {
+  let res = await ask(model, dish);
+  if (!res.ok && OPENROUTER && !mustThink.has(model)) {
+    const body = await res.clone().text();
+    if (res.status === 400 && /reason/i.test(body)) mustThink.add(model), (res = await ask(model, dish));
+  }
+  return parse(res, t0, model);
+}
+
+async function ask(model, dish) {
+  return fetch(`${BASE}/v1/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
       stream: false,
-      ...noThinking(model),
+      ...noThinking(model, mustThink.has(model)),
       temperature: 0.1,
-      max_tokens: 2500,
+      max_tokens: 6000,
       messages: [
         { role: "system", content: SYSTEM },
         { role: "user", content: [{ type: "text", text: SEE_PROMPT }, { type: "image_url", image_url: { url: await image(dish.id) } }] },
       ],
     }),
-    signal: AbortSignal.timeout(120_000),
+    signal: AbortSignal.timeout(180_000),
   });
+}
+
+async function parse(res, t0, model) {
   const raw = await res.text();
   if (!res.ok) throw new Error(`${res.status}: ${raw.slice(0, 160)}`);
   const { text, usage } = replyText(raw);
