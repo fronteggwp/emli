@@ -20,3 +20,4 @@ assets/visual-concepts/
 
 # Выгрузки открытых баз для импорта
 tools/.cache/
+tools/.n5k-cache/
